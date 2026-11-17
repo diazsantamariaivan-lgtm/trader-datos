@@ -2,15 +2,36 @@
 // con las cotizaciones publicadas, y guarda la cartera simulada en state.json.
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
+import { createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
 
 const REPO = process.env.REPO || 'diazsantamariaivan-lgtm/trader-datos';
 const QFILE = process.env.QFILE || 'q.json';
-const STATE_IN = process.env.STATE_IN || 'botstate/state.json';
+const STATE_IN = process.env.STATE_IN || 'botstate/state.enc.json';
+const STATE_OLD = 'botstate/state.json';
+const CLAVE = process.env.CLAVE || '';
 const OUT = process.env.OUT || 'botout';
 const NTFY = process.env.NTFY || '';
 const APP = process.env.APP || 'app/trader_a_mano.html';
 const KEY = 'traderamano.v4';
 
+if (CLAVE.length < 12) { console.log('Falta el secreto CARTERA_CLAVE (mínimo 12 caracteres): no se opera para no dejar la cartera sin cifrar.'); process.exit(0); }
+const KEY0 = pbkdf2Sync(Buffer.from(CLAVE), Buffer.from('trader-a-mano-v1'), 30000, 32, 'sha256');
+const KMAC = createHmac('sha256', KEY0).update('mac').digest();
+const ks = (n, i) => { const m = Buffer.alloc(n.length + 5); n.copy(m); m[n.length] = 0x65; m.writeUInt32BE(i, n.length + 1); return createHmac('sha256', KEY0).update(m).digest(); };
+function enc(obj) {
+  const pt = Buffer.from(JSON.stringify(obj)), n = randomBytes(16), c = Buffer.alloc(pt.length);
+  for (let i = 0; i < pt.length; i += 32) { const k = ks(n, i / 32); for (let j = 0; j < 32 && i + j < pt.length; j++) c[i + j] = pt[i + j] ^ k[j]; }
+  const t = createHmac('sha256', KMAC).update(Buffer.concat([n, c])).digest();
+  return { v: 1, n: n.toString('base64'), c: c.toString('base64'), t: t.toString('base64') };
+}
+function dec(env) {
+  const n = Buffer.from(env.n, 'base64'), c = Buffer.from(env.c, 'base64'), t = Buffer.from(env.t, 'base64');
+  const tg = createHmac('sha256', KMAC).update(Buffer.concat([n, c])).digest();
+  if (!tg.equals(t)) throw new Error('clave incorrecta');
+  const pt = Buffer.alloc(c.length);
+  for (let i = 0; i < c.length; i += 32) { const k = ks(n, i / 32); for (let j = 0; j < 32 && i + j < c.length; j++) pt[i + j] = c[i + j] ^ k[j]; }
+  return JSON.parse(pt.toString());
+}
 const cfg = JSON.parse(readFileSync('bot.json', 'utf8'));
 if (cfg.activo === false) { console.log('bot.json: activo=false, no se hace nada'); process.exit(0); }
 const Q = JSON.parse(readFileSync(QFILE, 'utf8'));
@@ -18,7 +39,8 @@ const ageMin = (Date.now() / 1000 - Q.at) / 60;
 console.log('cotizaciones de hace', ageMin.toFixed(0), 'min,', Object.keys(Q.s).length, 'valores');
 
 let prev = null;
-if (existsSync(STATE_IN)) { try { prev = JSON.parse(readFileSync(STATE_IN, 'utf8')); } catch (e) {} }
+if (existsSync(STATE_IN)) { try { prev = dec(JSON.parse(readFileSync(STATE_IN, 'utf8'))); } catch (e) { console.log('No se pudo descifrar la cartera guardada (¿cambiaste la clave?): se detiene para no borrarla.'); process.exit(1); } }
+else if (existsSync(STATE_OLD)) { try { prev = JSON.parse(readFileSync(STATE_OLD, 'utf8')); console.log('Migrando la cartera antigua a formato cifrado'); } catch (e) {} }
 const fresh = !prev || prev.resetId !== cfg.reinicio;
 
 const S0 = fresh ? {} : prev.S;
@@ -78,6 +100,6 @@ const outS = {}; KEEP.forEach(k => { if (S[k] !== undefined) outS[k] = S[k]; });
 const eq = T.equity();
 const state = { at: Date.now(), resetId: cfg.reinicio, equity: eq, config: cfg, S: outS };
 mkdirSync(OUT, { recursive: true });
-writeFileSync(OUT + '/state.json', JSON.stringify(state));
+writeFileSync(OUT + '/state.enc.json', JSON.stringify(enc(state)));
 console.log('Cartera', eq.toFixed(2), '€ · efectivo', S.cash.toFixed(2), '· abiertas', S.pos.length, '· cerradas', S.closed.length, '· errores', errs.slice(0, 2));
 process.exit(0);

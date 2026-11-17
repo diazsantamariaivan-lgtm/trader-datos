@@ -257,6 +257,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <h2>Piloto automático en GitHub</h2>
   <div class="card">
     <label class="sw" style="padding-top:0"><input id="sSrv" type="checkbox"><span>Que opere GitHub por mí<br><small class="mut">Cada 15 minutos, en horario de bolsa, el servidor estudia el mercado y opera con el dinero simulado aunque tengas la app cerrada o el móvil apagado. La app solo muestra su cartera. Si lo desactivas, vuelve a operar la app mientras esté abierta.</small></span></label>
+    <div class="inl"><div><label for="sKey">Clave de la cartera (la misma frase que en GitHub)</label><input id="sKey" type="password" autocomplete="off" autocapitalize="none" placeholder="una frase larga que solo sepas tú"></div></div>
     <div id="sSrvMsg"></div>
     <a class="btn ghost small" id="sSrvEd" target="_blank" rel="noopener" style="margin-top:8px;display:inline-block">Cambiar la configuración del piloto (en GitHub)</a>
   </div>
@@ -319,7 +320,7 @@ const KEY='traderamano.v4';
 const BASE_W={tr:2,s50:1,rs:2,hi:1,mo:1};
 const FK=['tr','s50','rs','hi','mo'];
 const FNAME={tr:'Tendencia alcista (precio sobre sus medias de 20 y 50 días)',s50:'Precio sobre su media de 50 días',rs:'Fuerza sana (RSI entre 50 y 68)',hi:'Cerca de su máximo de 20 días',mo:'Impulso de las últimas 4 semanas'};
-const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,com:1,gh:'diazsantamariaivan-lgtm/trader-datos',fav:[],trk:[],favAl:{},srv:true,srvAt:0,srvChk:0,srvErr:'',uni:{on:['SP500','IBEX35','EXTRA']},btMode:'all',btSel:[],btCacheAt:0,slip:0.15,limD:3,limS:6,bt:null,auto:true,
+const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,com:1,gh:'diazsantamariaivan-lgtm/trader-datos',fav:[],trk:[],favAl:{},srv:true,srvKey:'',srvAt:0,srvChk:0,srvErr:'',uni:{on:['SP500','IBEX35','EXTRA']},btMode:'all',btSel:[],btCacheAt:0,slip:0.15,limD:3,limS:6,bt:null,auto:true,
   pos:[],closed:[],eq:[],log:[],W:Object.assign({},BASE_W),rows:{},cal:{p:1,bias:0,n:0,dur:1},ntfy:'',outbox:[],watchMode:false,scanAt:0,sp:{list:[],at:0},fx:{},buyDay:'',buysToday:0,startedAt:Date.now()};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const j=localStorage.getItem(KEY);if(j)Object.assign(S,JSON.parse(j));}catch(e){}
@@ -629,13 +630,62 @@ function closePos(pos,res){
   toast(pos.s.replace('.MC','')+' '+w+': '+sg(pnl,2)+' €');
   learn();
 }
+/* ---- cifrado de la cartera (SHA-256/HMAC en JS puro: funciona también fuera de https) ---- */
+const SHA_K=new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+function sha256(m){
+  const l=m.length,n=((l+9+63)>>6)<<6,b=new Uint8Array(n);b.set(m);b[l]=0x80;
+  const dv=new DataView(b.buffer);dv.setUint32(n-4,(l*8)>>>0);dv.setUint32(n-8,Math.floor(l/0x20000000));
+  let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;const w=new Uint32Array(64);
+  for(let o=0;o<n;o+=64){
+    for(let i=0;i<16;i++)w[i]=dv.getUint32(o+i*4);
+    for(let i=16;i<64;i++){const a=w[i-15],c=w[i-2],s0=((a>>>7)|(a<<25))^((a>>>18)|(a<<14))^(a>>>3),s1=((c>>>17)|(c<<15))^((c>>>19)|(c<<13))^(c>>>10);w[i]=(w[i-16]+s0+w[i-7]+s1)|0;}
+    let a=h0,bb=h1,c=h2,d=h3,e=h4,f=h5,g=h6,h=h7;
+    for(let i=0;i<64;i++){
+      const S1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)),ch=(e&f)^(~e&g),t1=(h+S1+ch+SHA_K[i]+w[i])|0,S0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)),mj=(a&bb)^(a&c)^(bb&c),t2=(S0+mj)|0;
+      h=g;g=f;f=e;e=(d+t1)|0;d=c;c=bb;bb=a;a=(t1+t2)|0;
+    }
+    h0=(h0+a)|0;h1=(h1+bb)|0;h2=(h2+c)|0;h3=(h3+d)|0;h4=(h4+e)|0;h5=(h5+f)|0;h6=(h6+g)|0;h7=(h7+h)|0;
+  }
+  const out=new Uint8Array(32),ov=new DataView(out.buffer);[h0,h1,h2,h3,h4,h5,h6,h7].forEach((x,i)=>ov.setUint32(i*4,x>>>0));return out;
+}
+function hmac(key,msg){
+  if(key.length>64)key=sha256(key);
+  const ip=new Uint8Array(64+msg.length),op=new Uint8Array(96);
+  for(let i=0;i<64;i++){const k=i<key.length?key[i]:0;ip[i]=k^0x36;op[i]=k^0x5c;}
+  ip.set(msg,64);op.set(sha256(ip),64);return sha256(op);
+}
+function pbkdf2(pass,salt,it){
+  const sb=new Uint8Array(salt.length+4);sb.set(salt);sb[salt.length+3]=1;
+  let u=hmac(pass,sb);const t=u.slice();
+  for(let i=1;i<it;i++){u=hmac(pass,u);for(let j=0;j<32;j++)t[j]^=u[j];}
+  return t;
+}
+const U8=t=>new TextEncoder().encode(t),B64d=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+const CK={k:'',key:null};
+function ckey(pass){
+  if(CK.k!==pass||!CK.key){const k=pbkdf2(U8(pass),U8('trader-a-mano-v1'),30000);CK.k=pass;CK.key={enc:k,mac:hmac(k,U8('mac'))};}
+  return CK.key;
+}
+function ksBlock(k,n,i){const m=new Uint8Array(n.length+5);m.set(n);m[n.length]=0x65;new DataView(m.buffer).setUint32(n.length+1,i);return hmac(k,m);}
+function decState(env,pass){
+  const k=ckey(pass),n=B64d(env.n),c=B64d(env.c),t=B64d(env.t);
+  const mm=new Uint8Array(n.length+c.length);mm.set(n);mm.set(c,n.length);const tg=hmac(k.mac,mm);
+  let ok=tg.length===t.length;for(let i=0;i<tg.length;i++)if(tg[i]!==t[i])ok=false;
+  if(!ok)throw Object.assign(new Error('clave incorrecta'),{bad:1});
+  const out=new Uint8Array(c.length);
+  for(let i=0;i<c.length;i+=32){const ks=ksBlock(k.enc,n,i/32);for(let j=0;j<32&&i+j<c.length;j++)out[i+j]=c[i+j]^ks[j];}
+  return JSON.parse(new TextDecoder().decode(out));
+}
 /* ---- piloto en GitHub: la cartera la lleva el servidor y el móvil la lee ---- */
 const srvOn=()=>S.srv&&S.srvAt>0;
 const SRV_K=['cap0','cash','pos','closed','eq','log','W','cal','buyDay','buysToday','brakeDay','startedAt','sumDay'];
 async function srvSync(){
   if(!S.srv||!ghBase())return false;
+  if(!S.srvKey){S.srvErr='Falta la clave: escribe la misma frase que pusiste en GitHub (CARTERA_CLAVE).';return false;}
   try{
-    const j=await ghJson(ghBase()+'/bot/state.json?t='+Math.floor(Date.now()/60000));
+    const env=await ghJson(ghBase()+'/bot/state.enc.json?t='+Math.floor(Date.now()/60000));
+    if(!env||!env.c)throw new Error('formato inesperado');
+    const j=decState(env,S.srvKey);
     if(!j||!j.S)throw new Error('formato inesperado');
     S.srvChk=Date.now();S.srvErr='';
     if(j.at>S.srvAt){
@@ -645,7 +695,7 @@ async function srvSync(){
       S.srvAt=j.at;
     }
     return true;
-  }catch(e){S.srvChk=Date.now();S.srvErr=/404/.test(e.message)?'Todavía no hay cartera en GitHub (se crea en la primera pasada del piloto).':String(e.message||e);return false;}
+  }catch(e){S.srvChk=Date.now();S.srvErr=e.bad?'La clave no coincide con la de GitHub (CARTERA_CLAVE). Revísala.':/404/.test(e.message)?'Todavía no hay cartera cifrada en GitHub: se crea en la primera pasada del piloto, cuando exista el secreto CARTERA_CLAVE.':String(e.message||e);return false;}
 }
 function srvAgo(){return S.srvAt?Math.max(0,Math.round((Date.now()-S.srvAt)/60000)):null;}
 async function updatePositions(){
@@ -1655,6 +1705,8 @@ function renderSrv(){
   m.innerHTML=!S.srv?'<div class="hint">Desactivado.</div>':a!=null?'<div class="msg ok">Cartera del servidor al día: la última pasada fue hace '+(a<90?a+' min':nf(a/60,1)+' h')+(a>60?' (fuera del horario de bolsa no opera)':'')+'.</div>':'<div class="msg">'+esc(S.srvErr||'Esperando la primera pasada del piloto.')+'</div>';
   $('sSrvEd').href='https://github.com/'+S.gh+'/edit/main/bot.json';
 }
+$('sKey').value=S.srvKey;
+$('sKey').onchange=async()=>{S.srvKey=$('sKey').value.trim();S.srvAt=0;save();await srvSync();save();renderSrv();renderAll();};
 $('sSrv').onchange=async e=>{S.srv=e.target.checked;if(!S.srv)S.srvAt=0;save();if(S.srv){await srvSync();save();}renderSrv();renderAll();};
 $('sWatch').checked=S.watchMode;
 $('sWatch').onchange=async e=>{
