@@ -1,7 +1,7 @@
-name: cotizaciones (cada 15 min)
+name: cotizaciones (cada 5 min)
 on:
   schedule:
-    - cron: '*/15 7-21 * * 1-5'
+    - cron: '*/5 7-21 * * 1-5'
   workflow_dispatch:
 permissions:
   contents: write
