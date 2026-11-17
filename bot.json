@@ -1,0 +1,17 @@
+{
+  "_ayuda": "Configuración del piloto automático que trabaja en GitHub aunque tengas el móvil apagado. Edita los valores y guarda (Commit). Los cambios se aplican en la siguiente pasada (cada 15 minutos). Para empezar de cero cambia el valor de «reinicio» por cualquier otro texto.",
+  "reinicio": "2026-11-17-a",
+  "capital": 10000,
+  "riesgo_por_operacion_pct": 1,
+  "max_por_valor_pct": 10,
+  "max_posiciones": 10,
+  "max_compras_dia": 3,
+  "dias_maximos": 10,
+  "comision_eur": 1,
+  "deslizamiento_pct": 0.15,
+  "freno_perdida_dia_pct": 2,
+  "freno_perdida_semana_pct": 5,
+  "indices": ["SP500", "IBEX35", "EUROSTOXX50", "DAX40", "EXTRA"],
+  "favoritas": [],
+  "activo": true
+}

@@ -1,0 +1,47 @@
+name: piloto automatico (cada 15 min)
+on:
+  schedule:
+    - cron: '7,22,37,52 7-21 * * 1-5'
+  workflow_dispatch:
+  push:
+    paths:
+      - bot.json
+      - app/trader_a_mano.html
+      - scripts/bot.mjs
+permissions:
+  contents: write
+concurrency:
+  group: piloto
+  cancel-in-progress: false
+jobs:
+  piloto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar jsdom
+        run: npm install --no-save --no-audit --no-fund jsdom@24
+      - name: Traer cotizaciones y cartera guardada
+        run: |
+          git clone -q --depth 1 -b quotes "https://github.com/${{ github.repository }}.git" qdata
+          cp qdata/q.json q.json
+          git clone -q --depth 1 -b bot "https://github.com/${{ github.repository }}.git" botstate || echo "sin cartera previa"
+      - name: Ejecutar el piloto
+        env:
+          REPO: ${{ github.repository }}
+          NTFY: ${{ secrets.NTFY_TOPIC }}
+        run: node scripts/bot.mjs
+      - name: Guardar la cartera en la rama bot
+        run: |
+          if [ -f botout/state.json ]; then
+            cd botout
+            git init -q -b bot
+            git config user.name "piloto"
+            git config user.email "piloto@users.noreply.github.com"
+            git add -A
+            git commit -q -m "cartera $(date -u +%FT%TZ)"
+            git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" bot
+          fi

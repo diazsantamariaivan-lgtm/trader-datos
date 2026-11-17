@@ -1,2 +1,6 @@
-out/
-node_modules/
+node_modules
+out
+botout
+botstate
+qdata
+q.json
