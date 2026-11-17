@@ -3,6 +3,9 @@ on:
   schedule:
     - cron: '7,22,37,52 7-21 * * 1-5'
   workflow_dispatch:
+  workflow_run:
+    workflows: ["cotizaciones (cada 5 min)"]
+    types: [completed]
   push:
     paths:
       - bot.json
@@ -15,6 +18,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   piloto:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
