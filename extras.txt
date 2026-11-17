@@ -1,0 +1,19 @@
+# Valores extra que se descargan además del S&P 500 y el IBEX 35.
+# Puedes editar este archivo desde GitHub (icono del lápiz): añade o borra tickers de Yahoo Finance, uno por línea o separados por espacios.
+# Al guardar, los datos se actualizan solos en unos minutos. Si un ticker no existe, simplemente se ignora.
+# Mantén solo valores en euros o dólares en [estudiar].
+
+[estudiar]
+# Euro Stoxx 50 (grandes europeas, sin las españolas que ya están en el IBEX)
+ASML.AS ADYEN.AS INGA.AS PHIA.AS AD.AS PRX.AS
+SAP.DE SIE.DE ALV.DE DTE.DE MBG.DE BMW.DE BAS.DE BAYN.DE IFX.DE MUV2.DE DB1.DE ADS.DE VOW3.DE
+MC.PA TTE.PA SAN.PA AIR.PA OR.PA SU.PA AI.PA RMS.PA KER.PA CS.PA BNP.PA EL.PA SAF.PA DG.PA
+ENEL.MI ENI.MI ISP.MI UCG.MI RACE.MI STLAM.MI
+# Empresas grandes que no están en el S&P 500
+ARM MELI PDD TSM BABA SHOP SPOT ASML NVO SAP
+# Fondos cotizados de referencia (mercado, nasdaq, mundo, oro, bonos)
+SPY QQQ IWM GLD SLV TLT VWCE.DE IWDA.AS EUNL.DE SXR8.DE EXS1.DE CSPX.AS
+
+[ver]
+# Solo para mirar el gráfico (índices, criptomonedas y materias primas): la app no los compra
+^GSPC ^IXIC ^IBEX ^STOXX50E ^GDAXI ^VIX BTC-USD ETH-USD GC=F CL=F

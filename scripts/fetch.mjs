@@ -1,7 +1,7 @@
 // Descarga los datos de Yahoo Finance y los deja listos para publicar.
 // Uso: node scripts/fetch.mjs quotes   (6 meses de todos los valores, en un solo archivo)
 //      node scripts/fetch.mjs hist     (5 años de cada valor, un archivo por valor)
-import {mkdirSync,writeFileSync} from 'node:fs';
+import {mkdirSync,writeFileSync,readFileSync,existsSync} from 'node:fs';
 const MODE=process.argv[2]||'quotes';
 const OUT=process.env.OUT||'out';
 const YH=process.env.YAHOO||'https://query1.finance.yahoo.com';
@@ -58,8 +58,22 @@ async function previous(){
   try{const r=await fetch('https://raw.githubusercontent.com/'+REPO+'/quotes/q.json',{signal:AbortSignal.timeout(30000)});if(r.ok)return (await r.json()).s||{};}catch(e){}
   return{};
 }
-const list=[...new Set(IBEX.map(x=>x+'.MC').concat(await sp500(),['EURUSD=X']))];
-const syms=LIMIT?list.slice(0,LIMIT):list;
+function extras(){
+  const x={study:[],view:[]};
+  if(!existsSync('extras.txt'))return x;
+  let sec='study';
+  for(const ln of readFileSync('extras.txt','utf8').split(/\r?\n/)){
+    const t=ln.replace(/#.*/,'').trim();if(!t)continue;
+    const m=t.match(/^\[(estudiar|ver)\]$/i);if(m){sec=m[1].toLowerCase()==='ver'?'view':'study';continue;}
+    for(const w of t.split(/[\s,;]+/))if(/^[A-Za-z0-9.^=\-]{1,14}$/.test(w))x[sec].push(w.toUpperCase());
+  }
+  x.study=[...new Set(x.study)];x.view=[...new Set(x.view)];
+  return x;
+}
+const EX=extras();
+const base=[...new Set(IBEX.map(x=>x+'.MC').concat(await sp500(),['EURUSD=X']))];
+const list=[...new Set(base.concat(EX.study,EX.view))];
+const syms=LIMIT?list.slice(0,LIMIT).concat(EX.study.slice(0,3),EX.view.slice(0,2)):list;
 console.log(MODE,'-',syms.length,'valores');
 mkdirSync(OUT,{recursive:true});
 const got={},bad=[];
@@ -75,6 +89,6 @@ if(MODE==='hist'){
   for(const s of syms)if(!got[s]&&prev[s]){got[s]=prev[s];kept++;}
   if(Object.keys(got).length/syms.length<0.7){console.error('Demasiados fallos: no se publica nada.');process.exit(1);}
   console.log('conservados de la vez anterior:',kept);
-  writeFileSync(OUT+'/q.json',JSON.stringify({at:Math.floor(Date.now()/1000),s:got}));
+  writeFileSync(OUT+'/q.json',JSON.stringify({at:Math.floor(Date.now()/1000),x:{study:EX.study.filter(s=>got[s]),view:EX.view.filter(s=>got[s])},s:got}));
 }
 writeFileSync(OUT+'/LEEME.txt','Datos generados automáticamente. No editar.\n');

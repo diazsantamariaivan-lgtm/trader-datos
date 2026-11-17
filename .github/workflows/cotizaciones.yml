@@ -3,6 +3,9 @@ on:
   schedule:
     - cron: '*/5 7-21 * * 1-5'
   workflow_dispatch:
+  push:
+    paths:
+      - extras.txt
 permissions:
   contents: write
 concurrency:
