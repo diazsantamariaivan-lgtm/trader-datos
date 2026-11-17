@@ -6,6 +6,8 @@ on:
   push:
     paths:
       - extras.txt
+      - indices.txt
+      - scripts/fetch.mjs
 permissions:
   contents: write
 concurrency:

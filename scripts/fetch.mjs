@@ -70,14 +70,25 @@ function extras(){
   x.study=[...new Set(x.study)];x.view=[...new Set(x.view)];
   return x;
 }
-const EX=extras();
-const base=[...new Set(IBEX.map(x=>x+'.MC').concat(await sp500(),['EURUSD=X']))];
-const list=[...new Set(base.concat(EX.study,EX.view))];
+function indices(){
+  const out=[];if(!existsSync('indices.txt'))return out;let cur=null;
+  for(const ln of readFileSync('indices.txt','utf8').split(/\r?\n/)){
+    const t=ln.replace(/#.*/,'').trim();if(!t)continue;
+    const m=t.match(/^\[(.+)\]$/);
+    if(m){const p=m[1].split('|').map(x=>x.trim());cur={id:p[0],n:p[1]||p[0],c:p[2]||'',t:p[3]||p[0],s:[]};out.push(cur);continue;}
+    if(cur)for(const w of t.split(/[\s,;]+/))if(/^[A-Za-z0-9.^=\-]{1,14}$/.test(w))cur.s.push(w.toUpperCase());
+  }
+  out.forEach(g=>{g.s=[...new Set(g.s)];});return out;
+}
+const EX=extras(),IX=indices();
+const SP=await sp500(),IB=IBEX.map(x=>x+'.MC');
+const FX=['EURUSD=X','EURGBP=X','EURCHF=X'];
+const list=[...new Set(IB.concat(SP,FX,EX.study,EX.view,...IX.map(g=>g.s)))];
 const syms=LIMIT?list.slice(0,LIMIT).concat(EX.study.slice(0,3),EX.view.slice(0,2)):list;
 console.log(MODE,'-',syms.length,'valores');
 mkdirSync(OUT,{recursive:true});
 const got={},bad=[];
-await pool(syms,4,async s=>{try{got[s]=await fetchSym(s,MODE==='hist'?'5y':'6mo');}catch(e){bad.push(s+' ('+e.message+')');}});
+await pool(syms,6,async s=>{try{got[s]=await fetchSym(s,MODE==='hist'?'5y':'6mo');}catch(e){bad.push(s+' ('+e.message+')');}});
 console.log('descargados',Object.keys(got).length,'fallidos',bad.length);if(bad.length)console.log(bad.slice(0,15).join(', '));
 const ok=Object.keys(got).length/syms.length;
 if(MODE==='hist'){
@@ -89,6 +100,11 @@ if(MODE==='hist'){
   for(const s of syms)if(!got[s]&&prev[s]){got[s]=prev[s];kept++;}
   if(Object.keys(got).length/syms.length<0.7){console.error('Demasiados fallos: no se publica nada.');process.exit(1);}
   console.log('conservados de la vez anterior:',kept);
-  writeFileSync(OUT+'/q.json',JSON.stringify({at:Math.floor(Date.now()/1000),x:{study:EX.study.filter(s=>got[s]),view:EX.view.filter(s=>got[s])},s:got}));
+  const has=a=>a.filter(s=>got[s]);
+  const idx=[{id:'SP500',n:'S&P 500',c:'EE. UU.',t:'S&P',s:has(SP)},{id:'IBEX35',n:'IBEX 35',c:'España',t:'IBEX',s:has(IB)}]
+    .concat(IX.map(g=>({id:g.id,n:g.n,c:g.c,t:g.t,s:has(g.s)})))
+    .concat([{id:'EXTRA',n:'Mis extras (valores y fondos)',c:'Varios',t:'Extra',s:has(EX.study)},{id:'VER',n:'Índices, cripto y materias primas',c:'Solo para mirar',t:'Ver',s:has(EX.view)}])
+    .filter(g=>g.s.length>=3);
+  writeFileSync(OUT+'/q.json',JSON.stringify({at:Math.floor(Date.now()/1000),x:{study:has(EX.study),view:has(EX.view)},idx,s:got}));
 }
 writeFileSync(OUT+'/LEEME.txt','Datos generados automáticamente. No editar.\n');
