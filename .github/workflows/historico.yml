@@ -1,0 +1,30 @@
+name: historico (cada tarde)
+on:
+  schedule:
+    - cron: '45 21 * * 1-5'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: hist
+  cancel-in-progress: false
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Descargar datos
+        run: node scripts/fetch.mjs hist
+      - name: Publicar en la rama hist
+        run: |
+          cd out
+          git init -q -b hist
+          git config user.name "datos"
+          git config user.email "datos@users.noreply.github.com"
+          git add -A
+          git commit -q -m "datos $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" hist
