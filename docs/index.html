@@ -266,6 +266,13 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <a class="btn ghost small" id="sSrvEd" target="_blank" rel="noopener" style="margin-top:8px;display:inline-block">Cambiar la configuración del piloto (en GitHub)</a>
   </div>
 
+  <h2>Aprender en común</h2>
+  <div class="card">
+    <label class="sw" style="padding-top:0"><input id="sApr" type="checkbox"><span>Aprender también de las operaciones de otros<br><small class="mut">Cuando una operación tuya se cierra, se comparte solo qué señales cumplía y si salió bien o mal (nada de nombres de acciones, importes ni fechas). Y esta app aprende también de las de los demás. Hace falta el mismo «tema compartido» en todas las apps.</small></span></label>
+    <div class="inl"><div><label for="sAprT">Tema compartido (una palabra larga que sepáis solo vosotros)</label><input id="sAprT" type="text" autocomplete="off" autocapitalize="none" placeholder="p. ej. aprender-x7k29pq4"></div></div>
+    <div id="sAprMsg"></div>
+  </div>
+
   <h2>Segundo plano y avisos</h2>
   <div class="card">
     <label class="sw" style="padding-top:0"><input id="sWatch" type="checkbox"><span>Modo vigilante<br><small class="mut">Mantiene la pantalla encendida y revisa tus posiciones cada 5 minutos. Pensado para una tablet o un móvil enchufado con la app abierta.</small></span></label>
@@ -324,7 +331,7 @@ const KEY='traderamano.v4';
 const BASE_W={tr:2,s50:1,rs:2,hi:1,mo:1};
 const FK=['tr','s50','rs','hi','mo'];
 const FNAME={tr:'Tendencia alcista (precio sobre sus medias de 20 y 50 días)',s50:'Precio sobre su media de 50 días',rs:'Fuerza sana (RSI entre 50 y 68)',hi:'Cerca de su máximo de 20 días',mo:'Impulso de las últimas 4 semanas'};
-const DEF={cap0:10000,cash:10000,riesgo:1,maxPos:10,maxOpen:10,maxDays:10,com:1,gh:'diazsantamariaivan-lgtm/trader-datos',fav:[],trk:[],favAl:{},srv:false,srvKey:'',srvAt:0,srvChk:0,srvErr:'',uni:{on:['SP500','IBEX35','EUROSTOXX50','DAX40','EXTRA']},btMode:'all',btSel:[],btCacheAt:0,slip:0.15,limD:2,limS:5,bt:null,auto:true,
+const DEF={cap0:10000,cash:10000,riesgo:1,maxPos:10,maxOpen:10,maxDays:10,com:1,gh:'diazsantamariaivan-lgtm/trader-datos',fav:[],trk:[],favAl:{},srv:false,srvKey:'',apr:false,aprT:'',ext:[],aprOut:[],aprAt:0,aprErr:'',srvAt:0,srvChk:0,srvErr:'',uni:{on:['SP500','IBEX35','EUROSTOXX50','DAX40','EXTRA']},btMode:'all',btSel:[],btCacheAt:0,slip:0.15,limD:2,limS:5,bt:null,auto:true,
   pos:[],closed:[],eq:[],log:[],W:Object.assign({},BASE_W),rows:{},cal:{p:1,bias:0,n:0,dur:1},ntfy:'',outbox:[],watchMode:false,scanAt:0,sp:{list:[],at:0},fx:{},buyDay:'',buysToday:0,startedAt:Date.now()};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const j=localStorage.getItem(KEY);if(j)Object.assign(S,JSON.parse(j));}catch(e){}
@@ -625,14 +632,14 @@ function closePos(pos,res){
   const fx=fxOf(pos.cur),proceeds=pos.shares*res.px/fx;
   S.cash+=proceeds-S.com;
   const pnl=proceeds-pos.costEur-2*S.com;
-  S.closed.unshift({s:pos.s,nm:pos.nm,entry:pos.entry,exit:res.px,shares:pos.shares,cur:pos.cur,pnl,pct:pnl/pos.costEur*100,why:res.why,days:res.days,open:pos.openTs,close:Date.now(),manual:!!pos.manual,cd:res.dk||dayKey(Date.now()),f:pos.f,gross:(res.px/pos.entry-1)*100,pred:pos.pred?{pT:pos.pred.pT,ev:pos.pred.ev,dm:pos.pred.dm}:null});
+  S.closed.unshift({s:pos.s,nm:pos.nm,entry:pos.entry,exit:res.px,shares:pos.shares,cur:pos.cur,pnl,pct:pnl/pos.costEur*100,why:res.why,days:res.days,open:pos.openTs,close:Date.now(),manual:!!pos.manual,u:Math.random().toString(36).slice(2,10)+Date.now().toString(36),cd:res.dk||dayKey(Date.now()),f:pos.f,gross:(res.px/pos.entry-1)*100,pred:pos.pred?{pT:pos.pred.pT,ev:pos.pred.ev,dm:pos.pred.dm}:null});
   S.closed=S.closed.slice(0,300);
   S.pos=S.pos.filter(p=>p.id!==pos.id);
   const w={objetivo:'llegó al objetivo',stop:'saltó el stop',tiempo:'se cerró por tiempo',manual:'se vendió a mano'}[res.why];
   const when=res.dk&&res.dk<dayKey(Date.now())?' el '+fmtD(new Date(res.dk+'T12:00:00'))+' (mientras no estabas mirando)':'';
   log('<b>'+esc(pos.s.replace('.MC',''))+'</b> '+w+when+': '+(pnl>=0?'ganó ':'perdió ')+eur(Math.abs(pnl))+' en '+res.days+(res.days===1?' día':' días'),true);
   toast(pos.s.replace('.MC','')+' '+w+': '+sg(pnl,2)+' €');
-  learn();
+  learn();aprShare(S.closed[0]);
 }
 /* ---- cifrado de la cartera (SHA-256/HMAC en JS puro: funciona también fuera de https) ---- */
 const SHA_K=new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
@@ -713,8 +720,12 @@ async function updatePositions(){
     }catch(e){}
   }
 }
+const aprRec=t=>({u:t.u,f:t.f,pnl:t.pct,gross:t.gross,why:t.why,days:t.days,pred:t.pred});
+function aprOk(e){return e&&typeof e.u==='string'&&e.u.length<=40&&Array.isArray(e.f)&&e.f.length===5&&e.f.every(x=>x===0||x===1)&&isFinite(e.pnl)&&Math.abs(e.pnl)<100&&['objetivo','stop','tiempo'].includes(e.why)&&isFinite(e.days)&&e.days>=0&&e.days<=60&&(e.gross==null||(isFinite(e.gross)&&Math.abs(e.gross)<100))&&(e.pred==null||(isFinite(e.pred.pT)&&isFinite(e.pred.ev)));}
 function learn(){
-  const C=S.closed.filter(t=>!t.manual&&t.why!=='manual');
+  const mine=S.closed.filter(t=>!t.manual&&t.why!=='manual');
+  const own=new Set(mine.map(t=>t.u).filter(Boolean));
+  const C=mine.concat(S.apr||S.srvMode?(S.ext||[]).filter(e=>!own.has(e.u)):[]);
   if(C.length<8)S.W=Object.assign({},BASE_W);
   else{
     const winAll=(C.filter(t=>t.pnl>0).length+1)/(C.length+2);
@@ -779,6 +790,30 @@ async function openTrades(){
     const ed=expDays(r.dm||S.maxDays);
     log('Compró <b>'+esc(r.s.replace('.MC',''))+'</b> a '+nf(pxIn)+' '+esc(r.cur)+' ('+eur(cost)+'). Stop '+nf(stop)+', objetivo '+nf(target)+'. Plazo previsto: unos '+ed+(ed===1?' día':' días')+', hasta el '+fmtD(addBiz(Date.now(),ed))+'.',true);
   }
+}
+/* ---- aprender en común: se comparten solo señales y resultados, sin nombres, importes ni fechas ---- */
+async function aprShare(t){
+  if(!S.apr||!S.aprT||!t||t.manual||!t.u||!aprOk(aprRec(t)))return;
+  S.aprOut.push(aprRec(t));S.aprOut=S.aprOut.slice(-50);save();aprFlush();
+}
+let aprFl=false;
+async function aprFlush(){
+  if(aprFl||!S.apr||!S.aprT||!S.aprOut.length)return;aprFl=true;
+  try{while(S.aprOut.length){
+    const r=await fetch('https://ntfy.sh/'+encodeURIComponent(S.aprT),{method:'POST',headers:{'Title':'apr'},body:JSON.stringify(Object.assign({k:'apr'},S.aprOut[0]))});
+    if(!r.ok)throw new Error('HTTP '+r.status);S.aprOut.shift();save();}
+  }catch(e){}
+  aprFl=false;
+}
+async function aprSync(){
+  if(!S.apr||!ghBase())return;
+  try{
+    const j=await ghJson(ghBase()+'/bot/aprendizaje.json?t='+Math.floor(Date.now()/600000));
+    if(!j||!Array.isArray(j.t))throw new Error('formato');
+    const have=new Set((S.ext||[]).map(e=>e.u)),add=j.t.filter(e=>aprOk(e)&&!have.has(e.u));
+    if(add.length){S.ext=(S.ext||[]).concat(add).slice(-800);}
+    S.aprAt=Date.now();S.aprErr='';learn();save();
+  }catch(e){S.aprErr=/404/.test(e.message)?'Aún no hay operaciones compartidas publicadas.':String(e.message||e);}
 }
 function snapshot(){
   const t=Date.now(),e=equity(),L=S.eq[S.eq.length-1];
@@ -1079,6 +1114,7 @@ async function autopilot(force,bg){
   try{
     renderStatus();
     await srvSync();
+    if(!srvOn()){await aprSync();aprFlush();}
     await getFx('USD');
     await updatePositions();
     renderAll();
@@ -1114,7 +1150,7 @@ function renderStatus(){
   }
 }
 function renderHero(){
-  try{renderSrv();}catch(e){}
+  try{renderSrv();renderApr2();}catch(e){}
   const e=equity(),d=e-S.cap0;
   $('hVal').textContent=eur(e);
   $('hDelta').innerHTML='<span class="'+(d>=0?'pos':'neg')+'">'+(d>=0?'+':'−')+nf(Math.abs(d))+' € ('+sg(d/S.cap0*100)+' %)</span>';
@@ -1709,6 +1745,13 @@ function renderSrv(){
   m.innerHTML=!S.srv?'<div class="hint">Desactivado.</div>':a!=null?'<div class="msg ok">Cartera del servidor al día: la última pasada fue hace '+(a<90?a+' min':nf(a/60,1)+' h')+(a>60?' (fuera del horario de bolsa no opera)':'')+'.</div>':'<div class="msg">'+esc(S.srvErr||'Esperando la primera pasada del piloto.')+'</div>';
   $('sSrvEd').href='https://github.com/'+S.gh+'/edit/main/bot.json';
 }
+function renderApr2(){
+  $('sApr').checked=S.apr;$('sAprT').value=S.aprT;
+  const n=(S.ext||[]).length;
+  $('sAprMsg').innerHTML=!S.apr?'<div class="hint">Desactivado.</div>':!S.aprT?'<div class="msg">Escribe el tema compartido.</div>':'<div class="msg ok">Aprendiendo también de '+n+' operaciones de otros'+(S.aprOut.length?' · '+S.aprOut.length+' tuyas pendientes de enviar':'')+'.'+(S.aprErr?' ('+esc(S.aprErr)+')':'')+'</div>';
+}
+$('sApr').onchange=async()=>{S.apr=$('sApr').checked;save();if(S.apr){await aprSync();aprFlush();}learn();save();renderApr2();renderAll();};
+$('sAprT').onchange=()=>{S.aprT=$('sAprT').value.trim().replace(/[^A-Za-z0-9_-]/g,'');save();aprFlush();renderApr2();};
 $('sKey').value=S.srvKey;
 $('sKey').onchange=async()=>{S.srvKey=$('sKey').value.trim();S.srvAt=0;save();await srvSync();save();renderSrv();renderAll();};
 $('sSrv').onchange=async e=>{S.srv=e.target.checked;if(!S.srv)S.srvAt=0;save();if(S.srv){await srvSync();save();}renderSrv();renderAll();};
@@ -1784,6 +1827,7 @@ $('btAllV').onclick=()=>{const st=new Set(S.btSel);btVisible().forEach(x=>st.add
 $('btNone').onclick=()=>{const v=new Set(btVisible());S.btSel=S.btSel.filter(x=>!v.has(x));save();renderPick();};
 if(S.btMode==='custom')renderPick();else btInfo();
 renderBt();
+if(S.apr&&(S.ext||[]).length)learn();
 renderAll();
 setTimeout(()=>autopilot(false),300);
 if(S.watchMode)keepAwake(true);

@@ -11,6 +11,8 @@ const STATE_OLD = 'botstate/state.json';
 const CLAVE = process.env.CLAVE || '';
 const OUT = process.env.OUT || 'botout';
 const NTFY = process.env.NTFY || '';
+const APRT = process.env.APRTEMA || '';
+const NTFYB = process.env.NTFYBASE || 'https://ntfy.sh';
 const APP = process.env.APP || 'app/trader_a_mano.html';
 const KEY = 'traderamano.v4';
 
@@ -51,6 +53,22 @@ const seed = Object.assign({}, S0, {
   limD: cfg.freno_perdida_dia_pct, limS: cfg.freno_perdida_semana_pct,
   uni: { on: cfg.indices }, fav: cfg.favoritas || [], srv: false, srvAt: 0
 });
+// operaciones compartidas por otras apps (solo señales y resultado) llegadas al tema común
+function aprOk(e) { return e && typeof e.u === 'string' && e.u.length <= 40 && Array.isArray(e.f) && e.f.length === 5 && e.f.every(x => x === 0 || x === 1) && Number.isFinite(e.pnl) && Math.abs(e.pnl) < 100 && ['objetivo', 'stop', 'tiempo'].includes(e.why) && Number.isFinite(e.days) && e.days >= 0 && e.days <= 60 && (e.gross == null || (Number.isFinite(e.gross) && Math.abs(e.gross) < 100)) && (e.pred == null || (Number.isFinite(e.pred.pT) && Number.isFinite(e.pred.ev))); }
+let ext = (!fresh && S0.ext) ? S0.ext.slice() : [];
+if (APRT) {
+  try {
+    const r = await fetch(NTFYB + '/' + encodeURIComponent(APRT) + '/json?poll=1&since=12h');
+    const txt = await r.text(), have = new Set(ext.map(e => e.u)); let n = 0;
+    for (const ln of txt.split('\n')) {
+      if (!ln.trim()) continue;
+      try { const m = JSON.parse(ln); if (m.event !== 'message') continue; const e = JSON.parse(m.message); if (e.k !== 'apr') continue; const rec = { u: e.u, f: e.f, pnl: e.pnl, gross: e.gross, why: e.why, days: e.days, pred: e.pred, src: 'x' }; if (aprOk(rec) && !have.has(rec.u)) { have.add(rec.u); ext.push(rec); n++; } } catch (e) {}
+    }
+    console.log('Operaciones compartidas nuevas:', n, '· total', ext.length);
+  } catch (e) { console.log('No se pudo leer el tema compartido:', e.message); }
+}
+ext = ext.slice(-800);
+seed.ext = ext; seed.apr = true; seed.aprT = '';
 if (fresh) {
   Object.assign(seed, { cap0: cfg.capital, cash: cfg.capital, pos: [], closed: [], eq: [], log: [], startedAt: Date.now(), buysToday: 0, buyDay: '', trk: [] });
   console.log('Cartera nueva con', cfg.capital, '€');
@@ -95,11 +113,14 @@ if (hh >= 21 && S.sumDay !== today && NTFY) {
 await until(() => !S.outbox.length, 20000);
 w.localStorage.setItem(KEY, JSON.stringify(S));
 
-const KEEP = ['cap0', 'cash', 'pos', 'closed', 'eq', 'log', 'W', 'cal', 'buyDay', 'buysToday', 'brakeDay', 'startedAt', 'favAl', 'sumDay', 'trk', 'fx'];
+const KEEP = ['ext', 'cap0', 'cash', 'pos', 'closed', 'eq', 'log', 'W', 'cal', 'buyDay', 'buysToday', 'brakeDay', 'startedAt', 'favAl', 'sumDay', 'trk', 'fx'];
 const outS = {}; KEEP.forEach(k => { if (S[k] !== undefined) outS[k] = S[k]; });
 const eq = T.equity();
 const state = { at: Date.now(), resetId: cfg.reinicio, equity: eq, config: cfg, S: outS };
 mkdirSync(OUT, { recursive: true });
+const own = S.closed.filter(t => !t.manual && t.why !== 'manual' && t.u).map(t => ({ u: t.u, f: t.f, pnl: t.pct, gross: t.gross, why: t.why, days: t.days, pred: t.pred, src: 'p' })).filter(aprOk);
+const seen = new Set(own.map(e => e.u)), pool = own.concat((S.ext || []).filter(e => !seen.has(e.u)));
+writeFileSync(OUT + '/aprendizaje.json', JSON.stringify({ at: Date.now(), t: pool.slice(-800) }));
 writeFileSync(OUT + '/state.enc.json', JSON.stringify(enc(state)));
 console.log('Cartera', eq.toFixed(2), '€ · efectivo', S.cash.toFixed(2), '· abiertas', S.pos.length, '· cerradas', S.closed.length, '· errores', errs.slice(0, 2));
 process.exit(0);

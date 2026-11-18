@@ -38,6 +38,7 @@ jobs:
           REPO: ${{ github.repository }}
           NTFY: ${{ secrets.NTFY_TOPIC }}
           CLAVE: ${{ secrets.CARTERA_CLAVE }}
+          APRTEMA: ${{ secrets.APRENDE_TEMA }}
         run: node scripts/bot.mjs
       - name: Guardar la cartera en la rama bot
         run: |
