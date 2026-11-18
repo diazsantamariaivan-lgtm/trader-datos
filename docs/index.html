@@ -688,7 +688,7 @@ function decState(env,pass){
   return JSON.parse(new TextDecoder().decode(out));
 }
 /* ---- piloto en GitHub: la cartera la lleva el servidor y el móvil la lee ---- */
-const srvOn=()=>S.srv&&S.srvAt>0;
+const srvOn=()=>S.srv&&!!S.srvKey&&S.srvAt>0;
 const SRV_K=['cap0','cash','pos','closed','eq','log','W','cal','buyDay','buysToday','brakeDay','startedAt','sumDay'];
 async function srvSync(){
   if(!S.srv||!ghBase())return false;
@@ -1742,7 +1742,7 @@ function bgMsg(cls,h){$('sBgMsg').innerHTML='<div class="msg '+cls+'">'+h+'</div
 function renderSrv(){
   $('sSrv').checked=S.srv;
   const a=srvAgo(),m=$('sSrvMsg');
-  m.innerHTML=!S.srv?'<div class="hint">Desactivado.</div>':a!=null?'<div class="msg ok">Cartera del servidor al día: la última pasada fue hace '+(a<90?a+' min':nf(a/60,1)+' h')+(a>60?' (fuera del horario de bolsa no opera)':'')+'.</div>':'<div class="msg">'+esc(S.srvErr||'Esperando la primera pasada del piloto.')+'</div>';
+  m.innerHTML=!S.srv?'<div class="hint">Desactivado.</div>':!S.srvKey?'<div class="msg bad">Falta la clave. Escríbela arriba (la misma frase del secreto CARTERA_CLAVE en GitHub) y aparecerá tu cartera. Mientras tanto la app opera sola, en este móvil.</div>':a!=null?'<div class="msg '+(a<=45?'ok':'')+'">Cartera del servidor: última pasada hace '+(a<90?a+' min':nf(a/60,1)+' h')+(a>60?' (fuera del horario de bolsa no opera)':'')+'.</div>':'<div class="msg">'+esc(S.srvErr||'Esperando la primera pasada del piloto.')+'</div>';
   $('sSrvEd').href='https://github.com/'+S.gh+'/edit/main/bot.json';
 }
 function renderApr2(){
@@ -1753,7 +1753,7 @@ function renderApr2(){
 $('sApr').onchange=async()=>{S.apr=$('sApr').checked;save();if(S.apr){await aprSync();aprFlush();}learn();save();renderApr2();renderAll();};
 $('sAprT').onchange=()=>{S.aprT=$('sAprT').value.trim().replace(/[^A-Za-z0-9_-]/g,'');save();aprFlush();renderApr2();};
 $('sKey').value=S.srvKey;
-$('sKey').onchange=async()=>{S.srvKey=$('sKey').value.trim();S.srvAt=0;save();await srvSync();save();renderSrv();renderAll();};
+$('sKey').onchange=async()=>{S.srvKey=$('sKey').value.trim();S.srvAt=0;S.srvErr='';save();await srvSync();save();renderSrv();renderAll();};
 $('sSrv').onchange=async e=>{S.srv=e.target.checked;if(!S.srv)S.srvAt=0;save();if(S.srv){await srvSync();save();}renderSrv();renderAll();};
 $('sWatch').checked=S.watchMode;
 $('sWatch').onchange=async e=>{
