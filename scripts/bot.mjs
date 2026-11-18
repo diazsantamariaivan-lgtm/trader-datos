@@ -45,9 +45,12 @@ if (existsSync(STATE_IN)) { try { prev = dec(JSON.parse(readFileSync(STATE_IN, '
 else if (existsSync(STATE_OLD)) { try { prev = JSON.parse(readFileSync(STATE_OLD, 'utf8')); console.log('Migrando la cartera antigua a formato cifrado'); } catch (e) {} }
 const fresh = !prev || prev.resetId !== cfg.reinicio;
 
+const now = new Date(), wd = now.getUTCDay(), hu = now.getUTCHours();
+const OPEN = process.env.FORCE === '1' || (wd >= 1 && wd <= 5 && hu >= 8 && hu < 21);
+if (!OPEN) console.log('Mercado cerrado: no se compra, solo se vigila y se guarda la cartera');
 const S0 = fresh ? {} : prev.S;
 const seed = Object.assign({}, S0, {
-  gh: REPO, auto: true, ntfy: NTFY,
+  gh: REPO, auto: OPEN, ntfy: NTFY,
   riesgo: cfg.riesgo_por_operacion_pct, maxPos: cfg.max_por_valor_pct, maxOpen: cfg.max_posiciones,
   maxDays: cfg.dias_maximos, com: cfg.comision_eur, slip: cfg.deslizamiento_pct,
   limD: cfg.freno_perdida_dia_pct, limS: cfg.freno_perdida_semana_pct,

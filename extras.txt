@@ -18,3 +18,4 @@ SPY QQQ IWM GLD SLV TLT VWCE.DE IWDA.AS EUNL.DE SXR8.DE EXS1.DE CSPX.AS
 # Solo para mirar el gráfico (índices, criptomonedas y materias primas): la app no los compra
 ^GSPC ^IXIC ^IBEX ^STOXX50E ^GDAXI ^VIX BTC-USD ETH-USD GC=F CL=F
 # 2026-11-17T15:20:44Z
+# 2026-11-18T06:36:20Z
