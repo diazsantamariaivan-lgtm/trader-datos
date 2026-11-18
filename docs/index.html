@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
+<script>window.BUILD="18/11/2026 18:05";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -235,6 +236,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 
 <!-- ================= MÁS ================= -->
 <section id="t-mas">
+  <div class="hint" id="verTxt" style="text-align:right;margin:0 0 6px"></div>
   <h2>Analizar un valor</h2>
   <div class="card">
     <div class="inl"><div><input id="qTk" type="text" placeholder="SAN, ITX, NVDA…" autocapitalize="characters" autocomplete="off" enterkeyhint="search" aria-label="Valor a analizar"></div><button class="btn" id="qGo" type="button">Analizar</button></div>
@@ -930,18 +932,18 @@ function btRun(P,W,o,from,to){
       for(let k=0;k<nT;k++){
         const pi=prv[k],ti=cur[k];if(pi<0||ti<0)continue;
         const x=P[k],m=x.M[pi];if(!(m&128)||(m&64)||x.R[pi]>78)continue;
-        const sco=sc(m);if(sco>=6)C.push({k,pi,ti,m,s:sco});
+        const sco=sc(m);if(sco>=(o.minSc||6))C.push({k,pi,ti,m,s:sco});
       }
       C.sort((a,b)=>b.s-a.s);let buys=0;
       for(const c of C){
         if(pos.length>=o.maxOpen||buys>=3)break;
         if(pos.some(q=>q.k===c.k))continue;
         const x=P[c.k],pxIn=x.o[c.ti]*(1+o.slip/100),eqN=cash+pos.reduce((a,q)=>a+q.shares*q.last,0),a=x.A[c.pi],pp=x.p[c.pi];
-        let sh=Math.min(eqN*o.risk/100/(2*a),eqN*o.maxPos/100/pxIn,(cash-o.com)/pxIn);
+        const sK=o.stopK||2,tK=o.tgtK||4;let sh=Math.min(eqN*o.risk/100/(sK*a),eqN*o.maxPos/100/pxIn,(cash-o.com)/pxIn);
         sh=Math.floor(sh*1000)/1000;const cost=sh*pxIn;
         if(!(sh>0)||cost<20)continue;
         cash-=cost+o.com;buys++;
-        const q={k:c.k,shares:sh,stop:pp-2*a,target:pp+4*a,last:x.c[c.ti],cost,days:0,f:fb(c.m)};
+        const q={k:c.k,shares:sh,stop:pp-sK*a,target:pp+tK*a,last:x.c[c.ti],cost,days:0,f:fb(c.m)};
         pos.push(q);
         const res=btExit(q,x,c.ti,false,o);if(res)close(q,res,di);
       }
@@ -1828,6 +1830,7 @@ $('btNone').onclick=()=>{const v=new Set(btVisible());S.btSel=S.btSel.filter(x=>
 if(S.btMode==='custom')renderPick();else btInfo();
 renderBt();
 if(S.apr&&(S.ext||[]).length)learn();
+try{$('verTxt').textContent='Versión: '+(window.BUILD||'archivo local (no se actualiza solo)');}catch(e){}
 renderAll();
 setTimeout(()=>autopilot(false),300);
 if(S.watchMode)keepAwake(true);
@@ -1844,7 +1847,7 @@ document.addEventListener('visibilitychange',()=>{
   if(!running&&Date.now()-lastCheck>5*60000)Date.now()-S.scanAt>30*60000?autopilot(false):quickCheck();
 });
 try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
-window.__trader={getFx,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
