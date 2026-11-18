@@ -207,6 +207,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <div id="mHead"></div>
   <div class="seg chips" id="mS"></div>
   <div style="display:flex;gap:8px;margin:0 0 8px"><select id="mNm" aria-label="Nota mínima" style="flex:1"></select><select id="mPt" aria-label="Potencial mínimo" style="flex:1"></select></div>
+  <div style="margin:0 0 8px"><select id="mPr" aria-label="Probabilidad de éxito"></select></div>
   <div id="mBulk"></div>
   <div class="hint" id="mCnt" style="margin:0 2px 8px"></div>
   <div class="card" id="mList" style="padding:4px 14px"></div>
@@ -1619,8 +1620,8 @@ $('fcE').onclick=fcStudy;
 })();
 
 /* ====================== mercado: todas las acciones para elegir ====================== */
-const M={f:'uni',s:'nota',q:'',n:60,sel:[],nm:0,pt:0};
-const NM_O=[[0,'Nota: todas'],[5,'Nota ≥ 5'],[6,'Nota ≥ 6'],[7,'Nota ≥ 7'],[8,'Nota ≥ 8']],PT_O=[[0,'Potencial: todos'],[3,'Potencial ≥ 3 %'],[5,'Potencial ≥ 5 %'],[8,'Potencial ≥ 8 %'],[10,'Potencial ≥ 10 %']];
+const M={f:'uni',s:'nota',q:'',n:60,sel:[],nm:0,pt:0,pr:0};
+const NM_O=[[0,'Nota: todas'],[5,'Nota ≥ 5'],[6,'Nota ≥ 6'],[7,'Nota ≥ 7'],[8,'Nota ≥ 8']],PR_O=[[0,'Prob. de éxito: todas'],[10,'Éxito ≥ 10 % (más probables)'],[20,'Éxito ≥ 20 %'],[30,'Éxito ≥ 30 %'],[40,'Éxito ≥ 40 %'],[-10,'Éxito ≤ 10 % (poco probables)'],[-5,'Éxito ≤ 5 %']],PT_O=[[0,'Potencial: todos'],[3,'Potencial ≥ 3 %'],[5,'Potencial ≥ 5 %'],[8,'Potencial ≥ 8 %'],[10,'Potencial ≥ 10 %']];
 const trkOf=x=>S.trk.find(t=>t.s===x);
 function trkToggle(r){const i=S.trk.findIndex(t=>t.s===r.s);if(i>=0)S.trk.splice(i,1);else S.trk.push({s:r.s,nm:r.nm,cur:r.cur,p0:r.p,hi:r.p,lo:r.p,t0:Date.now(),n0:score10(r)});}
 function trkUpdate(){S.trk.forEach(t=>{const r=S.rows[t.s];if(r&&r.p){t.hi=Math.max(t.hi||r.p,r.p);t.lo=Math.min(t.lo||r.p,r.p);}});}
@@ -1630,7 +1631,7 @@ function mTune(){
   const o=[['uni','Lo que estudio ahora ('+nu+')'],['fav','★ Mis favoritas ('+S.fav.length+')'],['trk','👁 Mi seguimiento ('+S.trk.length+')'],['all','Todos los índices ('+allSyms().length+')'],['multi','Elegir varios índices…']].concat(g.map(x=>[x.id,x.n+' · '+x.c+' ('+x.s.length+')']));
   if(!o.some(([k])=>k===M.f))M.f='uni';
   $('mI').innerHTML=o.map(([k,l])=>'<option value="'+esc(k)+'"'+(M.f===k?' selected':'')+'>'+esc(l)+'</option>').join('');
-  $('mNm').innerHTML=NM_O.map(([k,l])=>'<option value="'+k+'"'+(M.nm===k?' selected':'')+'>'+l+'</option>').join('');$('mPt').innerHTML=PT_O.map(([k,l])=>'<option value="'+k+'"'+(M.pt===k?' selected':'')+'>'+l+'</option>').join('');
+  $('mPr').innerHTML=PR_O.map(([k,l])=>'<option value="'+k+'"'+(M.pr===k?' selected':'')+'>'+l+'</option>').join('');$('mNm').innerHTML=NM_O.map(([k,l])=>'<option value="'+k+'"'+(M.nm===k?' selected':'')+'>'+l+'</option>').join('');$('mPt').innerHTML=PT_O.map(([k,l])=>'<option value="'+k+'"'+(M.pt===k?' selected':'')+'>'+l+'</option>').join('');
   $('mS').innerHTML='<button type="button" disabled style="flex:none;background:none;border:0;color:var(--mut)">Ordenar:</button>'+MS.map(([k,l])=>'<button type="button" data-s="'+k+'" class="'+(M.s===k?'on':'')+'">'+l+'</button>').join('');
   const gi=g.find(x=>x.id===M.f);
   if(M.f==='multi'){$('mHead').innerHTML='<div class="hint" style="margin:6px 0 2px">Marca los índices que quieres ver juntos:</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+g.map(x=>'<label class="tag" style="padding:6px 10px;font-size:13px;cursor:pointer"><input type="checkbox" data-ms="'+esc(x.id)+'"'+(M.sel.includes(x.id)?' checked':'')+'> '+esc(x.t)+'</label>').join('')+'</div>';return;}
@@ -1651,7 +1652,7 @@ function renderMer(){
   if(!rows.length){$('mList').innerHTML='<div class="empty">Todavía no hay datos. Ve a «Hoy» y pulsa «Actualizar».</div>';$('mCnt').textContent='';$('mMore').style.display='none';return;}
   let B;
   if(M.f==='uni')B=rows.filter(r=>inUni(r.s));else if(M.f==='all'){const st=new Set(allSyms());B=rows.filter(r=>st.has(r.s));}else if(M.f==='multi'){const st=new Set();IDX().filter(x=>M.sel.includes(x.id)).forEach(x=>x.s.forEach(y=>st.add(y)));B=rows.filter(r=>st.has(r.s));}else if(M.f==='fav')B=rows.filter(r=>fav.has(r.s));else if(M.f==='trk'){trkUpdate();B=rows.filter(r=>trkOf(r.s));}else{const st=new Set(gi?gi.s:[]);B=rows.filter(r=>st.has(r.s));}
-  let L=B.filter(r=>score10(r)>=M.nm&&4*r.atr/r.p*100>=M.pt).filter(r=>!q||r.s.toUpperCase().includes(q)||String(r.nm).toUpperCase().includes(q));
+  let L=B.filter(r=>score10(r)>=M.nm&&4*r.atr/r.p*100>=M.pt&&(!M.pr||(M.pr>0?adjP(r)*100>=M.pr:adjP(r)*100<=-M.pr))).filter(r=>!q||r.s.toUpperCase().includes(q)||String(r.nm).toUpperCase().includes(q));
   const key={nota:r=>score10(r),des:r=>{const t=trkOf(r.s);return t?r.p/t.p0:0;},pot:r=>4*r.atr/r.p,prob:r=>adjP(r),hoy:r=>r.ch}[M.s];
   L=M.s==='az'?L.sort((a,b)=>a.s.localeCompare(b.s)):L.sort((a,b)=>key(b)-key(a));
   const cand=L.filter(r=>!trkOf(r.s));
@@ -1688,6 +1689,7 @@ $('mList').onclick=e=>{
   const o=e.target.closest('[data-open]');if(o)fcOpen(o.dataset.open,S.rows[o.dataset.open]);
 };
 $('mNm').onchange=()=>{M.nm=+$('mNm').value;M.n=60;renderMer();};
+$('mPr').onchange=()=>{M.pr=+$('mPr').value;M.n=60;renderMer();};
 $('mPt').onchange=()=>{M.pt=+$('mPt').value;M.n=60;renderMer();};
 $('mBulk').onclick=e=>{if(e.target.id==='mRep'){openReport();return;}if(e.target.id!=='mFollowAll')return;
   document.querySelectorAll('#mList [data-trk]').forEach(b=>{const r=S.rows[b.dataset.trk];if(r&&!trkOf(r.s))trkToggle(r);});
@@ -1721,7 +1723,7 @@ function explainHTML(r){const e=explainRow(r);return '<div class="hint" style="m
 function openReport(){
   const L=(M.last||[]).slice(0,40);go('est');
   const d=GH.q&&GH.q.at?new Date(GH.q.at*1000):new Date();
-  $('eHead').innerHTML='<div class="hint" style="margin:0">Datos de '+d.toLocaleString('es-ES')+'. Lista: <b>'+esc(($('mI').selectedOptions[0]||{}).text||'')+'</b>'+(M.nm?' · nota ≥ '+M.nm:'')+(M.pt?' · potencial ≥ '+M.pt+' %':'')+' · '+L.length+' valores, ordenados como en Mercado.</div>'+
+  $('eHead').innerHTML='<div class="hint" style="margin:0">Datos de '+d.toLocaleString('es-ES')+'. Lista: <b>'+esc(($('mI').selectedOptions[0]||{}).text||'')+'</b>'+(M.nm?' · nota ≥ '+M.nm:'')+(M.pt?' · potencial ≥ '+M.pt+' %':'')+(M.pr?' · éxito '+(M.pr>0?'≥ ':'≤ ')+Math.abs(M.pr)+' %':'')+' · '+L.length+' valores, ordenados como en Mercado.</div>'+
     '<div class="msg" style="margin-top:8px"><b>Cómo estudia la app.</b> Mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo, impulso), simula 1000 futuros posibles con los movimientos reales de la acción y calcula así la probabilidad, el potencial y el plazo. Solo compra con nota ≥ 6, resultado simulado positivo y precio sobre su media de 50 días. No mira resultados de empresa ni noticias.</div>';
   $('eList').innerHTML=L.length?L.map((r,i)=>{const e=explainRow(r);
     return '<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>'+(i+1)+'. '+esc(r.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(r.s)+'</span><br><small class="mut">'+esc(r.nm)+'</small></div><div style="text-align:right"><b>'+nf(r.p)+' '+esc(r.cur)+'</b><br><small>Nota '+nf(e.sc,1)+' · '+nf(e.pT*100,0)+' % · +'+nf(e.tp,1)+' %</small></div></div>'+
