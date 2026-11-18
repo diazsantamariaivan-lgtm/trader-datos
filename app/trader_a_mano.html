@@ -282,6 +282,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
       <div><label for="sLimD">Pausa si cae en 1 día %</label><input id="sLimD" type="number" inputmode="decimal" step="any"></div>
       <div><label for="sLimS">Pausa si cae en 1 semana %</label><input id="sLimS" type="number" inputmode="decimal" step="any"></div>
     </div>
+    <label class="sw"><input id="sPro" type="checkbox"><span>Prorrogar si sigue al alza<br><small class="mut">Al cumplirse el plazo máximo, si el precio sigue sobre su media de 20 días y en ganancia, no vende: sube el stop (nunca por debajo de tu entrada) y sigue hasta 3 veces el plazo. Si la tendencia se rompe, vende.</small></span></label>
     <label class="sw"><input id="sAuto" type="checkbox"><span>Operar sola con las mejores<br><small class="mut">Si lo desactivas, solo estudia y te enseña la lista.</small></span></label>
     <button class="btn ghost full" id="sReset" type="button">Reiniciar cartera con el capital indicado</button>
     <div id="sMsg"></div>
@@ -373,7 +374,7 @@ const KEY='traderamano.v4';
 const BASE_W={tr:2,s50:1,rs:2,hi:1,mo:1};
 const FK=['tr','s50','rs','hi','mo'];
 const FNAME={tr:'Tendencia alcista (precio sobre sus medias de 20 y 50 días)',s50:'Precio sobre su media de 50 días',rs:'Fuerza sana (RSI entre 50 y 68)',hi:'Cerca de su máximo de 20 días',mo:'Impulso de las últimas 4 semanas'};
-const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,com:1,gh:'diazsantamariaivan-lgtm/trader-datos',theme:'claro',fav:[],trk:[],favAl:{},srv:true,srvKey:'',apr:false,aprT:'',ext:[],aprOut:[],aprAt:0,aprErr:'',srvAt:0,srvChk:0,srvErr:'',uni:{on:['SP500','IBEX35','EXTRA']},btMode:'all',btSel:[],btCacheAt:0,slip:0.15,limD:3,limS:6,bt:null,auto:true,
+const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,prorroga:true,com:1,gh:'diazsantamariaivan-lgtm/trader-datos',theme:'claro',fav:[],trk:[],favAl:{},srv:true,srvKey:'',apr:false,aprT:'',ext:[],aprOut:[],aprAt:0,aprErr:'',srvAt:0,srvChk:0,srvErr:'',uni:{on:['SP500','IBEX35','EXTRA']},btMode:'all',btSel:[],btCacheAt:0,slip:0.15,limD:3,limS:6,bt:null,auto:true,
   pos:[],closed:[],eq:[],log:[],W:Object.assign({},BASE_W),rows:{},cal:{p:1,bias:0,n:0,dur:1},ntfy:'',outbox:[],watchMode:false,scanAt:0,sp:{list:[],at:0},fx:{},buyDay:'',buysToday:0,startedAt:Date.now()};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const j=localStorage.getItem(KEY);if(j)Object.assign(S,JSON.parse(j));}catch(e){}
@@ -653,19 +654,26 @@ function durText(r){
   const dm=expDays(r.dm||S.maxDays),h=Math.round(dm*(r.s.endsWith('.MC')?8.5:6.5));
   return 'Plazo previsto: unos <b>'+dm+(dm===1?' día':' días')+'</b> de mercado (≈ '+h+' h de negociación)'+(r.dl&&r.dh&&r.dl!==r.dh?', entre '+r.dl+' y '+r.dh:'')+'. Máximo '+S.maxDays+' días.';
 }
+function sma20(c,i){if(i<19)return null;let t=0;for(let k=i-19;k<=i;k++)t+=c[k];return t/20;}
 function evalPos(pos,d){
-  let days=0;
+  let days=0,stop=pos.stop0!=null?pos.stop0:pos.stop,ext=false;
+  const at=(pos.target-pos.entry)/4;
   for(let i=0;i<d.c.length;i++){
     if(dayKey(d.t[i]*1000)<=pos.openDay)continue;
     days++;const dk=dayKey(d.t[i]*1000);
-    if(d.o[i]<=pos.stop)return{done:1,px:d.o[i],why:'stop',days,dk};
-    if(d.l[i]<=pos.stop)return{done:1,px:pos.stop,why:'stop',days,dk};
+    if(d.o[i]<=stop)return{done:1,px:d.o[i],why:'stop',days,dk};
+    if(d.l[i]<=stop)return{done:1,px:stop,why:'stop',days,dk};
     if(d.o[i]>=pos.target)return{done:1,px:d.o[i],why:'objetivo',days,dk};
     if(d.h[i]>=pos.target)return{done:1,px:pos.target,why:'objetivo',days,dk};
-    if(days>=S.maxDays)return{done:1,px:d.c[i],why:'tiempo',days,dk};
+    if(days>=S.maxDays){
+      const m=sma20(d.c,i);
+      if(S.prorroga!==false&&days<S.maxDays*3&&m!=null&&d.c[i]>m&&d.c[i]>pos.entry){stop=Math.max(stop,pos.entry,d.c[i]-2*at);ext=true;continue;}
+      return{done:1,px:d.c[i],why:'tiempo',days,dk};
+    }
   }
+  if(ext){if(pos.stop0==null)pos.stop0=pos.stop;pos.stop=stop;pos.ext=true;}
   const last=d.meta.regularMarketPrice||d.c[d.c.length-1],dk=dayKey(Date.now());
-  if(last<=pos.stop)return{done:1,px:last,why:'stop',days,dk};
+  if(last<=stop)return{done:1,px:last,why:'stop',days,dk};
   if(last>=pos.target)return{done:1,px:last,why:'objetivo',days,dk};
   return{done:0,last,days};
 }
@@ -744,7 +752,7 @@ async function srvSync(){
     if(j.at>S.srvAt){
       SRV_K.forEach(k=>{if(j.S[k]!==undefined)S[k]=j.S[k];});
       const c=j.config||{};
-      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
+      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
       S.srvAt=j.at;
     }
     return true;
@@ -929,7 +937,10 @@ function btExit(q,x,i,count,o){
   if(x.l[i]<=q.stop)return{px:q.stop,why:'stop'};
   if(x.o[i]>=q.target)return{px:x.o[i],why:'objetivo'};
   if(x.h[i]>=q.target)return{px:q.target,why:'objetivo'};
-  if(count&&q.days>=o.maxDays)return{px:x.c[i],why:'tiempo'};
+  if(count&&q.days>=o.maxDays){
+    if(o.ext!==false&&q.days<o.maxDays*3){const m=sma20(x.c,i);if(m!=null&&x.c[i]>m&&x.c[i]>q.ent){q.stop=Math.max(q.stop,q.ent,x.c[i]-2*q.a);return null;}}
+    return{px:x.c[i],why:'tiempo'};
+  }
   return null;
 }
 function btDates(P){const st=new Set();P.forEach(x=>{for(let i=0;i<x.dn.length;i++)st.add(x.dn[i]);});return Int32Array.from([...st].sort((a,b)=>a-b));}
@@ -983,7 +994,7 @@ function btRun(P,W,o,from,to){
         sh=Math.floor(sh*1000)/1000;const cost=sh*pxIn;
         if(!(sh>0)||cost<20)continue;
         cash-=cost+o.com;buys++;
-        const q={k:c.k,shares:sh,stop:pp-sK*a,target:pp+tK*a,last:x.c[c.ti],cost,days:0,f:fb(c.m)};
+        const q={k:c.k,a,ent:pxIn,shares:sh,stop:pp-sK*a,target:pp+tK*a,last:x.c[c.ti],cost,days:0,f:fb(c.m)};
         pos.push(q);
         const res=btExit(q,x,c.ti,false,o);if(res)close(q,res,di);
       }
@@ -1334,7 +1345,7 @@ function renderCar(){
   $('eqHint').textContent=S.eq.length>1?'Valor de la cartera cada vez que la app trabaja. La línea discontinua es tu capital inicial.':'La gráfica se irá llenando con cada uso.';
   $('posBox').innerHTML=(S.pos.length?S.pos.map(p=>{
     const v=posValue(p),pnl=v-p.costEur,pct=pnl/p.costEur*100,pos=Math.max(0,Math.min(100,(p.last-p.stop)/(p.target-p.stop)*100));
-    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+nf(p.entry)+' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays)+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+'</div>'+
+    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+nf(p.entry)+' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays)+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+'</div>'+
       '<div class="v">'+eur(v)+'<br><small class="'+(pnl>=0?'pos':'neg')+'">'+sg(pnl,2)+' € ('+sg(pct)+' %)</small></div>'+
       '<svg class="rng" aria-hidden="true"><defs><linearGradient id="rg'+p.id+'"><stop offset="0" stop-color="#ff1f44"/><stop offset=".5" stop-color="#ffb000"/><stop offset="1" stop-color="#00c853"/></linearGradient></defs><rect x="0" y="6" width="100%" height="10" rx="5" fill="url(#rg'+p.id+')"/><circle cx="'+pos+'%" cy="11" r="9" fill="#fff" stroke="#101828" stroke-width="3.5"/></svg>'+
       '<small>Stop '+nf(p.stop)+'</small><small style="text-align:right">Objetivo '+nf(p.target)+'</small></div>'+
@@ -1784,6 +1795,7 @@ $('sDays').oninput=()=>{
   const v=Math.round(num($('sDays')));
   if(v>=3&&v<=30&&v!==S.maxDays){S.maxDays=v;S.rows={};S.scanAt=0;save();$('sMsg').innerHTML='<div class="msg">Plazo máximo cambiado a '+v+' días. El mercado se estudiará de nuevo la próxima vez.</div>';}
 };
+$('sPro').checked=S.prorroga!==false;$('sPro').onchange=e=>{S.prorroga=e.target.checked;save();};
 $('sAuto').checked=S.auto;$('sAuto').onchange=e=>{S.auto=e.target.checked;save();};
 
 /* ---- segundo plano: modo vigilante, avisos y conexión ---- */
