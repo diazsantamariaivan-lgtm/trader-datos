@@ -8,13 +8,13 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="18/11/2026 18:09";</script>
+<script>window.BUILD="18/11/2026 18:11";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
-  --bg:#f2f5fa; --bg2:#e9eef6; --card:#ffffff; --card2:#f4f7fc; --line:#dbe2ee; --tx:#101828; --mut:#5a667a;
+  --bg:#d9e4f5; --bg2:#c9d8ee; --card:#ffffff; --card2:#eaf1fc; --line:#c3d2ea; --tx:#101828; --mut:#5a667a;
   --blue:#1f5fd6; --onblue:#ffffff; --pink:#d92d4b; --ok:#0f8a5f; --warn:#b7791f;
-  --nav:#ffffff; --hero:linear-gradient(160deg,#e3edff,#ffffff 70%); --okbg:#e6f6ee; --okln:#a9dcc4; --badbg:#fdebee; --badln:#f2b6c0; --msgbg:#eef3fc; --inp:#ffffff; --cv:#ffffff; --seg:#3c4b66; --rng:linear-gradient(90deg,#f5c2cc,#dbe2ee 40%,#b4e2cc);
+  --nav:#12306b; --hero:linear-gradient(150deg,#1d4ed8,#0b2a6b 75%); --okbg:#e6f6ee; --okln:#a9dcc4; --badbg:#fdebee; --badln:#f2b6c0; --msgbg:#e3edfd; --inp:#ffffff; --cv:#ffffff; --seg:#3c4b66; --rng:linear-gradient(90deg,#f5c2cc,#dbe2ee 40%,#b4e2cc);
   --shadow:0 1px 3px rgba(16,24,40,.08); --vio:#7c3aed;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -32,6 +32,20 @@
   --nav:#080a1d; --hero:linear-gradient(160deg,#1b2160,#14173d 60%); --okbg:#0f2a22; --okln:#1e6b4b; --badbg:#2d1124; --badln:#5b1f45; --msgbg:#101a3f; --inp:#0b0d26; --cv:#0b0d26; --seg:#8f96cc; --rng:linear-gradient(90deg,#5b1f45,#272c66 40%,#1e6b4b);
   --shadow:none; --vio:#c084fc; color-scheme:dark;
 }
+/* acentos de color del tema claro */
+:root:not([data-th]) nav button{color:#9fb6e6}
+:root:not([data-th]) nav button.on{color:#fff;border-top-color:#5eead4}
+:root:not([data-th]) .hero{color:#fff;border-radius:0 0 22px 22px;margin:-16px -16px 14px;padding:22px 20px 20px;box-shadow:0 6px 18px rgba(11,42,107,.25)}
+:root:not([data-th]) .hero .lbl,:root:not([data-th]) .hero .sub{color:#c7d8fb}
+:root:not([data-th]) .hero .neg{color:#ff9fb0}:root:not([data-th]) .hero .pos{color:#6ee7b7}
+:root:not([data-th]) h2{color:#1d4ed8}
+:root:not([data-th]) .cand{border-left:4px solid var(--blue)}
+:root:not([data-th]) .kp div:nth-child(1){background:#e0e9ff}
+:root:not([data-th]) .kp div:nth-child(2){background:#dcf5e8}
+:root:not([data-th]) .kp div:nth-child(3){background:#fff1d6}
+:root:not([data-th]) .rk{background:var(--blue);color:#fff}
+:root:not([data-th]) .btn.ghost{background:#fff;color:var(--blue);border-color:var(--blue)}
+:root:not([data-th]) .card{border-color:#b9cbe8}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--tx);font:15px/1.45 var(--sans);display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent}
@@ -331,14 +345,14 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 <script>
 const TH={};
 const THEMES={
-  claro:{ink:'#101828',mut:'#5a667a',line:'#c9d2e0',cvbg:'#ffffff',blue:'#1f5fd6',ok:'#0f8a5f',neg:'#d92d4b',warn:'#b7791f',vio:'#7c3aed',tagbg:'rgba(255,255,255,.9)',ink35:'rgba(16,24,40,.35)',ink50:'rgba(16,24,40,.5)',grid:'rgba(16,24,40,.09)',b15:'rgba(31,95,214,.15)',b30:'rgba(31,95,214,.28)',b07:'rgba(31,95,214,.07)',b05:'rgba(31,95,214,.05)',bar:'#f2f5fa'},
+  claro:{ink:'#101828',mut:'#5a667a',line:'#c9d2e0',cvbg:'#f7faff',blue:'#1f5fd6',ok:'#0f8a5f',neg:'#d92d4b',warn:'#b7791f',vio:'#7c3aed',tagbg:'rgba(255,255,255,.9)',ink35:'rgba(16,24,40,.35)',ink50:'rgba(16,24,40,.5)',grid:'rgba(16,24,40,.09)',b15:'rgba(31,95,214,.15)',b30:'rgba(31,95,214,.28)',b07:'rgba(31,95,214,.07)',b05:'rgba(31,95,214,.05)',bar:'#12306b'},
   soft:{ink:'#e8edf5',mut:'#9aa6b8',line:'#303b4a',cvbg:'#10151c',blue:'#5b9dff',ok:'#3ecf8e',neg:'#ff6b82',warn:'#f5b942',vio:'#c084fc',tagbg:'rgba(16,21,28,.88)',ink35:'rgba(232,237,245,.35)',ink50:'rgba(232,237,245,.5)',grid:'rgba(48,59,74,.7)',b15:'rgba(91,157,255,.15)',b30:'rgba(91,157,255,.30)',b07:'rgba(91,157,255,.07)',b05:'rgba(91,157,255,.05)',bar:'#141a22'},
   dark:{ink:'#eef0ff',mut:'#8f96cc',line:'#272c66',cvbg:'#0b0d26',blue:'#7c9cff',ok:'#4ade9a',neg:'#ff5aa5',warn:'#ffc857',vio:'#c084fc',tagbg:'rgba(11,13,38,.88)',ink35:'rgba(238,240,255,.35)',ink50:'rgba(238,240,255,.5)',grid:'rgba(39,44,102,.7)',b15:'rgba(124,156,255,.15)',b30:'rgba(124,156,255,.30)',b07:'rgba(124,156,255,.07)',b05:'rgba(124,156,255,.05)',bar:'#0b0d26'}
 };
 function applyTheme(name){
   const k=THEMES[name]?name:'claro';Object.assign(TH,THEMES[k]);
   const r=document.documentElement;if(k==='claro')r.removeAttribute('data-th');else r.setAttribute('data-th',k);
-  try{const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',k==='claro'?'#ffffff':THEMES[k].bar);}catch(e){}
+  try{const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',THEMES[k].bar);}catch(e){}
 }
 applyTheme('claro');
 
