@@ -107,8 +107,7 @@ canvas.cc{height:240px;margin-top:10px;background:var(--cv);border-radius:10px}
 .pos-row:last-child{border-bottom:0}
 .pos-row small{color:var(--mut);font-size:12px}
 .pos-row .v{font:600 15px var(--mono);text-align:right}
-.rng{grid-column:1/3;position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,#e5344d,#f59e0b 50%,#16a34a);margin:12px 0 6px}
-.rng i{position:absolute;top:-4px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:#fff;border:4px solid #101828;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.rng{grid-column:1/3;display:block;width:100%;height:22px;margin:6px 0 2px;overflow:visible}
 .log{font-size:13px;color:var(--mut);padding:7px 0;border-bottom:1px solid var(--line)}
 .log:last-child{border-bottom:0}.log b{color:var(--tx)}
 .msg{border-radius:10px;padding:10px 12px;font-size:13.5px;margin:10px 0 0;background:var(--msgbg);border:1px solid var(--line)}
@@ -1320,7 +1319,7 @@ function renderCar(){
     const v=posValue(p),pnl=v-p.costEur,pct=pnl/p.costEur*100,pos=Math.max(0,Math.min(100,(p.last-p.stop)/(p.target-p.stop)*100));
     return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+nf(p.entry)+' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays)+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+'</div>'+
       '<div class="v">'+eur(v)+'<br><small class="'+(pnl>=0?'pos':'neg')+'">'+sg(pnl,2)+' € ('+sg(pct)+' %)</small></div>'+
-      '<div class="rng"><i style="left:'+pos+'%"></i></div>'+
+      '<svg class="rng" aria-hidden="true"><defs><linearGradient id="rg'+p.id+'"><stop offset="0" stop-color="#ff1f44"/><stop offset=".5" stop-color="#ffb000"/><stop offset="1" stop-color="#00c853"/></linearGradient></defs><rect x="0" y="6" width="100%" height="10" rx="5" fill="url(#rg'+p.id+')"/><circle cx="'+pos+'%" cy="11" r="9" fill="#fff" stroke="#101828" stroke-width="3.5"/></svg>'+
       '<small>Stop '+nf(p.stop)+'</small><small style="text-align:right">Objetivo '+nf(p.target)+'</small></div>'+
       '<div class="det"><canvas class="cc"></canvas>'+LEG+'<div class="hint" data-cap style="margin:8px 0 0"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn small" data-fc="1" data-id="'+p.id+'" type="button">Gráfico completo</button><button class="btn ghost small" data-sell="'+p.id+'" type="button">Vender ahora (simulación)</button></div></div></div>';
   }).join(''):'<div class="empty">Sin posiciones abiertas.'+(S.auto?' La app comprará cuando encuentre buenas oportunidades.':'')+'</div>')+row2('Efectivo disponible',eur(S.cash));
