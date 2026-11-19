@@ -28,13 +28,13 @@ for(let i=0;i<=45;i++){
 }
 // Calendario de dividendos y splits (Nasdaq): próximos 45 días
 out.div={};out.spl={};
-for(let i=0;i<=45;i++){
+for(let i=-5;i<=45;i++){
   const d=new Date(Date.now()+i*864e5);if([0,6].includes(d.getUTCDay()))continue;
   const ds=d.toISOString().slice(0,10),H={Origin:'https://www.nasdaq.com',Referer:'https://www.nasdaq.com/'};
   const iso=x=>{const m=/^(\d\d)\/(\d\d)\/(\d{4})$/.exec(x||'');return m?m[3]+'-'+m[1]+'-'+m[2]:'';};
   const j=await gj('https://api.nasdaq.com/api/calendar/dividends?date='+ds,H);
   const rows=j&&j.data&&j.data.calendar&&j.data.calendar.rows;
-  if(rows)for(const r of rows){const s=String(r.symbol||'').trim().toUpperCase();if(!s||out.div[s])continue;out.div[s]={x:iso(r.dividend_Ex_Date),p:iso(r.payment_Date),a:+r.dividend_Rate||0,y:+r.indicated_Annual_Dividend||0};}
+  if(rows)for(const r of rows){const s=String(r.symbol||'').trim().toUpperCase();if(!s||out.div[s])continue;out.div[s]={x:iso(r.dividend_Ex_Date),p:iso(r.payment_Date),a:+r.dividend_Rate||0,y:+r.indicated_Annual_Dividend||0,r:iso(r.record_Date),n:String(r.companyName||'').slice(0,40)};}
   await sleep(250);
   const k=await gj('https://api.nasdaq.com/api/calendar/splits?date='+ds,H);
   const sr=k&&k.data&&k.data.rows;

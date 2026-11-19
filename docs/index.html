@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 20:33";</script>
+<script>window.BUILD="19/11/2026 20:41";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -54,8 +54,8 @@ body{background:var(--bg);color:var(--tx);font:15px/1.45 var(--sans);display:fle
 main{flex:1;overflow-y:auto;padding:16px 16px 28px;-webkit-overflow-scrolling:touch}
 section{display:none;max-width:560px;margin:0 auto}
 section.on{display:block}
-nav{display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--line);background:var(--nav)}
-nav button{background:none;border:0;color:var(--mut);padding:9px 2px 11px;font:600 11.5px var(--sans);cursor:pointer;border-top:2px solid transparent}
+nav{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--line);background:var(--nav)}
+nav button{background:none;border:0;color:var(--mut);padding:9px 0 11px;font:600 10.5px var(--sans);cursor:pointer;border-top:2px solid transparent}
 nav button.on{color:var(--tx);border-top-color:var(--blue)}
 nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block;margin:0 auto 3px}
 h2{margin:18px 2px 8px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--mut);font-weight:600}
@@ -237,6 +237,11 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <div id="eList"></div>
 </section>
 
+<section id="t-div">
+  <h2 style="margin-top:0">Calendario de dividendos</h2>
+  <div id="dvBox"></div>
+</section>
+
 <section id="t-lab">
   <h2 style="margin-top:0">Laboratorio en vivo</h2>
   <div id="lvBox"></div>
@@ -387,6 +392,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <button data-t="car" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Cartera</button>
   <button data-t="mer" type="button"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>Mercado</button>
   <button data-t="apr" type="button"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>Aprende</button>
+  <button data-t="div" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M12 13v5M10 14.5c0-1 4-1 4 0s-4 1.2-4 2.5 4 1.5 4 0"/></svg>Divid.</button>
   <button data-t="lab" type="button"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 001.8 3h10.4a2 2 0 001.8-3l-5-9V3"/><path d="M7.5 15h9"/></svg>Lab</button>
   <button data-t="mas" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>Más</button>
 </nav>
@@ -841,6 +847,36 @@ function renderLV(){
 }
 $('lvBox').addEventListener('click',e=>{const r=e.target.closest('[data-lvrow]');if(!r||e.target.closest('[data-study]'))return;const id=r.dataset.lvrow;LV.open.has(id)?LV.open.delete(id):LV.open.add(id);renderLV();});
 $('lvBox').addEventListener('change',e=>{if(e.target.id==='lvS')LV.sort=e.target.value;else if(e.target.id==='lvF')LV.flt=e.target.value;else return;renderLV();});
+/* ---- pestaña Divid.: calendario de dividendos publicado (Nasdaq) de todas las acciones ---- */
+const DV={q:'',range:'30',sort:'ex',scope:'uni',min:'0',n:60};
+function dvPrice(sym){const r=S.rows&&S.rows[sym];if(r&&r.p>0)return r.p;const q=MO.d&&MO.d.s&&MO.d.s[sym];return q&&q.p>0?q.p:null;}
+function renderDV(partial){
+  const el=$('dvBox');if(!el||!$('t-div').classList.contains('on'))return;
+  if(!CX.d||!CX.d.div){el.innerHTML='<div class="empty">Cargando el calendario de dividendos…</div>';return;}
+  const mine=new Set(S.pos.map(p=>p.s).concat(S.fav||[]));
+  const lab=S.shadow&&S.shadow.m20;if(lab)Object.keys(lab.p).forEach(x=>mine.add(x));
+  const all=Object.entries(CX.d.div).filter(([x,v])=>v&&v.x&&v.a>0).map(([x,v])=>{const px=dvPrice(x),d=dDiff(v.x);return{s:x,v,d,px,yl:px&&v.y>0?v.y/px*100:null,ys:px?v.a/px*100:null,mine:mine.has(x),nm:v.n||(S.rows[x]&&S.rows[x].nm)||''};});
+  const R=DV.range==='past'?(x=>x.d<0):(x=>x.d>=0&&x.d<=+DV.range);
+  const q=DV.q.trim().toUpperCase(),mn=+DV.min;
+  let L=all.filter(R).filter(x=>DV.scope==='all'||inUni(x.s)||x.mine).filter(x=>!q||x.s.includes(q)||x.nm.toUpperCase().includes(q)).filter(x=>!mn||(x.yl!=null&&x.yl>=mn));
+  const srt={ex:(a,b)=>a.v.x<b.v.x?-1:a.v.x>b.v.x?1:a.s.localeCompare(b.s),yl:(a,b)=>(b.yl==null?-1:b.yl)-(a.yl==null?-1:a.yl),amt:(a,b)=>b.v.a-a.v.a};
+  if(DV.range==='past'&&DV.sort==='ex')L.sort((a,b)=>a.v.x<b.v.x?1:-1);else L.sort(srt[DV.sort]);
+  const sel=(id,v,o)=>'<select id="'+id+'" style="margin:0;flex:1;min-width:0">'+o.map(x=>'<option value="'+x[0]+'"'+(x[0]===v?' selected':'')+'>'+x[1]+'</option>').join('')+'</select>';
+  const dd=x=>x.d===0?'hoy':x.d===1?'mañana':x.d<0?'hace '+(-x.d)+' d':'en '+x.d+' d';
+  const rows=L.slice(0,DV.n).map(x=>'<div class="fac" data-study="'+esc(x.s)+'" style="cursor:pointer"><div class="t"><span><b>'+esc(x.s)+'</b> ›'+(x.mine?' <span class="tag held">TUYA</span>':'')+'<br><small class="mut">'+esc(x.nm)+'</small></span><b>'+(x.yl!=null?nf(x.yl,1)+' %':'–')+'<br><small class="mut">al año</small></b></div>'+
+    '<div class="hint" style="margin:3px 0 0">Fecha ex: <b>'+fmtD(new Date(x.v.x+'T12:00:00Z'))+'</b> ('+dd(x)+')'+(x.v.p?' · pago: <b>'+fmtD(new Date(x.v.p+'T12:00:00Z'))+'</b>':'')+(x.v.r?' · registro: '+fmtD(new Date(x.v.r+'T12:00:00Z')):'')+'<br>'+esc(pxD(x.v.a,'USD',2))+' por acción'+(x.ys!=null?' ('+nf(x.ys,2)+' % de golpe)':'')+(x.v.y>0?' · '+esc(pxD(x.v.y,'USD',2))+' al año':'')+'</div></div>').join('');
+  const at=CX.d.t?new Date(CX.d.t*1000).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+  const html='<div class="hint" style="margin:0 0 8px">Calendario publicado por Nasdaq (acciones de EE. UU.). Para cobrar el dividendo hay que tener la acción <b>antes</b> de la fecha ex; se paga en la fecha de pago. La rentabilidad es el dividendo anual indicado entre el precio actual. Datos de '+at+'; las fechas pueden cambiar. Los dividendos de acciones europeas no están en este calendario.</div>'+
+    '<input id="dvQ" type="search" placeholder="Buscar acción o empresa" value="'+esc(DV.q)+'" style="margin:0 0 8px">'+
+    '<div style="display:flex;gap:8px;margin:0 0 8px">'+sel('dvR',DV.range,[['7','Próximos 7 días'],['15','Próximos 15 días'],['30','Próximos 30 días'],['45','Próximos 45 días'],['past','Ya pasados (5 días)']])+sel('dvS',DV.sort,[['ex','Por fecha ex'],['yl','Por rentabilidad'],['amt','Por importe']])+'</div>'+
+    '<div style="display:flex;gap:8px;margin:0 0 8px">'+sel('dvM',DV.min,[['0','Cualquier rentab.'],['1','≥ 1 % al año'],['2','≥ 2 %'],['3','≥ 3 %'],['5','≥ 5 %']])+sel('dvC',DV.scope,[['uni','Mi universo y favoritas'],['all','Todo el mercado']])+'</div>'+
+    '<div id="dvRows"><div class="hint" style="margin:0 0 6px">'+L.length+' dividendos'+(L.length>DV.n?' (se muestran '+DV.n+')':'')+'. Pulsa uno para estudiar la acción.</div>'+(rows||'<div class="empty">No hay dividendos con ese filtro.</div>')+(L.length>DV.n?'<div style="margin-top:8px"><button class="btn ghost small" id="dvMore" type="button">Mostrar más</button></div>':'')+'</div>';
+  if(partial&&$('dvRows')){const t=document.createElement('div');t.innerHTML=html;$('dvRows').innerHTML=t.querySelector('#dvRows').innerHTML;return;}
+  el.innerHTML=html;
+}
+$('dvBox').addEventListener('input',e=>{if(e.target.id!=='dvQ')return;DV.q=e.target.value;DV.n=60;renderDV(true);});
+$('dvBox').addEventListener('change',e=>{const m={dvR:'range',dvS:'sort',dvM:'min',dvC:'scope'}[e.target.id];if(!m)return;DV[m]=e.target.value;DV.n=60;renderDV();});
+$('dvBox').addEventListener('click',e=>{if(e.target.id==='dvMore'){DV.n+=80;renderDV();}});
 /* ---- compartir con un amigo ---- */
 function shMsg(h){const m=$('shMsg');if(m)m.innerHTML=h;}
 async function shCopy(t){try{await navigator.clipboard.writeText(t);return true;}catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();let ok=false;try{ok=document.execCommand('copy');}catch(x){}a.remove();return ok;}}
@@ -2110,7 +2146,7 @@ function renderPred(){
   h+='<div style="margin-top:12px">'+P.slice(0,8).map(t=>'<div class="log"><b>'+esc(t.s.replace('.MC',''))+'</b> · preveía '+sg(t.pred.ev,1)+' % · salió <b class="'+(t.gross>=0?'pos':'neg')+'">'+sg(t.gross,1)+' %</b> · '+(t.gross>=t.pred.ev?'mejor':'peor')+' de lo previsto</div>').join('')+'</div>';
   $('predBox').innerHTML=h;
 }
-function renderAll(){try{renderLV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();}
+function renderAll(){try{renderLV();}catch(e){}try{renderDV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();}
 
 /* ====================== gráfico completo (estilo broker) ====================== */
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
@@ -2612,6 +2648,7 @@ function go(t){
   if(t==='apr')drawBt();
   if(t==='mer')renderMer();
   if(t==='lab')renderLV();
+  if(t==='div')renderDV();
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
 $('stBtn').onclick=()=>autopilot(true);
@@ -2645,7 +2682,7 @@ document.addEventListener('visibilitychange',()=>{
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
 try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
-window.__trader={divCredit,divDue,shCode,shParse,renderLV,bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={renderDV,DV,divCredit,divDue,shCode,shParse,renderLV,bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
