@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 14:58";</script>
+<script>window.BUILD="19/11/2026 16:12";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -1363,9 +1363,11 @@ function candHTML(r,sc,i,open){
     '<div class="pr">'+nf(r.p)+' '+esc(r.cur)+'<small class="'+(r.ch>=0?'pos':'neg')+'">'+sg(r.ch,2)+' % hoy</small></div></div>'+
     '<div class="kp" data-tg="1"><div><small>Nota</small><b>'+nf(sc,1)+'</b></div><div><small>Potencial</small><b class="pos">+'+nf(tp,1)+' %</b></div><div><small>Prob. éxito</small><b>'+nf(pT*100,0)+' %</b></div></div>'+
     '<div class="dur" data-tg="1">'+durText(r)+'</div>'+
+    (fuChips(r.s,r.p)?'<div class="dur" data-tg="1" style="margin-top:4px">'+fuChips(r.s,r.p)+'</div>':'')+
     '<div class="det"><canvas class="cc" aria-label="Gráfico con tendencia, compra, stop, objetivo y previsión"></canvas>'+LEG+
     '<div class="hint" data-cap style="margin:8px 0 0"></div>'+
     '<ul>'+reasons(r).map(x=>'<li>'+x+'</li>').join('')+'</ul>'+
+    fundHTML(r.s,r.p,r)+newsHTML(r.s)+
     '<div class="plan"><div><small>Compra</small><b>'+nf(r.p)+'</b></div><div><small>Stop −'+nf(sp,1)+' %</small><b class="neg">'+nf(stop)+'</b></div><div><small>Objetivo +'+nf(tp,1)+' %</small><b class="pos">'+nf(tgt)+'</b></div></div>'+
     '<div class="stack"><i style="width:'+pT*100+'%;background:var(--blue)"></i><i style="width:'+pS*100+'%;background:var(--pink)"></i><i style="width:'+pO*100+'%;background:var(--line)"></i></div>'+
     '<div class="hint" style="margin:0">En 1.000 simulaciones de '+S.maxDays+' días: <b class="blu">'+nf(pT*100,0)+' %</b> llega al objetivo, <b class="neg">'+nf(pS*100,0)+' %</b> toca el stop y '+nf(pO*100,0)+' % sigue abierta. Resultado medio simulado: <b class="'+(ev>=0?'pos':'neg')+'">'+sg(ev,1)+' %</b>.'+(S.cal.n>=8&&Math.abs(S.cal.p-1)>0.03?' Corregido con lo que la app ha aprendido de sus aciertos y fallos (×'+nf(S.cal.p,2)+').':'')+'</div>'+
@@ -1478,7 +1480,7 @@ function renderCar(){
   $('eqHint').textContent=S.eq.length>1?'Valor de la cartera cada vez que la app trabaja. La línea discontinua es tu capital inicial.':'La gráfica se irá llenando con cada uso.';
   $('posBox').innerHTML=(S.pos.length?S.pos.map(p=>{
     const v=posValue(p),pnl=v-p.costEur,pct=pnl/p.costEur*100,pos=Math.max(0,Math.min(100,(p.last-p.stop)/(p.target-p.stop)*100));
-    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+nf(p.entry)+' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays)+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+'</div>'+
+    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+nf(p.entry)+' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays)+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+(fuChips(p.s,p.last)?'<br>'+fuChips(p.s,p.last):'')+'</div>'+
       '<div class="v">'+eur(v)+'<br><small class="'+(pnl>=0?'pos':'neg')+'">'+sg(pnl,2)+' € ('+sg(pct)+' %)</small></div>'+
       '<svg class="rng" aria-hidden="true"><defs><linearGradient id="rg'+p.id+'"><stop offset="0" stop-color="#ff1f44"/><stop offset=".5" stop-color="#ffb000"/><stop offset="1" stop-color="#00c853"/></linearGradient></defs><rect x="0" y="6" width="100%" height="10" rx="5" fill="url(#rg'+p.id+')"/><circle cx="'+pos+'%" cy="11" r="9" fill="#fff" stroke="#101828" stroke-width="3.5"/></svg>'+
       '<small>Stop '+nf(p.stop)+'</small><small style="text-align:right">Objetivo '+nf(p.target)+'</small></div>'+
