@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 22:04";</script>
+<script>window.BUILD="19/11/2026 22:14";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -2311,6 +2311,33 @@ async function fcLoad(range){
     fcHead();fcDraw();fcInfo();
   }catch(e){if(tok===FC.tok){FC.d=null;$('fcCv').getContext('2d').clearRect(0,0,9999,9999);$('fcI').textContent='No se pudo cargar el gráfico: '+(e.message||e);}}
 }
+
+/* ¿Ya está este valor en alguna cartera? (la principal, órdenes pendientes y las del laboratorio) */
+let _lm=null;
+function labMap(){
+  const sh=S.shadow||{},key=Object.keys(sh).length+'|'+(Object.values(sh).reduce((a,x)=>a+(x.at||0),0));
+  if(_lm&&_lm.k===key)return _lm.m;
+  const m={},nm={};try{shDefs().forEach(d=>{nm[d.id]=d.n;});}catch(e){}
+  for(const id of Object.keys(sh)){const x=sh[id];if(!x||!x.p)continue;for(const sym of Object.keys(x.p)){const v=x.p[sym];(m[sym]||(m[sym]=[])).push({id,n:nm[id]||id,pl:v&&v[2]?(v[1]/v[2]-1)*100:null});}}
+  _lm={k:key,m};return m;
+}
+function heldInfo(sym){
+  const pos=S.pos.find(p=>p.s===sym)||null,ord=(S.orders||[]).filter(o=>o.s===sym),lab=labMap()[sym]||[];
+  const pls=lab.filter(x=>x.pl!=null);
+  return{pos,ord,lab,labN:lab.length,labTot:Object.keys(S.shadow||{}).length,labPl:pls.length?pls.reduce((a,x)=>a+x.pl,0)/pls.length:null,any:!!pos||ord.length>0||lab.length>0};
+}
+function heldBox(r){
+  const h=heldInfo(r.s),L=[];
+  if(h.pos){const p=h.pos,pct=p.entry?(p.last/p.entry-1)*100:0;L.push('<div class="row"><span>🟢 <b>Tu cartera principal</b></span><b>'+nf(p.shares,3)+' acc. · entrada '+nf(p.entry)+' · <span class="'+(pct>=0?'pos':'neg')+'">'+sg(pct,1)+' %</span></b></div>');}
+  h.ord.forEach(o=>L.push('<div class="row"><span>⏳ <b>Orden pendiente</b></span><b>comprar si baja a '+nf(o.limit)+' '+esc(o.cur)+'</b></div>'));
+  if(h.labN){
+    const top=h.lab.slice().sort((a,b)=>(b.pl==null?-1e9:b.pl)-(a.pl==null?-1e9:a.pl));
+    L.push('<div class="row"><span>🧪 <b>Laboratorio</b></span><b>en '+h.labN+' de '+h.labTot+' carteras'+(h.labPl!=null?' · <span class="'+(h.labPl>=0?'pos':'neg')+'">'+sg(h.labPl,1)+' % de media</span>':'')+'</b></div>'+
+      '<div class="hint" style="margin:2px 0 0">'+top.slice(0,5).map(x=>esc(x.n)+(x.pl!=null?' ('+sg(x.pl,1)+' %)':'')).join(' · ')+(h.labN>5?' · y '+(h.labN-5)+' más':'')+'</div>');
+  }
+  if(!L.length)return '<div class="card" style="margin:12px 0 0"><b>¿Ya la tienes en alguna cartera?</b><div class="hint" style="margin:4px 0 0">No. No está en tu cartera principal, ni en las órdenes pendientes, ni en ninguna de las '+(h.labTot||100)+' del laboratorio.</div></div>';
+  return '<div class="card" style="margin:12px 0 0"><b>¿Ya la tienes en alguna cartera?</b><div style="margin-top:6px">'+L.join('')+'</div></div>';
+}
 function manualBox(r){
   if(noTrade(r.s))return '<div class="hint">Este valor es solo para mirar: la simulación no lo compra.</div>';
   if(S.pos.some(p=>p.s===r.s))return '';
@@ -2446,7 +2473,7 @@ async function fcStudy(){
   try{
     const r=await analyzeRow(sym,0);if(sym!==FC.sym)return;
     if(!r)throw new Error('sin datos suficientes (hace falta al menos 60 días de histórico)');
-    QROW[sym]=r;FC.nm=FC.nm||r.nm;$('fcA').innerHTML=fcStudyHTML(r)+'<div class="card" style="margin:12px 0 0"><b>Por qué sale este estudio</b>'+explainHTML(r)+'</div>'+manualBox(r);fcHead();
+    QROW[sym]=r;FC.nm=FC.nm||r.nm;$('fcA').innerHTML=fcStudyHTML(r)+'<div class="card" style="margin:12px 0 0"><b>Por qué sale este estudio</b>'+explainHTML(r)+'</div>'+heldBox(r)+manualBox(r);fcHead();
     const {f}=await getCh(sym);FC.plan={p:f.p,stop:f.stop,target:f.target,cone:f.cone};FC.opt.plan=true;fcRecent();fcOpts();fcDraw();fcInfo();
   }catch(e){$('fcA').innerHTML='<div class="msg bad">No se pudo estudiar: '+esc(e.message||e)+'</div>';}
   b.disabled=false;
@@ -2540,7 +2567,7 @@ function renderMer(){
   $('mList').innerHTML=L.slice(0,M.n).map(r=>{
     const sc=score10(r);
     return '<div class="mrow"><button class="star'+(fav.has(r.s)?' on':'')+'" data-star="'+esc(r.s)+'" type="button" aria-label="Favorita">'+(fav.has(r.s)?'★':'☆')+'</button>'+
-      '<div class="mm" data-open="'+esc(r.s)+'"><b>'+esc(r.s.replace('.MC',''))+'</b><span class="tag">'+mktOf(r.s)+'</span>'+(held.has(r.s)?'<span class="tag held">EN CARTERA</span>':'')+'<small>'+esc(r.nm)+'</small><small>Nota '+nf(sc,1)+' · Potencial +'+nf(4*r.atr/r.p*100,1)+' % · Éxito '+nf(adjP(r)*100,0)+' %</small>'+fuChips(r.s,r.p)+(function(){const t=trkOf(r.s);if(!t)return '';const pc=(r.p/t.p0-1)*100,dd=Math.max(0,Math.round((Date.now()-t.t0)/86400000));return '<small class="'+(pc>=0?'pos':'neg')+'">Desde el '+fmtD(new Date(t.t0))+' ('+dd+' d) a '+nf(t.p0)+': '+sg(pc,2)+' % · máx '+sg((t.hi/t.p0-1)*100,1)+' % · mín '+sg((t.lo/t.p0-1)*100,1)+' % · nota '+nf(t.n0,1)+' → '+nf(sc,1)+'</small>';})()+'</div>'+
+      '<div class="mm" data-open="'+esc(r.s)+'"><b>'+esc(r.s.replace('.MC',''))+'</b><span class="tag">'+mktOf(r.s)+'</span>'+(held.has(r.s)?'<span class="tag held">EN CARTERA</span>':'')+((S.orders||[]).some(o=>o.s===r.s)?'<span class="tag">ORDEN</span>':'')+(function(){const n=(labMap()[r.s]||[]).length;return n?'<span class="tag" title="Carteras del laboratorio que la tienen">LAB '+n+'</span>':'';})()+'<small>'+esc(r.nm)+'</small><small>Nota '+nf(sc,1)+' · Potencial +'+nf(4*r.atr/r.p*100,1)+' % · Éxito '+nf(adjP(r)*100,0)+' %</small>'+fuChips(r.s,r.p)+(function(){const t=trkOf(r.s);if(!t)return '';const pc=(r.p/t.p0-1)*100,dd=Math.max(0,Math.round((Date.now()-t.t0)/86400000));return '<small class="'+(pc>=0?'pos':'neg')+'">Desde el '+fmtD(new Date(t.t0))+' ('+dd+' d) a '+nf(t.p0)+': '+sg(pc,2)+' % · máx '+sg((t.hi/t.p0-1)*100,1)+' % · mín '+sg((t.lo/t.p0-1)*100,1)+' % · nota '+nf(t.n0,1)+' → '+nf(sc,1)+'</small>';})()+'</div>'+
       '<div class="mp"><span data-open="'+esc(r.s)+'">'+esc(pxD(r.p,r.cur))+'</span><small class="'+(r.ch>=0?'pos':'neg')+'">'+sg(r.ch,2)+' %</small><button class="btn ghost small" data-trk="'+esc(r.s)+'" type="button" style="padding:3px 8px;font-size:12px;margin:4px 0 0">'+(trkOf(r.s)?'👁 Siguiendo':'+ Seguir')+'</button></div></div>';
   }).join('')||'<div class="empty">Sin resultados.</div>';
   $('mMore').style.display=L.length>M.n?'block':'none';
