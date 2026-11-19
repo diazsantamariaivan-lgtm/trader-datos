@@ -61,6 +61,7 @@ const now = new Date(), wd = now.getUTCDay(), hu = now.getUTCHours();
 const OPEN = process.env.FORCE === '1' || (wd >= 1 && wd <= 5 && hu >= 8 && hu < 21);
 if (!OPEN) console.log('Mercado cerrado: no se compra, solo se vigila y se guarda la cartera');
 const S0 = fresh ? {} : prev.S;
+const LRN = cfg.aprender_laboratorio !== false;
 const seed = Object.assign({}, S0, {
   gh: REPO, auto: OPEN, ntfy: NTFY,
   riesgo: cfg.riesgo_por_operacion_pct, maxPos: cfg.max_por_valor_pct, maxOpen: cfg.max_posiciones,
@@ -70,7 +71,7 @@ const seed = Object.assign({}, S0, {
   ...(cfg.fscore_minimo != null ? { minFs: +cfg.fscore_minimo } : {}), ...(cfg.roce_minimo_pct != null ? { minRoc: +cfg.roce_minimo_pct } : {}),
   ...(cfg.vetar_noticias_negativas != null ? { vetoNews: !!cfg.vetar_noticias_negativas } : {}), ...(cfg.mercado_vigilar != null ? { regOn: !!cfg.mercado_vigilar } : {}),
   ...(cfg.analistas != null ? { anOn: !!cfg.analistas } : {}), ...(cfg.resultados_dias != null ? { earnD: +cfg.resultados_dias } : {}),
-  modo: cfg.estrategia || 'mom', momN: cfg.momentum_n || 20, momFreq: cfg.revision_momentum || 'm', labCustom: Array.isArray(cfg.laboratorio) ? cfg.laboratorio : [], labGrid: cfg.laboratorio_100 !== false
+  modo: cfg.estrategia || 'mom', lrnOn: cfg.aprender_laboratorio !== false, momN: (LRN && S0.lrn) ? S0.lrn.N : (cfg.momentum_n || 20), momFreq: (LRN && S0.lrn) ? S0.lrn.f : (cfg.revision_momentum || 'm'), momFilt: (LRN && S0.lrn) ? S0.lrn.filt : true, momW: (LRN && S0.lrn) ? S0.lrn.w : 12, labCustom: Array.isArray(cfg.laboratorio) ? cfg.laboratorio : [], labGrid: cfg.laboratorio_100 !== false
 });
 // operaciones compartidas por otras apps (solo señales y resultado) llegadas al tema común
 function aprOk(e) { return e && typeof e.u === 'string' && e.u.length <= 40 && Array.isArray(e.f) && e.f.length === 5 && e.f.every(x => x === 0 || x === 1) && Number.isFinite(e.pnl) && Math.abs(e.pnl) < 100 && ['objetivo', 'stop', 'tiempo'].includes(e.why) && Number.isFinite(e.days) && e.days >= 0 && e.days <= 60 && (e.gross == null || (Number.isFinite(e.gross) && Math.abs(e.gross) < 100)) && (e.pred == null || (Number.isFinite(e.pred.pT) && Number.isFinite(e.pred.ev))); }
@@ -139,7 +140,7 @@ if (hh >= 21 && S.sumDay !== today && NTFY) {
 await until(() => !S.outbox.length, 20000);
 w.localStorage.setItem(KEY, JSON.stringify(S));
 
-const KEEP = ['ext', 'cap0', 'cash', 'pos', 'closed', 'eq', 'log', 'W', 'cal', 'buyDay', 'buysToday', 'brakeDay', 'startedAt', 'favAl', 'sumDay', 'trk', 'fx', 'momAt', 'momMonth', 'shadow', 'shBench', 'labGrid'];
+const KEEP = ['ext', 'cap0', 'cash', 'pos', 'closed', 'eq', 'log', 'W', 'cal', 'buyDay', 'buysToday', 'brakeDay', 'startedAt', 'favAl', 'sumDay', 'trk', 'fx', 'momAt', 'momMonth', 'shadow', 'shBench', 'labGrid', 'lrn', 'lrnLog', 'momFilt', 'momW', 'lrnDay'];
 const outS = {}; KEEP.forEach(k => { if (S[k] !== undefined) outS[k] = S[k]; });
 const eq = T.equity();
 const state = { at: Date.now(), resetId: cfg.reinicio, equity: eq, config: cfg, S: outS };

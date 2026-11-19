@@ -24,5 +24,6 @@
   "momentum_n": 20,
   "revision_momentum": "m",
   "laboratorio": [],
-  "laboratorio_100": true
+  "laboratorio_100": true,
+  "aprender_laboratorio": true
 }
