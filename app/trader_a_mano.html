@@ -405,6 +405,7 @@ const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,prorroga:tr
   pos:[],closed:[],eq:[],log:[],W:Object.assign({},BASE_W),rows:{},cal:{p:1,bias:0,n:0,dur:1},ntfy:'',outbox:[],watchMode:false,scanAt:0,sp:{list:[],at:0},fx:{},buyDay:'',buysToday:0,startedAt:Date.now()};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const j=localStorage.getItem(KEY);if(j)Object.assign(S,JSON.parse(j));}catch(e){}
+try{if(!S.srvKey){const k=localStorage.getItem('tm.key');if(k)S.srvKey=k;}}catch(e){}
 S.cal=Object.assign({p:1,bias:0,n:0,dur:1},S.cal);if(!Array.isArray(S.outbox))S.outbox=[];
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
@@ -2135,7 +2136,7 @@ function renderApr2(){
 $('sApr').onchange=async()=>{S.apr=$('sApr').checked;save();if(S.apr){await aprSync();aprFlush();}learn();save();renderApr2();renderAll();};
 $('sAprT').onchange=()=>{S.aprT=$('sAprT').value.trim().replace(/[^A-Za-z0-9_-]/g,'');save();aprFlush();renderApr2();};
 $('sKey').value=S.srvKey;
-$('sKey').onchange=async()=>{S.srvKey=$('sKey').value.trim();S.srvAt=0;S.srvErr='';save();await srvSync();save();renderSrv();renderAll();};
+$('sKey').onchange=async()=>{S.srvKey=$('sKey').value.trim();try{localStorage.setItem('tm.key',S.srvKey);}catch(e){}S.srvAt=0;S.srvErr='';save();await srvSync();save();renderSrv();renderAll();};
 $('sSrv').onchange=async e=>{S.srv=e.target.checked;if(!S.srv)S.srvAt=0;save();if(S.srv){await srvSync();save();}renderSrv();renderAll();};
 $('sWatch').checked=S.watchMode;
 $('sWatch').onchange=async e=>{
