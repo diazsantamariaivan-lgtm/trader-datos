@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 19:57";</script>
+<script>window.BUILD="19/11/2026 20:02";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -277,7 +277,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <h2>Cómo trabaja</h2>
   <div class="card" style="font-size:14px;color:var(--mut)">
     <p style="margin-top:0"><b class="mut" style="color:var(--tx)">1. Estudia</b> cada vez que la abres todas las empresas del S&amp;P 500 y del IBEX 35: tendencia, fuerza (RSI), cercanía a máximos e impulso.</p>
-    <p><b style="color:var(--tx)">2. Simula</b> 1.000 veces cómo podría moverse cada una en los próximos días, repitiendo sus movimientos recientes, y calcula la probabilidad de llegar al objetivo antes que al stop y cuántos días tardaría.</p>
+    <p><b style="color:var(--tx)">2. Simula</b> 10.000 veces cómo podría moverse cada una en los próximos días, repitiendo sus movimientos recientes, y calcula la probabilidad de llegar al objetivo antes que al stop y cuántos días tardaría.</p>
     <p><b style="color:var(--tx)">3. Opera</b> en su cartera ficticia con las mejores, con riesgo limitado y comisiones de 1 € por orden.</p>
     <p style="margin-bottom:0"><b style="color:var(--tx)">4. Aprende</b>: cuando cierra una operación, anota qué señales tenía y si ganó. Con el tiempo da más peso a las que mejor funcionan.</p>
   </div>
@@ -580,7 +580,7 @@ function momHTML(){
     (m?'<b style="color:'+(m.on?'var(--pos,#3fb68b)':'var(--neg,#e5566b)')+'">● Mercado '+(m.on?'a favor':'en contra')+'</b> (S&P 500 '+nf(m.p,0)+' '+(m.on?'sobre':'bajo')+' su media de 200 días, '+nf(m.s200,0)+'). '+(m.on?'Se invierte a partes iguales en las '+N+' acciones que más han subido en 12 meses (sin contar el último).':'No se compra: se queda en efectivo.'):'Cargando el estado del mercado…')+
     '<br><small>Se revisa '+FREQ[momFreq()]+'. Probada con 20 años de datos de EE. UU.: ver Aprende. Se saltan las acciones con noticias muy negativas y las que no cumplan tus mínimos de F-Score y ROCE (Ajustes).</small></div>';
   if(!R.length)return head+'<div class="empty">Cargando el ranking de momentum…</div>';
-  const rows=R.slice(0,N).map(x=>'<div class="row"><span><b>'+x.rk+'</b> · '+esc(x.s)+(held.has(x.s)?' <span class="tag held">EN CARTERA</span>':'')+'</span><b class="'+(x.m>=0?'pos':'neg')+'">'+sg(x.m*100,0)+' %</b></div>').join('');
+  const rows=R.slice(0,N).map(x=>'<div class="row" data-study="'+esc(x.s)+'" style="cursor:pointer"><span><b>'+x.rk+'</b> · '+esc(x.s)+(held.has(x.s)?' <span class="tag held">EN CARTERA</span>':'')+'</span><b class="'+(x.m>=0?'pos':'neg')+'">'+sg(x.m*100,0)+' %</b></div>').join('');
   return head+'<div class="card"><div class="hint" style="margin:0 0 6px">Ranking de momentum (subida de hace 12 meses a hace 1 mes). Objetivo de la próxima revisión:</div>'+rows+'</div>';
 }
 /* ---- laboratorio: carteras en paralelo (misma señal, distintas reglas) para aprender qué funciona, sin riesgo ---- */
@@ -725,7 +725,7 @@ function renderLab(){
     if(open){
       const hold=Object.entries(sh.p).map(([x,v])=>({s:x,val:v[0]*v[1]/fx,pl:v[2]?(v[1]/v[2]-1)*100:null})).sort((a,b)=>b.val-a.val);
       det='<div class="hint" style="margin:6px 0">Configuración: revisión <b>'+FREQ[d.f]+'</b> · <b>'+d.N+'</b> acciones · filtro de mercado <b>'+(d.filt?'sí':'no')+'</b> · señal <b>'+(d.w===6?'6-1 meses':'12-1 meses')+'</b>.<br>Última revisión: '+(sh.at?fmtD(new Date(sh.at)):'–')+' · próxima: '+nextDue(d.f,sh.at)+' · efectivo: '+eur(sh.c)+'</div>'+
-        (hold.length?hold.map(x=>'<div class="row" style="margin-top:4px"><span>'+esc(x.s)+'</span><b>'+eur(x.val)+' · '+nf(x.val/e*100,0)+' %'+(x.pl!=null?' · <span class="'+(x.pl>=0?'pos':'neg')+'">'+sg(x.pl,1)+' %</span>':'')+'</b></div>').join(''):'<div class="hint">Ahora mismo en efectivo (el mercado está en contra o aún no ha entrado).</div>')+
+        (hold.length?hold.map(x=>'<div class="row" data-study="'+esc(x.s)+'" style="margin-top:4px;cursor:pointer"><span>'+esc(x.s)+' ›</span><b>'+eur(x.val)+' · '+nf(x.val/e*100,0)+' %'+(x.pl!=null?' · <span class="'+(x.pl>=0?'pos':'neg')+'">'+sg(x.pl,1)+' %</span>':'')+'</b></div>').join(''):'<div class="hint">Ahora mismo en efectivo (el mercado está en contra o aún no ha entrado).</div>')+
         (d.id.startsWith('c')?'<div style="margin-top:8px"><button class="btn ghost small" data-labdel="'+esc(d.id)+'" type="button">Eliminar esta cartera</button></div>':'');
     }
     return '<div class="fac" data-labrow="'+esc(d.id)+'" style="cursor:pointer"><div class="t"><span>'+esc(d.n)+' '+(open?'▾':'▸')+'</span><b class="'+(ret>=0?'pos':'neg')+'">'+sg(ret,1)+' %</b></div><div class="hint" style="margin:3px 0 0">'+(br!=null?'Frente al S&P 500: '+sg(ret-br,1)+' puntos · ':'')+'caída máxima '+nf(dd(sh.h),1)+' % · '+Object.keys(sh.p).length+' acciones · '+sh.nt+' operaciones</div>'+det+'</div>';
@@ -787,7 +787,7 @@ function renderEv(){
   const el=$('evBox');if(!el)return;
   if(!CX.d){el.innerHTML='<div class="empty">Cargando el calendario…</div>';return;}
   const L=evList();
-  el.innerHTML=L.length?'<div class="hint" style="margin:0 0 6px">De tus posiciones, favoritas y de las acciones del ranking de momentum (solo EE. UU.; las fechas pueden cambiar):</div>'+L.map(x=>'<div class="row" style="margin-top:6px"><span><b>'+fmtD(new Date(x.date+'T12:00:00Z'))+'</b> · '+(x.s?esc(x.s)+' · ':'')+x.t+'</span><b>'+(x.d<=0?'hoy':x.d===1?'mañana':'en '+x.d+' d')+'</b></div>').join(''):'<div class="empty">No hay eventos en los próximos 30 días.</div>';
+  el.innerHTML=L.length?'<div class="hint" style="margin:0 0 6px">De tus posiciones, favoritas y de las acciones del ranking de momentum (solo EE. UU.; las fechas pueden cambiar):</div>'+L.map(x=>'<div class="row"'+(x.s?' data-study="'+esc(x.s)+'" style="margin-top:6px;cursor:pointer"':' style="margin-top:6px"')+'><span><b>'+fmtD(new Date(x.date+'T12:00:00Z'))+'</b> · '+(x.s?esc(x.s)+' · ':'')+x.t+'</span><b>'+(x.d<=0?'hoy':x.d===1?'mañana':'en '+x.d+' d')+'</b></div>').join(''):'<div class="empty">No hay eventos en los próximos 30 días.</div>';
 }
 /* ---- opinión de analistas (EE. UU.) ---- */
 const AN={d:null,chk:0};
@@ -1024,7 +1024,7 @@ function bootCone(rets,days,runs){
 function forecast(d){
   const n=d.c.length,p=d.meta.regularMarketPrice||d.c[n-1],a=atr(d),rets=[];
   for(let i=Math.max(1,n-120);i<n;i++)rets.push(Math.log(d.c[i]/d.c[i-1]));
-  return{p,a,stop:p-2*a,target:p+4*a,cone:bootCone(rets,S.maxDays,1000)};
+  return{p,a,stop:p-2*a,target:p+4*a,cone:bootCone(rets,S.maxDays,10000)};
 }
 const noTrade=s=>s.startsWith('^')||s.startsWith('IDX:')||s.indexOf('=')>=0||/-USD$/.test(s);
 const IDX_FB=()=>[{id:'SP500',n:'S&P 500',c:'EE. UU.',t:'S&P',s:S.sp.list.length?S.sp.list:SP_FALLBACK},{id:'IBEX35',n:'IBEX 35',c:'España',t:'IBEX',s:IBEX_MC}];
@@ -1056,7 +1056,7 @@ async function analyzeRow(sym,prio){
       const s20=sma(d.c,20),s50=sma(d.c,50),r=rsi(d.c),hi20=Math.max(...d.h.slice(-20)),a=atr(d),mom=(p/d.c[n-21]-1)*100;
       if(!(a>0&&p>0))return null;
       const rets=[];for(let i=Math.max(1,n-120);i<n;i++)rets.push(Math.log(d.c[i]/d.c[i-1]));
-      const sp=2*a/p,tp=4*a/p,sim=bootSim(rets,sp,tp,S.maxDays,1000);
+      const sp=2*a/p,tp=4*a/p,sim=bootSim(rets,sp,tp,S.maxDays,10000);
       return{s:sym,nm:String(d.meta.shortName||d.meta.longName||'').slice(0,30),p,cur:d.meta.currency||'',ch:(p/prev-1)*100,
         rsi:r,dist:(hi20/p-1)*100,mom,atr:a,
         f:[p>s20&&s20>s50?1:0,p>s50?1:0,r>=50&&r<=68?1:0,(hi20/p-1)*100<=3?1:0,mom>5?1:0],
@@ -1756,7 +1756,7 @@ function candHTML(r,sc,i,open){
     fundHTML(r.s,r.p,r)+newsHTML(r.s)+
     '<div class="plan"><div><small>Compra</small><b>'+nf(r.p)+'</b></div><div><small>Stop −'+nf(sp,1)+' %</small><b class="neg">'+nf(stop)+'</b></div><div><small>Objetivo +'+nf(tp,1)+' %</small><b class="pos">'+nf(tgt)+'</b></div></div>'+
     '<div class="stack"><i style="width:'+pT*100+'%;background:var(--blue)"></i><i style="width:'+pS*100+'%;background:var(--pink)"></i><i style="width:'+pO*100+'%;background:var(--line)"></i></div>'+
-    '<div class="hint" style="margin:0">En 1.000 simulaciones de '+S.maxDays+' días: <b class="blu">'+nf(pT*100,0)+' %</b> llega al objetivo, <b class="neg">'+nf(pS*100,0)+' %</b> toca el stop y '+nf(pO*100,0)+' % sigue abierta. Resultado medio simulado: <b class="'+(ev>=0?'pos':'neg')+'">'+sg(ev,1)+' %</b>.'+(S.cal.n>=8&&Math.abs(S.cal.p-1)>0.03?' Corregido con lo que la app ha aprendido de sus aciertos y fallos (×'+nf(S.cal.p,2)+').':'')+'</div>'+
+    '<div class="hint" style="margin:0">En 10.000 simulaciones de '+S.maxDays+' días: <b class="blu">'+nf(pT*100,0)+' %</b> llega al objetivo, <b class="neg">'+nf(pS*100,0)+' %</b> toca el stop y '+nf(pO*100,0)+' % sigue abierta. Resultado medio simulado: <b class="'+(ev>=0?'pos':'neg')+'">'+sg(ev,1)+' %</b>.'+(S.cal.n>=8&&Math.abs(S.cal.p-1)>0.03?' Corregido con lo que la app ha aprendido de sus aciertos y fallos (×'+nf(S.cal.p,2)+').':'')+'</div>'+
     '<div style="display:flex;gap:8px;margin-top:12px"><button class="btn small" data-fc="'+esc(r.s)+'" type="button">Gráfico completo</button><button class="btn ghost small" data-news="'+esc(r.s)+'" type="button">Ver noticias</button></div>'+
     '<div class="news" data-nbox="'+esc(r.s)+'" style="margin-top:6px"></div></div></div>';
 }
@@ -2268,6 +2268,7 @@ $('mHead').onchange=e=>{
 };
 $('mS').onclick=e=>{const b=e.target.closest('[data-s]');if(!b)return;M.s=b.dataset.s;M.n=60;renderMer();};
 $('mMore').onclick=()=>{M.n+=60;renderMer();};
+document.addEventListener('click',e=>{const o=e.target.closest('[data-study]');if(!o)return;e.stopPropagation();const x=o.dataset.study;fcOpen(x,S.rows[x]||QROW[x]);},true);
 $('mList').onclick=e=>{
   const st=e.target.closest('[data-star]');
   if(st){const x=st.dataset.star,i=S.fav.indexOf(x);i>=0?S.fav.splice(i,1):S.fav.push(x);save();renderMer();return;}
@@ -2303,14 +2304,14 @@ function explainRow(r){
   const buy=!why.length;
   return{r,sc,pT,ev,sp,tp,sig,pen,tend,buy,why,
     nota:'Nota '+nf(sc,1)+' de 10. Se suman las señales cumplidas, cada una con el peso que la app ha ido aprendiendo ('+FK.map(k=>nf(W[k],1)).join(' / ')+' sobre '+nf(tot,1)+') y se restan las penalizaciones.',
-    prob:'Probabilidad de éxito '+nf(pT*100,0)+' %: en 1000 recorridos simulados con los movimientos reales de esta acción en los últimos 6 meses (mezclados al azar), en un '+nf(r.pT*100,0)+' % toca el objetivo (+'+nf(tp,1)+' %) antes que el stop (−'+nf(sp,1)+' %) en un máximo de '+S.maxDays+' días'+(Math.abs(S.cal.p-1)>0.02?'; corregido con un factor de '+nf(S.cal.p,2)+' según cómo han salido las operaciones reales de la app':'')+'.',
+    prob:'Probabilidad de éxito '+nf(pT*100,0)+' %: en 10.000 recorridos simulados con los movimientos reales de esta acción en los últimos 6 meses (mezclados al azar), en un '+nf(r.pT*100,0)+' % toca el objetivo (+'+nf(tp,1)+' %) antes que el stop (−'+nf(sp,1)+' %) en un máximo de '+S.maxDays+' días'+(Math.abs(S.cal.p-1)>0.02?'; corregido con un factor de '+nf(S.cal.p,2)+' según cómo han salido las operaciones reales de la app':'')+'.',
     pot:'Potencial +'+nf(tp,1)+' %: 4 veces su oscilación diaria típica (ATR). El stop está a 2 veces esa oscilación (−'+nf(sp,1)+' %), así que se arriesga la mitad de lo que se espera ganar.',
     res:'Resultado medio simulado '+sg(ev,2)+' % por operación'+(S.cal.bias?' (ya restado el sesgo de optimismo que la app ha medido: '+nf(S.cal.bias,2)+' %)':'')+'.',
     plazo:durText(r).replace(/<\/?b>/g,'')};
 }
 function reportText(L){
   const d=new Date(GH.q&&GH.q.at?GH.q.at*1000:Date.now());
-  let t='INFORME DEL ESTUDIO · Trader a mano\nDatos de '+d.toLocaleString('es-ES')+' · Universo: '+uniNames()+'\n\nCómo estudia la app: para cada acción mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo y impulso), simula 1000 futuros posibles con sus propios movimientos recientes y calcula probabilidad, potencial y plazo. Solo compra si nota ≥ 6, resultado medio simulado positivo y precio sobre su media de 50 días. Es un filtro técnico: no mira resultados de la empresa ni noticias.\n';
+  let t='INFORME DEL ESTUDIO · Trader a mano\nDatos de '+d.toLocaleString('es-ES')+' · Universo: '+uniNames()+'\n\nCómo estudia la app: para cada acción mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo y impulso), simula 10.000 futuros posibles con sus propios movimientos recientes y calcula probabilidad, potencial y plazo. Solo compra si nota ≥ 6, resultado medio simulado positivo y precio sobre su media de 50 días. Es un filtro técnico: no mira resultados de la empresa ni noticias.\n';
   L.forEach((r,i)=>{const e=explainRow(r);t+='\n'+(i+1)+'. '+r.s.replace('.MC','')+' · '+r.nm+' · '+pxD(r.p,r.cur)+'\n   '+e.nota+'\n'+e.sig.map(x=>'   '+(x.ok?'[sí] ':'[no] ')+x.t).join('\n')+(e.pen.length?'\n   '+e.pen.join(' '):'')+'\n   Tendencia: '+e.tend+'.\n   '+e.prob+'\n   '+e.pot+'\n   '+e.res+'\n   '+e.plazo+'\n   Conclusión: '+(e.buy?'la app la compraría hoy si hay hueco y efectivo.':'la app no la compraría ahora: '+e.why.join(', ')+'.')+'\n';});
   return t;
 }
@@ -2321,7 +2322,7 @@ function openReport(){
   const L=(M.last||[]).slice(0,40);go('est');
   const d=GH.q&&GH.q.at?new Date(GH.q.at*1000):new Date();
   $('eHead').innerHTML='<div class="hint" style="margin:0">Datos de '+d.toLocaleString('es-ES')+'. Lista: <b>'+esc(($('mI').selectedOptions[0]||{}).text||'')+'</b>'+(M.nm?' · nota ≥ '+M.nm:'')+(M.pt?' · potencial ≥ '+M.pt+' %':'')+(M.pr?' · éxito '+(M.pr>0?'≥ ':'≤ ')+Math.abs(M.pr)+' %':'')+(M.fu?' · '+((FU_O.find(x=>x[0]===M.fu)||[])[1]||''):'')+' · '+L.length+' valores, ordenados como en Mercado.</div>'+
-    '<div class="msg" style="margin-top:8px"><b>Cómo estudia la app.</b> Mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo, impulso), simula 1000 futuros posibles con los movimientos reales de la acción y calcula así la probabilidad, el potencial y el plazo. Solo compra con nota ≥ 6, resultado simulado positivo y precio sobre su media de 50 días. No mira noticias. Aparte, enseña datos de la empresa (capitalización, ROCE, F-Score y dividendo), que se combinan con el análisis técnico en la nota (por defecto 35 % empresa y 65 % gráfico; se cambia en Más).</div>';
+    '<div class="msg" style="margin-top:8px"><b>Cómo estudia la app.</b> Mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo, impulso), simula 10.000 futuros posibles con los movimientos reales de la acción y calcula así la probabilidad, el potencial y el plazo. Solo compra con nota ≥ 6, resultado simulado positivo y precio sobre su media de 50 días. No mira noticias. Aparte, enseña datos de la empresa (capitalización, ROCE, F-Score y dividendo), que se combinan con el análisis técnico en la nota (por defecto 35 % empresa y 65 % gráfico; se cambia en Más).</div>';
   $('eList').innerHTML=L.length?L.map((r,i)=>{const e=explainRow(r);
     return '<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>'+(i+1)+'. '+esc(r.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(r.s)+'</span><br><small class="mut">'+esc(r.nm)+'</small></div><div style="text-align:right"><b>'+esc(pxD(r.p,r.cur))+'</b><br><small>Nota '+nf(e.sc,1)+' · '+nf(e.pT*100,0)+' % · +'+nf(e.tp,1)+' %</small></div></div>'+
       explainHTML(r)+'</div>';}).join(''):'<div class="empty">No hay valores con estos filtros.</div>';
@@ -2522,7 +2523,7 @@ document.addEventListener('visibilitychange',()=>{
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
 try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
-window.__trader={labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
