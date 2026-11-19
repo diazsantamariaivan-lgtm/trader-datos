@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 14:50";</script>
+<script>window.BUILD="19/11/2026 14:58";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -461,6 +461,24 @@ async function loadFund(){
     if(j&&j.s&&(!FU.d||j.t>=FU.d.t)){FU.d=j;FU.at=j.t*1000;try{localStorage.setItem('tm.fund',JSON.stringify(j));}catch(e){}try{renderAll();}catch(e){renderMer();}}
   }catch(e){}
 }
+const FCK={d:null,chk:0};
+async function loadCheck(){
+  try{if(!ghBase()||Date.now()-FCK.chk<3600e3)return;FCK.chk=Date.now();
+    const j=await ghJson(ghBase()+'/check/c.json?t='+Math.floor(Date.now()/3600000));
+    if(j&&j.s){FCK.d=j;try{renderAll();}catch(e){}}
+  }catch(e){}
+}
+// Contraste con una segunda fuente (FMP, solo EE. UU.): devuelve null si no hay, o {bad:[...],ok:[...],at}
+function fuCheck(sym){
+  const c=FCK.d&&FCK.d.s?FCK.d.s[sym]:null,y=fuOf(sym);if(!c||!y)return null;
+  const bad=[],ok=[];
+  if(c.mc&&y.mc&&y.cu==='USD'){const d=Math.abs(y.mc-c.mc)/c.mc;(d>0.1?bad:ok).push(d>0.1?'capitalización ('+capTxt(y)+' frente a '+capTxt({mc:c.mc,cu:'USD'})+')':'capitalización');}
+  if(c.roce!=null&&y.roce!=null){const d=Math.abs(y.roce-c.roce);(d>Math.max(6,0.4*Math.abs(c.roce))?bad:ok).push(d>Math.max(6,0.4*Math.abs(c.roce))?'ROCE ('+nf(y.roce,1)+' % frente a '+nf(c.roce,1)+' %)':'ROCE');}
+  if(c.fs!=null&&y.fs!=null){const d=Math.abs((y.fs/y.fn*9)-c.fs);(d>=2.5?bad:ok).push(d>=2.5?'F-Score ('+y.fs+'/'+y.fn+' frente a '+c.fs+'/9)':'F-Score');}
+  if(c.ld!=null&&y.dv!=null){const a=c.ld>0,b=y.dv>0;(a!==b?bad:ok).push(a!==b?'si paga dividendo':'dividendo');}
+  if(!bad.length&&!ok.length)return null;
+  return{bad,ok,at:c.at};
+}
 const fuOf=sym=>FU.d&&FU.d.s?FU.d.s[sym]||null:null;
 const CUS={EUR:'€',USD:'$',GBP:'£',GBp:'p',CHF:'CHF',SEK:'kr',DKK:'kr',NOK:'kr'};
 function capTxt(f){if(!f||!f.mc)return '';const v=f.mc,u=CUS[f.cu]||f.cu||'',n=(x,d)=>x.toLocaleString('es-ES',{maximumFractionDigits:d});
@@ -487,13 +505,16 @@ function fundHTML(sym,price,rr){
     else L.push('<li><b>Dividendo:</b> '+(di.y!=null?'rentabilidad '+nf(di.y,2)+' % · ':'')+'se paga '+di.n+' '+(di.n===1?'vez':'veces')+' al año · '+di.rec+' · '+di.grow+(di.cut?' · <span class="neg">recortó el último año</span>':'')+(di.y>8?' · <span class="neg">rentabilidad muy alta: a veces avisa de problemas</span>':'')+'.</li>');
   }
   const nt=rr?notaTxt(rr):'';
+  const ck=fuCheck(sym);
+  const ckH=ck?'<div class="msg'+(ck.bad.length?' bad':' ok')+'" style="margin:6px 0">'+(ck.bad.length?'⚠️ <b>Datos discrepantes</b> entre Yahoo y Financial Modeling Prep: '+esc(ck.bad.join(', '))+'. Hasta aclararlo, la nota de empresa pesa la mitad.':'✅ Contrastado con una segunda fuente (Financial Modeling Prep): coinciden '+esc(ck.ok.join(', '))+'.')+'</div>':(/\./.test(sym)||(f.cu&&f.cu!=='USD')?'<div class="hint" style="margin:4px 0">Sin segunda fuente para este valor (el contraste gratuito solo cubre EE. UU.).</div>':'<div class="hint" style="margin:4px 0">Aún no contrastado con la segunda fuente: se va completando cada día.</div>');
   const bad=[];if(f.fs!=null&&f.fs/f.fn*9<4)bad.push('F-Score débil');if(f.roce!=null&&f.roce<6)bad.push('ROCE flojo');
-  return '<div style="font-size:14px;margin:10px 0 2px"><b>La empresa</b> <span class="mut" style="font-size:12px">(balance de '+esc(f.fd||'')+')</span></div><ul style="margin:4px 0;padding-left:18px;font-size:14px">'+L.join('')+'</ul>'+(nt?'<div class="msg" style="margin:6px 0">'+esc(nt)+'. Las dos miradas cuentan a la vez: una acción con buen gráfico pero empresa débil baja de nota, y al revés.</div>':'')+(bad.length?'<div class="hint" style="margin:2px 0 6px">⚠️ '+bad.join(' y ')+': el negocio da señales de fragilidad aunque el gráfico suba.</div>':'');
+  return '<div style="font-size:14px;margin:10px 0 2px"><b>La empresa</b> <span class="mut" style="font-size:12px">(balance de '+esc(f.fd||'')+')</span></div><ul style="margin:4px 0;padding-left:18px;font-size:14px">'+L.join('')+'</ul>'+ckH+(nt?'<div class="msg" style="margin:6px 0">'+esc(nt)+'. Las dos miradas cuentan a la vez: una acción con buen gráfico pero empresa débil baja de nota, y al revés.</div>':'')+(bad.length?'<div class="hint" style="margin:2px 0 6px">⚠️ '+bad.join(' y ')+': el negocio da señales de fragilidad aunque el gráfico suba.</div>':'');
 }
 function fuChips(sym,price){
   const f=fuOf(sym),nc=newsCnt(sym),nl=newsOf(sym).length;let nt='';if(nl)nt='<small class="'+(nc.n>nc.p?'neg':nc.p>nc.n?'pos':'mut')+'">📰 '+nl+(nc.n?' · '+nc.n+' negativa'+(nc.n>1?'s':''):'')+(nc.p?' · '+nc.p+' positiva'+(nc.p>1?'s':''):'')+'</small>';
   if(!f)return nt;const c=[];
   if(f.mc)c.push('Cap. '+capTxt(f));
+  const kk=fuCheck(sym);if(kk&&kk.bad.length)c.push('⚠️ datos');
   if(f.roce!=null)c.push('ROCE '+nf(f.roce,0)+' %');
   if(f.fs!=null)c.push('F '+f.fs+'/'+f.fn);
   const di=divInfo(f,price);if(di)c.push(di.paga?'Div. '+(di.y!=null?nf(di.y,1)+' %':'sí')+(f.dg>=3?' ↑'+f.dg:''):'Sin div.');
@@ -708,14 +729,14 @@ function calid10(sym,price){
   if(f.mc){max+=1;const c=capCat(f);got+=c==='gran capitalización'?1:c==='mediana'?0.6:0.2;}
   return max>=4?10*got/max:null;
 }
-const wFu=()=>S.comb===false?0:Math.max(0,Math.min(0.7,S.wFu==null?0.35:S.wFu));
+const wFu=sym=>{if(S.comb===false)return 0;let w=Math.max(0,Math.min(0.7,S.wFu==null?0.35:S.wFu));if(sym){const k=fuCheck(sym);if(k&&k.bad.length)w*=0.5;}return w;};
 function score10(r){
-  const t=tech10(r),w=wFu();if(!w)return t;
+  const t=tech10(r),w=wFu(r.s);if(!w)return t;
   const q=calid10(r.s,r.p);if(q==null)return t;
   return Math.max(0,Math.min(10,t*(1-w)+q*w));
 }
 function notaTxt(r){
-  const t=tech10(r),w=wFu(),q=w?calid10(r.s,r.p):null;
+  const t=tech10(r),w=wFu(r.s),q=w?calid10(r.s,r.p):null;
   if(q==null)return w?'Nota '+nf(t,1)+' (solo técnica: sin datos de empresa)':'';
   return 'Nota global '+nf(score10(r),1)+' = '+Math.round((1-w)*100)+' % técnica ('+nf(t,1)+') + '+Math.round(w*100)+' % empresa ('+nf(q,1)+')';
 }
@@ -2028,7 +2049,7 @@ applyTheme(S.theme);
 if(S.apr&&(S.ext||[]).length)learn();
 try{$('verTxt').textContent='Versión: '+(window.BUILD||'archivo local (no se actualiza solo)');}catch(e){}
 renderAll();
-loadFund();setInterval(loadFund,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
+loadFund();setInterval(loadFund,3600e3);loadCheck();setInterval(loadCheck,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
 setTimeout(()=>autopilot(false),300);
 if(S.watchMode)keepAwake(true);
 function tick(){
@@ -2044,7 +2065,7 @@ document.addEventListener('visibilitychange',()=>{
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
 try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
-window.__trader={loadNewsFeed,ghBase,NW,newsOf,newsVeto,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>

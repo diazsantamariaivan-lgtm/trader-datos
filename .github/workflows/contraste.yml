@@ -1,0 +1,33 @@
+name: contraste (segunda fuente de datos)
+on:
+  schedule:
+    - cron: '20 4 * * 1-6'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: contraste
+  cancel-in-progress: false
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Contrastar con FMP
+        env:
+          FMP_KEY: ${{ secrets.FMP_KEY }}
+        run: node scripts/contraste.mjs
+      - name: Publicar en la rama check
+        run: |
+          if [ ! -f out/c.json ]; then echo "nada que publicar"; exit 0; fi
+          cd out
+          git init -q -b check
+          git config user.name "datos"
+          git config user.email "datos@users.noreply.github.com"
+          git add -A
+          git commit -q -m "contraste $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" check
