@@ -236,6 +236,8 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <div class="card" id="predBox"></div>
   <h2>Tú contra la app</h2>
   <div class="card" id="vsBox"></div>
+  <h2>Laboratorio: carteras en paralelo</h2>
+  <div class="card" id="labBox"></div>
   <h2>Por qué la estrategia lenta</h2>
   <div class="card"><div class="hint" style="margin:0">Probada mes a mes de 2007 a 2026 con 495 acciones de EE. UU., contando comisiones y deslizamiento:</div>
     <div class="row" style="margin-top:8px"><span>Momentum + filtro de mercado</span><b>22,3 % anual · caída máx. −28 %</b></div>
@@ -303,6 +305,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <label for="sMd">Estrategia</label><select id="sMd"><option value="mom">Lenta: momentum mensual con filtro de mercado (probada)</option><option value="rap">Rápida: swing a 10 días (sin ventaja demostrada)</option></select>
     <label for="sMf">Cada cuánto se revisa la cartera de momentum</label><select id="sMf"><option value="w">Cada semana</option><option value="q">Cada 2 semanas</option><option value="m">Cada mes (recomendado)</option><option value="t">Cada trimestre</option></select>
     <div class="hint">La primera revisión se hace en cuanto activas la estrategia o cambias la frecuencia. En las pruebas con 20 años ninguna frecuencia superó claramente a la mensual.</div>
+    <div class="hint" id="sMhint"></div>
     <label for="sMn">Acciones en la cartera de momentum</label><select id="sMn"><option value="10">10 (más concentrada)</option><option value="20">20 (recomendada)</option><option value="30">30</option><option value="40">40 (más repartida)</option></select>
     <label for="sFs">F-Score mínimo para comprar</label><select id="sFs"><option value="0">Sin mínimo</option><option value="3">3 de 9</option><option value="4">4 de 9</option><option value="5">5 de 9</option><option value="6">6 de 9</option><option value="7">7 de 9 (solo empresas sólidas)</option><option value="8">8 de 9</option></select>
     <label for="sRc">ROCE mínimo para comprar</label><select id="sRc"><option value="0">Sin mínimo</option><option value="5">5 %</option><option value="8">8 %</option><option value="10">10 %</option><option value="12">12 %</option><option value="15">15 % (negocios muy buenos)</option><option value="20">20 %</option></select>
@@ -565,6 +568,75 @@ function momHTML(){
   if(!R.length)return head+'<div class="empty">Cargando el ranking de momentum…</div>';
   const rows=R.slice(0,N).map(x=>'<div class="row"><span><b>'+x.rk+'</b> · '+esc(x.s)+(held.has(x.s)?' <span class="tag held">EN CARTERA</span>':'')+'</span><b class="'+(x.m>=0?'pos':'neg')+'">'+sg(x.m*100,0)+' %</b></div>').join('');
   return head+'<div class="card"><div class="hint" style="margin:0 0 6px">Ranking de momentum (subida de hace 12 meses a hace 1 mes). Objetivo de la próxima revisión:</div>'+rows+'</div>';
+}
+/* ---- laboratorio: carteras en paralelo (misma señal, distintas reglas) para aprender qué funciona, sin riesgo ---- */
+const SH_DEF=[
+  {id:'m20',n:'Mensual · 20 acciones (la elegida)',f:'m',N:20,filt:true},
+  {id:'w20',n:'Semanal · 20 acciones',f:'w',N:20,filt:true},
+  {id:'q20',n:'Cada 2 semanas · 20 acciones',f:'q',N:20,filt:true},
+  {id:'t20',n:'Trimestral · 20 acciones',f:'t',N:20,filt:true},
+  {id:'m10',n:'Mensual · 10 acciones',f:'m',N:10,filt:true},
+  {id:'m30',n:'Mensual · 30 acciones',f:'m',N:30,filt:true},
+  {id:'m20nf',n:'Mensual · 20 · SIN filtro de mercado',f:'m',N:20,filt:false}
+];
+function momRankPure(){
+  if(!MO.d||!MO.d.s)return [];
+  return Object.entries(MO.d.s).filter(([x,v])=>v&&isFinite(v.m)&&v.p>0&&inUni(x)&&!noTrade(x)).sort((a,b)=>b[1].m-a[1].m).map(([x,v])=>({s:x,p:v.p}));
+}
+function shDue(sh,f){
+  if(!sh.at)return true;const d=(Date.now()-sh.at)/864e5;
+  if(f==='w')return d>=7;if(f==='q')return d>=14;
+  if(f==='t')return qKey(sh.at)!==qKey();
+  return monthKey(sh.at)!==monthKey();
+}
+function shEq(sh,fx){let e=sh.c;for(const [x,v] of Object.entries(sh.p)){const q=MO.d.s[x],px=q&&q.p?q.p:v[1];v[1]=px;e+=v[0]*px/fx;}return e;}
+function shadowStep(){
+  try{
+    if(!modoMom()||!MO.d||!CX.d||Date.now()/1000-MO.d.t>6*86400)return;
+    const m=momMarket();if(!m)return;
+    const fx=fxOf('USD')||1,today=dayKey(Date.now());
+    S.shadow=S.shadow||{};
+    if(!S.shBench)S.shBench={d:today,x:m.p};
+    const rk=momRankPure();if(rk.length<40)return;
+    for(const d of SH_DEF){
+      const sh=S.shadow[d.id]||(S.shadow[d.id]={c:S.cap0,p:{},at:0,h:[],nt:0,d0:today});
+      if(shDue(sh,d.f)){
+        const on=d.filt?m.on:true,top=on?rk.slice(0,d.N):[],keep=new Set(top.map(x=>x.s));
+        for(const [x,v] of Object.entries(sh.p)){
+          if(keep.has(x))continue;
+          const q=MO.d.s[x],px=(q&&q.p?q.p:v[1])*(1-S.slip/100);sh.c+=v[0]*px/fx-S.com;delete sh.p[x];sh.nt++;
+        }
+        if(on){
+          const eq=shEq(sh,fx);
+          for(const x of top){
+            if(sh.p[x.s])continue;
+            const pxIn=x.p*(1+S.slip/100),per=eq/d.N;let n=Math.min(per,sh.c-S.com)*fx/pxIn;n=Math.floor(n*1000)/1000;
+            if(!(n>0)||n*pxIn/fx<20)continue;
+            sh.c-=n*pxIn/fx+S.com;sh.p[x.s]=[n,x.p];sh.nt++;
+          }
+        }
+        sh.at=Date.now();
+      }
+      const e=shEq(sh,fx),last=sh.h[sh.h.length-1];
+      if(!last||last[0]!==today)sh.h.push([today,+e.toFixed(2)]);else last[1]=+e.toFixed(2);
+      if(sh.h.length>800)sh.h=sh.h.slice(-800);
+    }
+  }catch(e){}
+}
+function renderLab(){
+  const el=$('labBox');if(!el)return;
+  const SHd=S.shadow;
+  if(!SHd||!Object.keys(SHd).length){el.innerHTML='<div class="empty">El laboratorio empieza a registrar en cuanto el piloto (o la app) haga su primera pasada con los datos de momentum. Aquí verás varias carteras en paralelo con la misma señal y reglas distintas.</div>';return;}
+  const m=momMarket(),b=S.shBench,bret=b&&m?(m.p/b.x-1)*100:null;
+  const dd=h=>{let pk=0,mx=0;for(const [,e] of h){pk=Math.max(pk,e);mx=Math.max(mx,(pk-e)/pk*100);}return mx;};
+  const rows=SH_DEF.map(d=>{
+    const sh=SHd[d.id];if(!sh||!sh.h.length)return '';
+    const e=sh.h[sh.h.length-1][1],ret=(e/S.cap0-1)*100;
+    return '<div class="fac"><div class="t"><span>'+d.n+'</span><b class="'+(ret>=0?'pos':'neg')+'">'+sg(ret,1)+' %</b></div><div class="hint" style="margin:3px 0 0">'+(bret!=null?'Frente al S&P 500: '+sg(ret-bret,1)+' puntos · ':'')+'caída máxima '+nf(dd(sh.h),1)+' % · '+Object.keys(sh.p).length+' acciones · '+sh.nt+' operaciones</div></div>';
+  }).join('');
+  const d0=(SHd.m20&&SHd.m20.d0)||(b&&b.d);
+  el.innerHTML='<div class="hint" style="margin:0 0 8px">Desde el '+fmtD(new Date(d0+'T12:00:00'))+', con el mismo dinero ficticio y las mismas comisiones. '+(bret!=null?'<b>S&amp;P 500: '+sg(bret,1)+' %</b>.':'')+'</div>'+rows+
+    '<div class="msg">Esto es para aprender sin riesgo: todas usan la misma señal y solo cambian las reglas. Con pocas semanas la diferencia entre ellas es pura casualidad. No cambies la estrategia por lo que veas aquí hasta tener al menos 6 meses, y mejor un año.</div>';
 }
 /* ---- opinión de analistas (EE. UU.) ---- */
 const AN={d:null,chk:0};
@@ -1006,7 +1078,7 @@ function decState(env,pass){
 }
 /* ---- piloto en GitHub: la cartera la lleva el servidor y el móvil la lee ---- */
 const srvOn=()=>S.srv&&!!S.srvKey&&S.srvAt>0;
-const SRV_K=['cap0','cash','pos','closed','eq','log','W','cal','buyDay','buysToday','brakeDay','startedAt','sumDay','momMonth','momAt'];
+const SRV_K=['cap0','cash','pos','closed','eq','log','W','cal','buyDay','buysToday','brakeDay','startedAt','sumDay','momMonth','momAt','shadow','shBench'];
 async function srvSync(){
   if(!S.srv||!ghBase())return false;
   if(!S.srvKey){S.srvErr='Falta la clave: escribe la misma frase que pusiste en GitHub (CARTERA_CLAVE).';return false;}
@@ -1086,6 +1158,7 @@ function favAlerts(){
   }
 }
 async function openTrades(){
+  shadowStep();
   if(!S.auto)return;
   if(modoMom()){await momRebalance();return;}
   const today=dayKey(Date.now());
@@ -1721,7 +1794,7 @@ function renderPred(){
   h+='<div style="margin-top:12px">'+P.slice(0,8).map(t=>'<div class="log"><b>'+esc(t.s.replace('.MC',''))+'</b> · preveía '+sg(t.pred.ev,1)+' % · salió <b class="'+(t.gross>=0?'pos':'neg')+'">'+sg(t.gross,1)+' %</b> · '+(t.gross>=t.pred.ev?'mejor':'peor')+' de lo previsto</div>').join('')+'</div>';
   $('predBox').innerHTML=h;
 }
-function renderAll(){renderHero();renderStatus();renderLog();renderCar();renderApr();renderCx();renderPred();renderTop();renderMer();renderNews();}
+function renderAll(){renderHero();renderStatus();renderLog();renderCar();renderApr();renderLab();renderCx();renderPred();renderTop();renderMer();renderNews();}
 
 /* ====================== gráfico completo (estilo broker) ====================== */
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
@@ -2140,6 +2213,7 @@ function renderSrv(){
   const a=srvAgo(),m=$('sSrvMsg');
   m.innerHTML=!S.srv?'<div class="hint">Desactivado.</div>':!S.srvKey?'<div class="msg bad">Falta la clave. Escríbela arriba (la misma frase del secreto CARTERA_CLAVE en GitHub) y aparecerá tu cartera. Mientras tanto la app opera sola, en este móvil.</div>':a!=null?'<div class="msg '+(a<=45?'ok':'')+'">Cartera del servidor: última pasada hace '+(a<90?a+' min':nf(a/60,1)+' h')+(a>60?' (fuera del horario de bolsa no opera)':'')+'.</div>':'<div class="msg">'+esc(S.srvErr||'Esperando la primera pasada del piloto.')+'</div>';
   $('sSrvEd').href='https://github.com/'+S.gh+'/edit/main/bot.json';
+  try{const on=srvOn();['sMd','sMf','sMn'].forEach(i=>{$(i).disabled=on;});$('sMhint').innerHTML=on?'<b>Con el piloto activo, estos tres ajustes los manda el piloto</b> (aquí ves su valor actual). Para cambiarlos edita <code>estrategia</code>, <code>revision_momentum</code> y <code>momentum_n</code> en bot.json con el enlace de «Cambiar la configuración del piloto». Se aplican en su siguiente pasada.':'';$('sMd').value=modoMom()?'mom':'rap';$('sMf').value=momFreq();$('sMn').value=String(momN());}catch(e){}
 }
 function renderApr2(){
   $('sApr').checked=S.apr;$('sAprT').value=S.aprT;
@@ -2242,7 +2316,7 @@ document.addEventListener('visibilitychange',()=>{
   if(S.watchMode&&!wl)keepAwake(true);
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
-window.__trader={fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
