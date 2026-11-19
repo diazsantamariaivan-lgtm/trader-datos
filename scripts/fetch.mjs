@@ -82,8 +82,11 @@ function indices(){
 }
 const EX=extras(),IX=indices();
 const SP=await sp500(),IB=IBEX.map(x=>x+'.MC');
-const FX=['EURUSD=X','EURGBP=X','EURCHF=X'];
-const list=[...new Set(IB.concat(SP,FX,EX.study,EX.view,...IX.map(g=>g.s)))];
+const FX=['EURUSD=X','EURGBP=X','EURCHF=X','EURJPY=X','EURHKD=X','EURCAD=X','EURAUD=X','EURKRW=X','EURTWD=X','EURINR=X','EURBRL=X','EURSEK=X','EURDKK=X','EURNOK=X'];
+// Índices "del núcleo" (van en q.json). El resto se publica por separado (qi/<ID>.json) y el móvil solo baja los que estudias.
+const CORE_IDS=new Set(['EUROSTOXX50','DAX40','CAC40','FTSEMIB','AEX','SMI','FTSE100']);
+const coreSyms=new Set(IB.concat(SP,FX,EX.study,EX.view,...IX.filter(g=>CORE_IDS.has(g.id)).map(g=>g.s)));
+const list=MODE==='hist'?[...coreSyms]:[...new Set([...coreSyms,...IX.flatMap(g=>g.s)])];
 const syms=LIMIT?list.slice(0,LIMIT).concat(EX.study.slice(0,3),EX.view.slice(0,2)):list;
 console.log(MODE,'-',syms.length,'valores');
 mkdirSync(OUT,{recursive:true});
@@ -105,6 +108,12 @@ if(MODE==='hist'){
     .concat(IX.map(g=>({id:g.id,n:g.n,c:g.c,t:g.t,s:has(g.s)})))
     .concat([{id:'EXTRA',n:'Mis extras (valores y fondos)',c:'Varios',t:'Extra',s:has(EX.study)},{id:'VER',n:'Índices, cripto y materias primas',c:'Solo para mirar',t:'Ver',s:has(EX.view)}])
     .filter(g=>g.s.length>=3);
-  writeFileSync(OUT+'/q.json',JSON.stringify({at:Math.floor(Date.now()/1000),x:{study:has(EX.study),view:has(EX.view)},idx,s:got}));
+  const at=Math.floor(Date.now()/1000),core={};
+  for(const s of Object.keys(got))if(coreSyms.has(s))core[s]=got[s];
+  const shard=new Set(IX.filter(g=>!CORE_IDS.has(g.id)).map(g=>g.id));
+  mkdirSync(OUT+'/qi',{recursive:true});
+  for(const g of IX)if(shard.has(g.id)){const o={};for(const s of g.s)if(got[s]&&!coreSyms.has(s))o[s]=got[s];writeFileSync(OUT+'/qi/'+g.id+'.json',JSON.stringify({at,s:o}));}
+  idx.forEach(g=>{if(shard.has(g.id))g.sh=1;});
+  writeFileSync(OUT+'/q.json',JSON.stringify({at,x:{study:has(EX.study),view:has(EX.view)},idx,s:core}));
 }
 writeFileSync(OUT+'/LEEME.txt','Datos generados automáticamente. No editar.\n');

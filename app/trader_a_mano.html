@@ -211,6 +211,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 <!-- ================= MERCADO ================= -->
 <section id="t-mer">
   <input id="mQ" type="text" placeholder="Buscar por nombre o código…" autocomplete="off" aria-label="Buscar valor">
+  <div id="mWorld"></div>
   <select id="mI" aria-label="Mercado o índice" style="margin-top:8px"></select>
   <div id="mHead"></div>
   <div class="seg chips" id="mS"></div>
@@ -1047,7 +1048,14 @@ async function ghJson(u){
 }
 async function ghQuotes(){
   if(GH.q&&Date.now()-GH.at<120000)return GH.q;
-  if(!GH.p)GH.p=ghJson(ghBase()+'/quotes/q.json').then(j=>{if(!j||!j.s)throw new Error('formato inesperado');GH.q=j;GH.at=Date.now();return j;}).finally(()=>{GH.p=null;});
+  if(!GH.p)GH.p=ghJson(ghBase()+'/quotes/q.json').then(async j=>{
+    if(!j||!j.s)throw new Error('formato inesperado');
+    /* los índices "extra" viajan en ficheros aparte: solo se bajan los que estudias o estás mirando */
+    const need=(j.idx||[]).filter(g=>g.sh&&(S.uni.on.includes(g.id)||(()=>{try{return M.f===g.id||(M.f==='multi'&&(M.sel||[]).includes(g.id));}catch(e){return false;}})())).map(g=>g.id);
+    await Promise.all(need.map(async id=>{
+      try{const sh=await ghJson(ghBase()+'/quotes/qi/'+encodeURIComponent(id)+'.json');if(sh&&sh.s)Object.assign(j.s,sh.s);}catch(e){}
+    }));
+    GH.q=j;GH.at=Date.now();return j;}).finally(()=>{GH.p=null;});
   return GH.p;
 }
 function ghShape(r,range){
@@ -1837,7 +1845,7 @@ async function pool(items,n,fn,prog){
 async function scan(){
   await loadSP();
   let gq=null;if(ghBase()){try{gq=await ghQuotes();}catch(e){}}
-  const list=gq?Object.keys(gq.s).filter(x=>!/^EUR[A-Z]{3}=X$/.test(x)):[...new Set([...uniSet(),...S.fav])];
+  const list=[...new Set([...(gq?Object.keys(gq.s).filter(x=>!/^[A-Z]{6}=X$/.test(x)):[...uniSet()]),...S.fav])];
   const fresh=Date.now()-20*60000;let ok=0,since=0;
   progress={d:0,t:list.length};
   await pool(list,3,async sym=>{
@@ -2533,14 +2541,38 @@ function renderMer(){
   $('mMore').style.display=L.length>M.n?'block':'none';
   $('mMore').textContent='Ver más ('+(L.length-M.n)+' restantes)';
 }
-$('mQ').oninput=()=>{M.q=$('mQ').value;M.n=60;renderMer();};
-$('mI').onchange=()=>{M.f=$('mI').value;M.n=60;renderMer();};
+$('mQ').oninput=()=>{M.q=$('mQ').value;M.n=60;renderMer();worldBox();};
+/* Buscar cualquier valor del mundo (aunque no esté en ningún índice) y añadirlo a favoritas para estudiarlo */
+let WR=[];
+function worldBox(){
+  const b=$('mWorld');if(!b)return;const q=(M.q||'').trim();
+  if(q.length<2){b.innerHTML='';WR=[];return;}
+  if(b.dataset.q===q&&$('mWr'))return;
+  b.dataset.q=q;b.innerHTML='<button class="btn small ghost" id="mWs" type="button" style="margin:8px 0 0">🔎 Buscar «'+esc(q)+'» en las bolsas de todo el mundo</button><div id="mWr"></div>';
+}
+async function worldSearch(){
+  const q=(M.q||'').trim(),o=$('mWr');if(!o||q.length<2)return;
+  o.innerHTML='<div class="hint"><span class="spin"></span>Buscando…</div>';
+  try{
+    const j=await net('https://query1.finance.yahoo.com/v1/finance/search?q='+encodeURIComponent(q)+'&quotesCount=12&newsCount=0',{prio:0,validate:x=>x&&typeof x==='object'});
+    WR=(j.quotes||[]).filter(x=>x.symbol&&/EQUITY|ETF/.test(x.quoteType||'')).slice(0,10);
+    o.innerHTML=WR.length?WR.map(x=>'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line,#2a2f3a)"><span><b>'+esc(x.symbol)+'</b> · '+esc(x.shortname||x.longname||'')+'<br><small class="hint">'+esc(x.exchDisp||x.exchange||'')+' · '+esc(x.quoteType)+'</small></span>'+(S.fav.includes(x.symbol)?'<span class="hint">★ ya añadida</span>':'<button class="btn small" data-addw="'+esc(x.symbol)+'" type="button">★ Estudiar</button>')+'</div>').join(''):'<div class="hint">No he encontrado nada con ese nombre.</div>';
+  }catch(e){o.innerHTML='<div class="msg bad">No se pudo buscar ahora. Si sabes el código de Yahoo (por ejemplo VRRM), escríbelo tal cual y vuelve a intentarlo.</div>';}
+}
+async function worldAdd(sym,btn){
+  btn.disabled=true;btn.textContent='Estudiando…';
+  if(!S.fav.includes(sym))S.fav.push(sym);
+  try{const r=await analyzeRow(sym,0);if(r){S.rows[sym]=r;save();renderAll();btn.parentNode.innerHTML='<span class="hint">★ añadida y estudiada</span>';return;}}catch(e){}
+  save();btn.parentNode.innerHTML='<span class="hint">★ añadida; puede que aún no tenga histórico suficiente (hacen falta ~3 meses de cotización)</span>';
+}
+document.addEventListener('click',e=>{const a=e.target.closest('#mWs');if(a){worldSearch();return;}const w=e.target.closest('[data-addw]');if(w)worldAdd(w.dataset.addw,w);});
+$('mI').onchange=()=>{M.f=$('mI').value;M.n=60;renderMer();const g=IDX().find(x=>x.id===M.f);if(g&&g.sh){GH.at=0;ghQuotes().then(()=>renderMer()).catch(()=>{});}};
 $('mHead').onclick=e=>{const b=e.target.closest('[data-ixo]');if(!b)return;const g=IDX().find(x=>x.id===b.dataset.ixo);fcOpen('IDX:'+g.id,{nm:g.n+' (media de sus acciones)'});};
 $('mHead').onchange=e=>{
   const ms=e.target.dataset&&e.target.dataset.ms;
   if(ms){const i=M.sel.indexOf(ms);i>=0?M.sel.splice(i,1):M.sel.push(ms);M.n=60;renderMer();return;}
   if(e.target.id!=='mTg')return;
-  const id=M.f,i=S.uni.on.indexOf(id);i>=0?S.uni.on.splice(i,1):S.uni.on.push(id);save();
+  const id=M.f,i=S.uni.on.indexOf(id);i>=0?S.uni.on.splice(i,1):S.uni.on.push(id);save();GH.at=0;if(i<0)autopilot(true);
   renderTop();renderMer();if(!GH.q)autopilot(true);
 };
 $('mS').onclick=e=>{const b=e.target.closest('[data-s]');if(!b)return;M.s=b.dataset.s;M.n=60;renderMer();};
