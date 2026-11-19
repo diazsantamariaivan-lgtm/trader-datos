@@ -520,7 +520,7 @@ async function loadMom(){
 }
 const modoMom=()=>S.modo!=='rap';
 const momN=()=>Math.max(5,Math.min(40,+S.momN||20));
-function momMarket(){const i=CX.d&&CX.d.idx&&CX.d.idx.SPX;if(!i||!i.s200)return null;return {on:i.p>i.s200,p:i.p,s200:i.s200};}
+function momMarket(){if(CX.d&&CX.d.t&&Date.now()/1000-CX.d.t>36*3600)return null;const i=CX.d&&CX.d.idx&&CX.d.idx.SPX;if(!i||!i.s200)return null;return {on:i.p>i.s200,p:i.p,s200:i.s200};}
 function momRank(){
   if(!MO.d||!MO.d.s)return [];
   return Object.entries(MO.d.s).filter(([x,v])=>v&&isFinite(v.m)&&inUni(x)&&!noTrade(x)&&!newsVeto(x)&&!minFund(x)).sort((a,b)=>b[1].m-a[1].m).map(([x,v],i)=>({s:x,m:v.m,p:v.p,rk:i+1}));

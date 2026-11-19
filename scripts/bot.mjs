@@ -89,7 +89,7 @@ if (fresh) {
   Object.assign(seed, { cap0: cfg.capital, cash: cfg.capital, pos: [], closed: [], eq: [], log: [], startedAt: Date.now(), buysToday: 0, buyDay: '', trk: [] });
   console.log('Cartera nueva con', cfg.capital, '€');
 }
-if (ageMin > 45) { console.log('Cotizaciones demasiado antiguas: no se opera esta vez'); process.exit(0); }
+if (!(ageMin <= 45)) { console.log('Cotizaciones demasiado antiguas: no se opera esta vez'); process.exit(0); }
 
 const html = readFileSync(APP, 'utf8');
 const spList = (Q.idx.find(g => g.id === 'SP500') || { s: [] }).s;
@@ -135,7 +135,7 @@ if (hh >= 21 && S.sumDay !== today && NTFY) {
 await until(() => !S.outbox.length, 20000);
 w.localStorage.setItem(KEY, JSON.stringify(S));
 
-const KEEP = ['ext', 'cap0', 'cash', 'pos', 'closed', 'eq', 'log', 'W', 'cal', 'buyDay', 'buysToday', 'brakeDay', 'startedAt', 'favAl', 'sumDay', 'trk', 'fx'];
+const KEEP = ['ext', 'cap0', 'cash', 'pos', 'closed', 'eq', 'log', 'W', 'cal', 'buyDay', 'buysToday', 'brakeDay', 'startedAt', 'favAl', 'sumDay', 'trk', 'fx', 'momAt', 'momMonth', 'shadow', 'shBench'];
 const outS = {}; KEEP.forEach(k => { if (S[k] !== undefined) outS[k] = S[k]; });
 const eq = T.equity();
 const state = { at: Date.now(), resetId: cfg.reinicio, equity: eq, config: cfg, S: outS };

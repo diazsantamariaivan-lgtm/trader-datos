@@ -38,7 +38,11 @@ jobs:
           git clone -q --depth 1 -b ana "https://github.com/${{ github.repository }}.git" adata && cp adata/a.json a.json || echo "sin analistas"
           git clone -q --depth 1 -b mom "https://github.com/${{ github.repository }}.git" mdata && cp mdata/m.json m.json || echo "sin momentum"
           git clone -q --depth 1 -b check "https://github.com/${{ github.repository }}.git" cdata && cp cdata/c.json c.json || echo "sin contraste"
-          git clone -q --depth 1 -b bot "https://github.com/${{ github.repository }}.git" botstate || echo "sin cartera previa"
+          R="https://github.com/${{ github.repository }}.git"
+          git ls-remote --exit-code --heads "$R" bot >/dev/null 2>&1; RC=$?
+          if [ $RC -eq 0 ]; then git clone -q --depth 1 -b bot "$R" botstate || { echo "ERROR: la rama bot existe pero no se pudo clonar; se aborta para no borrar la cartera"; exit 1; }
+          elif [ $RC -eq 2 ]; then echo "sin cartera previa"
+          else echo "ERROR: no se pudo consultar GitHub; se aborta"; exit 1; fi
       - name: Ejecutar el piloto
         env:
           REPO: ${{ github.repository }}
