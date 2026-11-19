@@ -578,7 +578,7 @@ async function momRebalance(){
   if(on){
     for(const x of R.slice(0,N)){
       if(S.pos.some(p=>p.s===x.s))continue;
-      if(!S.fx.USD||!(S.fx.USD.v>0))break;
+      if(!(fxv('USD')>0))break;
       const lp=livePx(x.s,x.p);if(!lp)continue;
       const fx=await getFx('USD'),eq=equity(),pxIn=lp*(1+S.slip/100),entryE=pxIn/fx;
       let sh=Math.min(eq/N/entryE,(S.cash-S.com)/entryE);sh=Math.floor(sh*1000)/1000;const cost=sh*entryE;
@@ -648,8 +648,8 @@ function shadowStep(){
   try{
     if(!modoMom()||!MO.d||!CX.d||Date.now()/1000-MO.d.t>4*86400)return;
     const m=momMarket();if(!m)return;
-    if(!S.fx.USD||!(S.fx.USD.v>0))return;
-    const fx=S.fx.USD.v,today=dayKey(Date.now());
+    if(!(fxv('USD')>0))return;
+    const fx=fxv('USD'),today=dayKey(Date.now());
     S.shadow=S.shadow||{};
     if(!S.shBench)S.shBench={d:today,x:m.p};
     const rk6=momRankPure(12),rk12=momRankPure(6);if(rk6.length<40)return;
@@ -1243,9 +1243,11 @@ async function getFx(cur){
   }catch(e){}
   return c?c.v:1;
 }
-const fxOf=cur=>(S.fx[cur]&&S.fx[cur].v)||1;
+/* tipo de cambio: el guardado, y si falta el de las cotizaciones publicadas (EUR/USD, EUR/GBP, EUR/CHF) */
+function fxv(cur){const c=S.fx[cur];if(c&&c.v>0)return c.v;if(cur==='GBp'||cur==='GBX'){const g=fxv('GBP');return g?g*100:0;}const q=GH.q&&GH.q.s&&GH.q.s['EUR'+cur+'=X'];return q&&q.p>0?q.p:0;}
+const fxOf=cur=>fxv(cur)||1;
 const dispEur=()=>{try{return localStorage.getItem('tm.disp')==='eur';}catch(e){return false;}};
-function pxD(v,cur,d){if(d===undefined)d=2;if(dispEur()&&cur&&cur!=='EUR'&&S.fx[cur]&&S.fx[cur].v>0)return nf(v/S.fx[cur].v,d)+' €';return nf(v,d)+' '+(cur||'');}
+function pxD(v,cur,d){if(d===undefined)d=2;if(dispEur()&&cur&&cur!=='EUR'&&fxv(cur)>0)return nf(v/fxv(cur),d)+' €';return nf(v,d)+' '+(cur||'');}
 
 /* ====================== cartera virtual ====================== */
 const posValue=p=>p.shares*(p.last||p.entry)/fxOf(p.cur);
@@ -2147,8 +2149,8 @@ function renderAll(){try{renderLV();}catch(e){}try{renderDV();}catch(e){}renderH
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
 const QROW={};
 const FC_R=[['1mo','1M'],['3mo','3M'],['6mo','6M'],['1y','1A'],['5y','5A']];
-const fcCur=()=>{const c=FC.d&&FC.d.meta&&FC.d.meta.currency;return(dispEur()&&c&&c!=='EUR'&&S.fx[c]&&S.fx[c].v>0)?c:null;};
-const fp=v=>{const c=fcCur();if(c)v=v/S.fx[c].v;return nf(v,v<1?4:2);};
+const fcCur=()=>{const c=FC.d&&FC.d.meta&&FC.d.meta.currency;return(dispEur()&&c&&c!=='EUR'&&fxv(c)>0)?c:null;};
+const fp=v=>{const c=fcCur();if(c)v=v/fxv(c);return nf(v,v<1?4:2);};
 function fcSma(c,n){const o=new Array(c.length).fill(null);let s=0;for(let i=0;i<c.length;i++){s+=c[i];if(i>=n)s-=c[i-n];if(i>=n-1)o[i]=s/n;}return o;}
 function fcPivots(d,a,b){
   const w=Math.max(2,Math.round((b-a+1)/25)),H=[],L=[];
@@ -2241,7 +2243,7 @@ function fcInfo(){
 }
 function fcHead(){
   const d=FC.d,sym=FC.sym;$('fcS').textContent=sym.replace('.MC','').replace('IDX:','Índice ');$('fcN').textContent=FC.nm||(d&&d.meta&&d.meta.shortName)||'';
-  if(!d)return;const cu0=d.meta&&d.meta.currency;if(dispEur()&&cu0&&cu0!=='EUR'&&!(S.fx[cu0]&&S.fx[cu0].v>0)&&!FC._fx){FC._fx=1;getFx(cu0).then(()=>{FC._fx=0;if(FC.d===d){fcHead();fcDraw();fcInfo();}}).catch(()=>{FC._fx=0;});}
+  if(!d)return;const cu0=d.meta&&d.meta.currency;if(dispEur()&&cu0&&cu0!=='EUR'&&!(fxv(cu0)>0)&&!FC._fx){FC._fx=1;getFx(cu0).then(()=>{FC._fx=0;if(FC.d===d){fcHead();fcDraw();fcInfo();}}).catch(()=>{FC._fx=0;});}
   const n=d.c.length,p=d.meta.regularMarketPrice||d.c[n-1],prev=n>1?d.c[n-2]:p,ch=(p/prev-1)*100;
   $('fcP').textContent=fp(p)+' '+(fcCur()?'€':(d.meta.currency||''))+(d.meta.currency&&d.meta.currency!=='EUR'?' ⇄':'');$('fcC').className=ch>=0?'pos':'neg';$('fcC').textContent=sg(ch,2)+' % último día';
 }
@@ -2418,8 +2420,8 @@ $('mHead').onchange=e=>{
 };
 $('mS').onclick=e=>{const b=e.target.closest('[data-s]');if(!b)return;M.s=b.dataset.s;M.n=60;renderMer();};
 $('mMore').onclick=()=>{M.n+=60;renderMer();};
-$('fcP').style.cursor='pointer';
-$('fcP').addEventListener('click',()=>{try{localStorage.setItem('tm.disp',dispEur()?'nat':'eur');}catch(e){}try{$('sDisp').value=dispEur()?'eur':'nat';}catch(e){}fcHead();fcDraw();fcInfo();try{renderAll();}catch(e){}});
+$('fcP').parentNode.style.cursor='pointer';
+$('fcP').parentNode.addEventListener('click',()=>{try{localStorage.setItem('tm.disp',dispEur()?'nat':'eur');}catch(e){}try{$('sDisp').value=dispEur()?'eur':'nat';}catch(e){}fcHead();fcDraw();fcInfo();try{renderAll();}catch(e){}});
 document.addEventListener('click',e=>{const o=e.target.closest('[data-study]');if(!o)return;e.stopPropagation();const x=o.dataset.study;fcOpen(x,S.rows[x]||QROW[x]);},true);
 $('mList').onclick=e=>{
   const st=e.target.closest('[data-star]');
@@ -2676,7 +2678,7 @@ document.addEventListener('visibilitychange',()=>{
   if(S.watchMode&&!wl)keepAwake(true);
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
-window.__trader={renderDV,DV,divCredit,divDue,shCode,shParse,renderLV,bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={fxOf,renderDV,DV,divCredit,divDue,shCode,shParse,renderLV,bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
