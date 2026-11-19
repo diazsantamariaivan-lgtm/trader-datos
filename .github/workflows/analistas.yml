@@ -1,0 +1,33 @@
+name: analistas (cada día)
+on:
+  schedule:
+    - cron: '0 4 * * 1-6'
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/analistas.mjs
+permissions:
+  contents: write
+concurrency:
+  group: ana
+  cancel-in-progress: false
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Descargar analistas
+        run: node scripts/analistas.mjs
+      - name: Publicar en la rama ana
+        run: |
+          cd out
+          git init -q -b ana
+          git config user.name "datos"
+          git config user.email "datos@users.noreply.github.com"
+          git add -A
+          git commit -q -m "analistas $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ana

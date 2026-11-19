@@ -10,6 +10,7 @@ const FFILE = process.env.FFILE || 'f.json';
 const NFILE = process.env.NFILE || 'n.json';
 const CFILE = process.env.CFILE || 'c.json';
 const XFILE = process.env.XFILE || 'x.json';
+const AFILE = process.env.AFILE || 'a.json';
 const STATE_IN = process.env.STATE_IN || 'botstate/state.enc.json';
 const STATE_OLD = 'botstate/state.json';
 const CLAVE = process.env.CLAVE || '';
@@ -42,6 +43,7 @@ const cfg = JSON.parse(readFileSync('bot.json', 'utf8'));
 if (cfg.activo === false) { console.log('bot.json: activo=false, no se hace nada'); process.exit(0); }
 const Q = JSON.parse(readFileSync(QFILE, 'utf8'));
 let NJ = null; try { if (existsSync(NFILE)) NJ = JSON.parse(readFileSync(NFILE, 'utf8')); } catch (e) { NJ = null; }
+let AJ = null; try { if (existsSync(AFILE)) AJ = JSON.parse(readFileSync(AFILE, 'utf8')); } catch (e) { AJ = null; }
 let XJ = null; try { if (existsSync(XFILE)) XJ = JSON.parse(readFileSync(XFILE, 'utf8')); } catch (e) { XJ = null; }
 let CJ = null; try { if (existsSync(CFILE)) CJ = JSON.parse(readFileSync(CFILE, 'utf8')); } catch (e) { CJ = null; }
 let FJ = null; try { if (existsSync(FFILE)) FJ = JSON.parse(readFileSync(FFILE, 'utf8')); } catch (e) { FJ = null; }
@@ -103,6 +105,7 @@ const dom = new JSDOM(html, {
       if (u.includes('/news/n.json') && NJ) return ok(NJ);
       if (u.includes('/check/c.json') && CJ) return ok(CJ);
       if (u.includes('/ctx/x.json') && XJ) return ok(XJ);
+      if (u.includes('/ana/a.json') && AJ) return ok(AJ);
       return Promise.reject(new TypeError('sin red'));
     };
     w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => k === 'measureText' ? () => ({ width: 50 }) : () => {}, set: () => true });
