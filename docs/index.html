@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 16:12";</script>
+<script>window.BUILD="19/11/2026 16:17";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -296,6 +296,9 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <label class="sw"><input id="sNv" type="checkbox"><span>No comprar si hay noticias negativas<br><small class="mut">Si en 48 h hay 2 o más titulares negativos (y más que positivos) en la prensa económica, la app no compra esa acción. El tono sale de palabras clave: es orientativo.</small></span></label>
     <label class="sw"><input id="sComb" type="checkbox"><span>Combinar análisis técnico y de empresa<br><small class="mut">La nota mezcla el gráfico con la calidad de la empresa (F-Score, ROCE, dividendo, tamaño). Afecta a la lista, a los filtros y a lo que compra la app. Si una empresa no tiene datos, se usa solo el gráfico.</small></span></label>
     <label for="sWf">Peso de la empresa en la nota</label><select id="sWf"><option value="0.2">20 % (manda el gráfico)</option><option value="0.35">35 % (equilibrado)</option><option value="0.5">50 % (mitad y mitad)</option></select>
+    <label for="sFs">F-Score mínimo para comprar</label><select id="sFs"><option value="0">Sin mínimo</option><option value="3">3 de 9</option><option value="4">4 de 9</option><option value="5">5 de 9</option><option value="6">6 de 9</option><option value="7">7 de 9 (solo empresas sólidas)</option><option value="8">8 de 9</option></select>
+    <label for="sRc">ROCE mínimo para comprar</label><select id="sRc"><option value="0">Sin mínimo</option><option value="5">5 %</option><option value="8">8 %</option><option value="10">10 %</option><option value="12">12 %</option><option value="15">15 % (negocios muy buenos)</option><option value="20">20 %</option></select>
+    <div class="hint">Las acciones que no cumplan estos mínimos no entran en la lista de Hoy ni las compra la app (ni el piloto). Si de una empresa no hay datos, no se descarta.</div>
     <label class="sw"><input id="sPro" type="checkbox"><span>Prorrogar si sigue al alza<br><small class="mut">Al cumplirse el plazo máximo, si el precio sigue sobre su media de 20 días y en ganancia, no vende: sube el stop (nunca por debajo de tu entrada) y sigue hasta 3 veces el plazo. Si la tendencia se rompe, vende.</small></span></label>
     <label class="sw"><input id="sAuto" type="checkbox"><span>Operar sola con las mejores<br><small class="mut">Si lo desactivas, solo estudia y te enseña la lista.</small></span></label>
     <button class="btn ghost full" id="sReset" type="button">Reiniciar cartera con el capital indicado</button>
@@ -529,6 +532,8 @@ async function loadNewsFeed(){
 }
 const newsOf=sym=>NW.d&&NW.d.s?NW.d.s[sym]||[]:[];
 function newsCnt(sym){const lim=Date.now()/1000-48*3600;let p=0,n=0;for(const x of newsOf(sym)){if(x.d<lim)continue;if(x.k>0)p++;else if(x.k<0)n++;}return{p,n};}
+function minFund(sym){const f=fuOf(sym);if(!f)return false;const a=+S.minFs||0,b=+S.minRoc||0;
+  if(a&&f.fs!=null&&f.fs/f.fn*9<a)return true;if(b&&f.roce!=null&&f.roce<b)return true;return false;}
 function newsVeto(sym){if(S.vetoNews===false)return false;const c=newsCnt(sym);return c.n>=2&&c.n>c.p;}
 const ago=d=>{const h=Math.max(0,(Date.now()/1000-d)/3600);return h<1?'hace '+Math.max(1,Math.round(h*60))+' min':h<48?'hace '+Math.round(h)+' h':'hace '+Math.round(h/24)+' d';};
 const toneIc=k=>k>0?'🟢':k<0?'🔴':'⚪';
@@ -742,7 +747,7 @@ function notaTxt(r){
 }
 const adjP=r=>Math.max(0,Math.min(0.95,r.pT*S.cal.p));
 function topList(){
-  return Object.values(S.rows).filter(r=>inUni(r.s)&&!r.pen[1]&&r.rsi<=78&&!newsVeto(r.s)).map(r=>({r,sc:score10(r),rank:score10(r)+(r.ev-S.cal.bias)/2}))
+  return Object.values(S.rows).filter(r=>inUni(r.s)&&!r.pen[1]&&r.rsi<=78&&!newsVeto(r.s)&&!minFund(r.s)).map(r=>({r,sc:score10(r),rank:score10(r)+(r.ev-S.cal.bias)/2}))
     .sort((a,b)=>b.rank-a.rank).slice(0,10);
 }
 
@@ -885,7 +890,7 @@ async function srvSync(){
     if(j.at>S.srvAt){
       SRV_K.forEach(k=>{if(j.S[k]!==undefined)S[k]=j.S[k];});
       const c=j.config||{};
-      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
+      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;if(c.fscore_minimo!=null)S.minFs=+c.fscore_minimo;if(c.roce_minimo_pct!=null)S.minRoc=+c.roce_minimo_pct;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
       S.srvAt=j.at;
     }
     return true;
@@ -1943,6 +1948,8 @@ $('sDays').oninput=()=>{
 };
 $('sNv').checked=S.vetoNews!==false;$('sNv').onchange=e=>{S.vetoNews=e.target.checked;save();renderAll();};
 $('sComb').checked=S.comb!==false;$('sComb').onchange=e=>{S.comb=e.target.checked;S.rows&&save();renderAll();};
+$('sFs').value=String(S.minFs||0);$('sFs').onchange=()=>{S.minFs=+$('sFs').value;save();renderAll();};
+$('sRc').value=String(S.minRoc||0);$('sRc').onchange=()=>{S.minRoc=+$('sRc').value;save();renderAll();};
 $('sWf').value=String(S.wFu==null?0.35:S.wFu);$('sWf').onchange=()=>{S.wFu=+$('sWf').value;save();renderAll();};
 $('sPro').checked=S.prorroga!==false;$('sPro').onchange=e=>{S.prorroga=e.target.checked;save();};
 $('sAuto').checked=S.auto;$('sAuto').onchange=e=>{S.auto=e.target.checked;save();};
@@ -2067,7 +2074,7 @@ document.addEventListener('visibilitychange',()=>{
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
 try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
-window.__trader={fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
