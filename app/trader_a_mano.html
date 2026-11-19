@@ -283,6 +283,8 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
       <div><label for="sLimD">Pausa si cae en 1 día %</label><input id="sLimD" type="number" inputmode="decimal" step="any"></div>
       <div><label for="sLimS">Pausa si cae en 1 semana %</label><input id="sLimS" type="number" inputmode="decimal" step="any"></div>
     </div>
+    <label class="sw"><input id="sComb" type="checkbox"><span>Combinar análisis técnico y de empresa<br><small class="mut">La nota mezcla el gráfico con la calidad de la empresa (F-Score, ROCE, dividendo, tamaño). Afecta a la lista, a los filtros y a lo que compra la app. Si una empresa no tiene datos, se usa solo el gráfico.</small></span></label>
+    <label for="sWf">Peso de la empresa en la nota</label><select id="sWf"><option value="0.2">20 % (manda el gráfico)</option><option value="0.35">35 % (equilibrado)</option><option value="0.5">50 % (mitad y mitad)</option></select>
     <label class="sw"><input id="sPro" type="checkbox"><span>Prorrogar si sigue al alza<br><small class="mut">Al cumplirse el plazo máximo, si el precio sigue sobre su media de 20 días y en ganancia, no vende: sube el stop (nunca por debajo de tu entrada) y sigue hasta 3 veces el plazo. Si la tendencia se rompe, vende.</small></span></label>
     <label class="sw"><input id="sAuto" type="checkbox"><span>Operar sola con las mejores<br><small class="mut">Si lo desactivas, solo estudia y te enseña la lista.</small></span></label>
     <button class="btn ghost full" id="sReset" type="button">Reiniciar cartera con el capital indicado</button>
@@ -375,7 +377,7 @@ const KEY='traderamano.v4';
 const BASE_W={tr:2,s50:1,rs:2,hi:1,mo:1};
 const FK=['tr','s50','rs','hi','mo'];
 const FNAME={tr:'Tendencia alcista (precio sobre sus medias de 20 y 50 días)',s50:'Precio sobre su media de 50 días',rs:'Fuerza sana (RSI entre 50 y 68)',hi:'Cerca de su máximo de 20 días',mo:'Impulso de las últimas 4 semanas'};
-const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,prorroga:true,com:1,gh:'diazsantamariaivan-lgtm/trader-datos',theme:'claro',fav:[],trk:[],favAl:{},srv:true,srvKey:'',apr:false,aprT:'',ext:[],aprOut:[],aprAt:0,aprErr:'',srvAt:0,srvChk:0,srvErr:'',uni:{on:['SP500','IBEX35','EXTRA']},btMode:'all',btSel:[],btCacheAt:0,slip:0.15,limD:3,limS:6,bt:null,auto:true,
+const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,prorroga:true,com:1,gh:'diazsantamariaivan-lgtm/trader-datos',theme:'claro',comb:true,wFu:0.35,fav:[],trk:[],favAl:{},srv:true,srvKey:'',apr:false,aprT:'',ext:[],aprOut:[],aprAt:0,aprErr:'',srvAt:0,srvChk:0,srvErr:'',uni:{on:['SP500','IBEX35','EXTRA']},btMode:'all',btSel:[],btCacheAt:0,slip:0.15,limD:3,limS:6,bt:null,auto:true,
   pos:[],closed:[],eq:[],log:[],W:Object.assign({},BASE_W),rows:{},cal:{p:1,bias:0,n:0,dur:1},ntfy:'',outbox:[],watchMode:false,scanAt:0,sp:{list:[],at:0},fx:{},buyDay:'',buysToday:0,startedAt:Date.now()};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const j=localStorage.getItem(KEY);if(j)Object.assign(S,JSON.parse(j));}catch(e){}
@@ -445,7 +447,7 @@ try{const c=JSON.parse(localStorage.getItem('tm.fund')||'null');if(c&&c.s){FU.d=
 async function loadFund(){
   try{if(!ghBase())return;if(FU.d&&Date.now()-(FU.chk||0)<3600e3)return;FU.chk=Date.now();
     const j=await ghJson(ghBase()+'/fund/f.json?t='+Math.floor(Date.now()/3600000));
-    if(j&&j.s&&(!FU.d||j.t>=FU.d.t)){FU.d=j;FU.at=j.t*1000;try{localStorage.setItem('tm.fund',JSON.stringify(j));}catch(e){}renderMer();}
+    if(j&&j.s&&(!FU.d||j.t>=FU.d.t)){FU.d=j;FU.at=j.t*1000;try{localStorage.setItem('tm.fund',JSON.stringify(j));}catch(e){}try{renderAll();}catch(e){renderMer();}}
   }catch(e){}
 }
 const fuOf=sym=>FU.d&&FU.d.s?FU.d.s[sym]||null:null;
@@ -462,7 +464,7 @@ function divInfo(f,price){
   const y=price>0?f.dv/price*100:null;
   return{paga:true,y,rec:f.dp>=5?'recurrente ('+f.dp+(f.dp>=11?'+':'')+' años seguidos pagándolo)':f.dp>=2?'poco histórico ('+f.dp+' años pagándolo)':'irregular',grow:f.dg>=5?'creciente ('+f.dg+' años subiéndolo seguidos)':f.dg>=2?'sube los últimos '+f.dg+' años':f.dg===1?'subió el último año':'no crece de forma continua',cut:!!f.dc,n:f.dn};
 }
-function fundHTML(sym,price){
+function fundHTML(sym,price,rr){
   const f=fuOf(sym);if(!f)return '<div class="hint" style="margin:8px 0">Datos de empresa (ROCE, F-Score, dividendo) todavía no disponibles para este valor.</div>';
   const di=divInfo(f,price),L=[];
   if(f.mc)L.push('<li><b>Capitalización:</b> '+esc(capTxt(f))+' · '+capCat(f)+'.</li>');
@@ -473,8 +475,9 @@ function fundHTML(sym,price){
     if(!di.paga)L.push('<li><b>Dividendo:</b> no paga dividendo.</li>');
     else L.push('<li><b>Dividendo:</b> '+(di.y!=null?'rentabilidad '+nf(di.y,2)+' % · ':'')+'se paga '+di.n+' '+(di.n===1?'vez':'veces')+' al año · '+di.rec+' · '+di.grow+(di.cut?' · <span class="neg">recortó el último año</span>':'')+(di.y>8?' · <span class="neg">rentabilidad muy alta: a veces avisa de problemas</span>':'')+'.</li>');
   }
+  const nt=rr?notaTxt(rr):'';
   const bad=[];if(f.fs!=null&&f.fs/f.fn*9<4)bad.push('F-Score débil');if(f.roce!=null&&f.roce<6)bad.push('ROCE flojo');
-  return '<div style="font-size:14px;margin:10px 0 2px"><b>La empresa</b> <span class="mut" style="font-size:12px">(balance de '+esc(f.fd||'')+')</span></div><ul style="margin:4px 0;padding-left:18px;font-size:14px">'+L.join('')+'</ul>'+(bad.length?'<div class="hint" style="margin:2px 0 6px">⚠️ '+bad.join(' y ')+': el negocio da señales de fragilidad aunque el gráfico suba.</div>':'');
+  return '<div style="font-size:14px;margin:10px 0 2px"><b>La empresa</b> <span class="mut" style="font-size:12px">(balance de '+esc(f.fd||'')+')</span></div><ul style="margin:4px 0;padding-left:18px;font-size:14px">'+L.join('')+'</ul>'+(nt?'<div class="msg" style="margin:6px 0">'+esc(nt)+'. Las dos miradas cuentan a la vez: una acción con buen gráfico pero empresa débil baja de nota, y al revés.</div>':'')+(bad.length?'<div class="hint" style="margin:2px 0 6px">⚠️ '+bad.join(' y ')+': el negocio da señales de fragilidad aunque el gráfico suba.</div>':'');
 }
 function fuChips(sym,price){
   const f=fuOf(sym);if(!f)return '';const c=[];
@@ -646,11 +649,33 @@ async function analyzeRow(sym,prio){
   }
   return null;
 }
-function score10(r){
+function tech10(r){
   const W=S.W,tot=FK.reduce((a,k)=>a+W[k],0);
   let s=0;FK.forEach((k,i)=>{s+=W[k]*r.f[i];});
   s-=2*r.pen[0]+2*r.pen[1];
   return Math.max(0,Math.min(10,10*s/tot));
+}
+// Calidad de la empresa 0-10 (null si no hay datos). Las partes que no aplican (p. ej. dividendo en una empresa que no paga) no penalizan.
+function calid10(sym,price){
+  const f=fuOf(sym);if(!f)return null;
+  let got=0,max=0;
+  if(f.fs!=null){max+=4;got+=4*(f.fs/f.fn);}
+  if(f.roce!=null){max+=3;got+=f.roce>=20?3:f.roce>=15?2.5:f.roce>=10?2:f.roce>=6?1:f.roce>=0?0.3:0;}
+  const di=divInfo(f,price);
+  if(di&&di.paga){max+=2;got+=Math.max(0,Math.min(2,(f.dp>=5?1:f.dp>=2?0.5:0)+(f.dg>=3?1:f.dg>=1?0.5:0)-(f.dc?1:0)));}
+  if(f.mc){max+=1;const c=capCat(f);got+=c==='gran capitalización'?1:c==='mediana'?0.6:0.2;}
+  return max>=4?10*got/max:null;
+}
+const wFu=()=>S.comb===false?0:Math.max(0,Math.min(0.7,S.wFu==null?0.35:S.wFu));
+function score10(r){
+  const t=tech10(r),w=wFu();if(!w)return t;
+  const q=calid10(r.s,r.p);if(q==null)return t;
+  return Math.max(0,Math.min(10,t*(1-w)+q*w));
+}
+function notaTxt(r){
+  const t=tech10(r),w=wFu(),q=w?calid10(r.s,r.p):null;
+  if(q==null)return w?'Nota '+nf(t,1)+' (solo técnica: sin datos de empresa)':'';
+  return 'Nota global '+nf(score10(r),1)+' = '+Math.round((1-w)*100)+' % técnica ('+nf(t,1)+') + '+Math.round(w*100)+' % empresa ('+nf(q,1)+')';
 }
 const adjP=r=>Math.max(0,Math.min(0.95,r.pT*S.cal.p));
 function topList(){
@@ -797,7 +822,7 @@ async function srvSync(){
     if(j.at>S.srvAt){
       SRV_K.forEach(k=>{if(j.S[k]!==undefined)S[k]=j.S[k];});
       const c=j.config||{};
-      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
+      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
       S.srvAt=j.at;
     }
     return true;
@@ -1618,7 +1643,7 @@ function fcStudyHTML(r){
     '<div class="hint">'+durText(r)+'</div>'+
     '<div class="plan"><div><small>Compra</small><b>'+fp(r.p)+'</b></div><div><small>Stop −'+nf(sp,1)+' %</small><b class="neg">'+fp(stop)+'</b></div><div><small>Objetivo +'+nf(tp,1)+' %</small><b class="pos">'+fp(tgt)+'</b></div></div>'+
     '<ul style="margin:6px 0;padding-left:18px;font-size:14px">'+reasons(r).map(x=>'<li>'+x+'</li>').join('')+'</ul>'+
-    fundHTML(r.s,r.p)+
+    fundHTML(r.s,r.p,r)+
     '<div class="msg '+(why.length?'':'ok')+'">'+(held?'Ya la tienes en cartera. ':'')+(why.length?'Ahora mismo la app no la compraría: '+why.join(', ')+'.':'La app la compraría hoy si hay hueco en la cartera.')+'</div>';
 }
 async function fcStudy(){
@@ -1786,12 +1811,12 @@ function reportText(L){
 }
 function explainHTML(r){const e=explainRow(r);return '<div class="hint" style="margin:8px 0 2px">'+esc(e.nota)+'</div><ul style="margin:4px 0;padding-left:18px;font-size:14px">'+e.sig.map(x=>'<li>'+(x.ok?'✅ ':'⬜ ')+esc(x.t)+'</li>').join('')+e.pen.map(x=>'<li>⚠️ '+esc(x)+'</li>').join('')+'</ul>'+
       '<div style="font-size:14px;margin:4px 0">Tendencia: <b>'+esc(e.tend)+'</b>.</div><div style="font-size:14px;margin:4px 0">'+esc(e.prob)+'</div><div style="font-size:14px;margin:4px 0">'+esc(e.pot)+'</div><div style="font-size:14px;margin:4px 0">'+esc(e.res)+'</div><div style="font-size:14px;margin:4px 0">'+esc(e.plazo)+'</div>'+
-      fundHTML(r.s,r.p)+'<div class="msg '+(e.buy?'ok':'')+'" style="margin-top:8px">'+(e.buy?'La app la compraría hoy si hay hueco y efectivo.':'La app no la compraría ahora: '+esc(e.why.join(', '))+'.')+'</div>';}
+      fundHTML(r.s,r.p,r)+'<div class="msg '+(e.buy?'ok':'')+'" style="margin-top:8px">'+(e.buy?'La app la compraría hoy si hay hueco y efectivo.':'La app no la compraría ahora: '+esc(e.why.join(', '))+'.')+'</div>';}
 function openReport(){
   const L=(M.last||[]).slice(0,40);go('est');
   const d=GH.q&&GH.q.at?new Date(GH.q.at*1000):new Date();
   $('eHead').innerHTML='<div class="hint" style="margin:0">Datos de '+d.toLocaleString('es-ES')+'. Lista: <b>'+esc(($('mI').selectedOptions[0]||{}).text||'')+'</b>'+(M.nm?' · nota ≥ '+M.nm:'')+(M.pt?' · potencial ≥ '+M.pt+' %':'')+(M.pr?' · éxito '+(M.pr>0?'≥ ':'≤ ')+Math.abs(M.pr)+' %':'')+(M.fu?' · '+((FU_O.find(x=>x[0]===M.fu)||[])[1]||''):'')+' · '+L.length+' valores, ordenados como en Mercado.</div>'+
-    '<div class="msg" style="margin-top:8px"><b>Cómo estudia la app.</b> Mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo, impulso), simula 1000 futuros posibles con los movimientos reales de la acción y calcula así la probabilidad, el potencial y el plazo. Solo compra con nota ≥ 6, resultado simulado positivo y precio sobre su media de 50 días. No mira noticias. Aparte, enseña datos de la empresa (capitalización, ROCE, F-Score y dividendo), que de momento no cambian la nota.</div>';
+    '<div class="msg" style="margin-top:8px"><b>Cómo estudia la app.</b> Mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo, impulso), simula 1000 futuros posibles con los movimientos reales de la acción y calcula así la probabilidad, el potencial y el plazo. Solo compra con nota ≥ 6, resultado simulado positivo y precio sobre su media de 50 días. No mira noticias. Aparte, enseña datos de la empresa (capitalización, ROCE, F-Score y dividendo), que se combinan con el análisis técnico en la nota (por defecto 35 % empresa y 65 % gráfico; se cambia en Más).</div>';
   $('eList').innerHTML=L.length?L.map((r,i)=>{const e=explainRow(r);
     return '<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>'+(i+1)+'. '+esc(r.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(r.s)+'</span><br><small class="mut">'+esc(r.nm)+'</small></div><div style="text-align:right"><b>'+nf(r.p)+' '+esc(r.cur)+'</b><br><small>Nota '+nf(e.sc,1)+' · '+nf(e.pT*100,0)+' % · +'+nf(e.tp,1)+' %</small></div></div>'+
       explainHTML(r)+'</div>';}).join(''):'<div class="empty">No hay valores con estos filtros.</div>';
@@ -1851,6 +1876,8 @@ $('sDays').oninput=()=>{
   const v=Math.round(num($('sDays')));
   if(v>=3&&v<=30&&v!==S.maxDays){S.maxDays=v;S.rows={};S.scanAt=0;save();$('sMsg').innerHTML='<div class="msg">Plazo máximo cambiado a '+v+' días. El mercado se estudiará de nuevo la próxima vez.</div>';}
 };
+$('sComb').checked=S.comb!==false;$('sComb').onchange=e=>{S.comb=e.target.checked;S.rows&&save();renderAll();};
+$('sWf').value=String(S.wFu==null?0.35:S.wFu);$('sWf').onchange=()=>{S.wFu=+$('sWf').value;save();renderAll();};
 $('sPro').checked=S.prorroga!==false;$('sPro').onchange=e=>{S.prorroga=e.target.checked;save();};
 $('sAuto').checked=S.auto;$('sAuto').onchange=e=>{S.auto=e.target.checked;save();};
 
@@ -1973,7 +2000,7 @@ document.addEventListener('visibilitychange',()=>{
   if(S.watchMode&&!wl)keepAwake(true);
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
-window.__trader={getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
