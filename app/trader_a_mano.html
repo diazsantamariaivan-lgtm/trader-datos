@@ -2544,6 +2544,11 @@ function mTune(){
   $('mS').innerHTML='<button type="button" disabled style="flex:none;background:none;border:0;color:var(--mut)">Ordenar:</button>'+MS.map(([k,l])=>'<button type="button" data-s="'+k+'" class="'+(M.s===k?'on':'')+'">'+l+'</button>').join('');
   const gi=g.find(x=>x.id===M.f);
   if(M.f==='multi'){$('mHead').innerHTML='<div class="hint" style="margin:6px 0 2px">Marca los índices que quieres ver juntos:</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+g.map(x=>'<label class="tag" style="padding:6px 10px;font-size:13px;cursor:pointer"><input type="checkbox" data-ms="'+esc(x.id)+'"'+(M.sel.includes(x.id)?' checked':'')+'> '+esc(x.t)+'</label>').join('')+'</div>';return;}
+  if(M.f==='all'){
+    const ids=g.filter(x=>x.id!=='VER').map(x=>x.id),on=ids.filter(i=>S.uni.on.includes(i)),falta=g.filter(x=>x.id!=='VER'&&!S.uni.on.includes(x.id)),nv=new Set();falta.forEach(x=>x.s.forEach(y=>nv.add(y)));
+    $('mHead').innerHTML='<div class="card" style="margin:8px 0 0"><div class="hint" style="margin:0 0 6px">Aquí ves los valores que la app <b>ya ha estudiado</b>. Un índice solo se estudia si lo activas ('+on.length+' de '+ids.length+' activados).</div>'+
+      (falta.length?'<button class="btn small" id="mAllOn" type="button" style="width:100%">Estudiar los '+falta.length+' índices que faltan (+'+nv.size+' valores)</button><div class="hint" style="margin:4px 0 0">Faltan: '+falta.map(x=>esc(x.t||x.n)).join(', ')+'. Tardará unos minutos en estudiarlos.</div>':'<div class="msg ok">Todos los índices están activados.</div><button class="btn ghost small" id="mAllOff" type="button" style="margin-top:6px">Dejar solo S&amp;P 500, IBEX 35, Euro Stoxx, DAX y mis extras</button>')+'</div>';
+  }else
   $('mHead').innerHTML=!gi?'':ixPanel(gi)+(gi.id==='VER'?'<div class="hint">Solo para mirar y estudiar su gráfico: la app no los compra.</div>':
     '<label class="sw" style="padding:8px 0 2px"><input id="mTg" type="checkbox"'+(S.uni.on.includes(gi.id)?' checked':'')+'><span>Incluir en el piloto automático<br><small class="mut">Activado: la app estudia sus acciones, las mete en el top 10 y puede comprarlas. Desactivado: puedes verlas aquí y marcar con ★ las que quieras seguir.</small></span></label>');
 }
@@ -2605,6 +2610,12 @@ async function worldAdd(sym,btn){
 document.addEventListener('click',e=>{const a=e.target.closest('#mWs');if(a){worldSearch();return;}const w=e.target.closest('[data-addw]');if(w)worldAdd(w.dataset.addw,w);});
 $('mI').onchange=()=>{M.f=$('mI').value;M.n=60;renderMer();const g=IDX().find(x=>x.id===M.f);if(g&&g.sh){GH.at=0;ghQuotes().then(()=>renderMer()).catch(()=>{});}};
 $('mHead').onclick=e=>{const b=e.target.closest('[data-ixo]');if(!b)return;const g=IDX().find(x=>x.id===b.dataset.ixo);fcOpen('IDX:'+g.id,{nm:g.n+' (media de sus acciones)'});};
+$('mHead').addEventListener('click',e=>{
+  const a=e.target.closest('#mAllOn,#mAllOff');if(!a)return;
+  const ids=IDX().filter(x=>x.id!=='VER').map(x=>x.id);
+  S.uni.on=a.id==='mAllOn'?ids:['SP500','IBEX35','EUROSTOXX50','DAX40','EXTRA'];
+  save();GH.at=0;_us=null;renderMer();renderTop();autopilot(true);
+});
 $('mHead').onchange=e=>{
   const ms=e.target.dataset&&e.target.dataset.ms;
   if(ms){const i=M.sel.indexOf(ms);i>=0?M.sel.splice(i,1):M.sel.push(ms);M.n=60;renderMer();return;}
