@@ -513,7 +513,7 @@ const momN=()=>Math.max(5,Math.min(40,+S.momN||20));
 function momMarket(){const i=CX.d&&CX.d.idx&&CX.d.idx.SPX;if(!i||!i.s200)return null;return {on:i.p>i.s200,p:i.p,s200:i.s200};}
 function momRank(){
   if(!MO.d||!MO.d.s)return [];
-  return Object.entries(MO.d.s).filter(([x,v])=>v&&isFinite(v.m)&&inUni(x)&&!noTrade(x)).sort((a,b)=>b[1].m-a[1].m).map(([x,v],i)=>({s:x,m:v.m,p:v.p,rk:i+1}));
+  return Object.entries(MO.d.s).filter(([x,v])=>v&&isFinite(v.m)&&inUni(x)&&!noTrade(x)&&!newsVeto(x)&&!minFund(x)).sort((a,b)=>b[1].m-a[1].m).map(([x,v],i)=>({s:x,m:v.m,p:v.p,rk:i+1}));
 }
 const monthKey=()=>dayKey(Date.now()).slice(0,7);
 async function momRebalance(){
@@ -548,7 +548,7 @@ function momHTML(){
   const m=momMarket(),N=momN(),R=momRank(),held=new Set(S.pos.filter(p=>p.mom).map(p=>p.s));
   const head='<div class="hint" style="margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px"><b>Estrategia activa: momentum mensual</b><br>'+
     (m?'<b style="color:'+(m.on?'var(--pos,#3fb68b)':'var(--neg,#e5566b)')+'">● Mercado '+(m.on?'a favor':'en contra')+'</b> (S&P 500 '+nf(m.p,0)+' '+(m.on?'sobre':'bajo')+' su media de 200 días, '+nf(m.s200,0)+'). '+(m.on?'Se invierte a partes iguales en las '+N+' acciones que más han subido en 12 meses (sin contar el último).':'No se compra: se queda en efectivo.'):'Cargando el estado del mercado…')+
-    '<br><small>Se revisa una vez al mes. Probada con 20 años de datos de EE. UU.: ver Aprende.</small></div>';
+    '<br><small>Se revisa una vez al mes. Probada con 20 años de datos de EE. UU.: ver Aprende. Se saltan las acciones con noticias muy negativas y las que no cumplan tus mínimos de F-Score y ROCE (Ajustes).</small></div>';
   if(!R.length)return head+'<div class="empty">Cargando el ranking de momentum…</div>';
   const rows=R.slice(0,N).map(x=>'<div class="row"><span><b>'+x.rk+'</b> · '+esc(x.s)+(held.has(x.s)?' <span class="tag held">EN CARTERA</span>':'')+'</span><b class="'+(x.m>=0?'pos':'neg')+'">'+sg(x.m*100,0)+' %</b></div>').join('');
   return head+'<div class="card"><div class="hint" style="margin:0 0 6px">Ranking de momentum (subida de hace 12 meses a hace 1 mes). Objetivo de la próxima revisión:</div>'+rows+'</div>';

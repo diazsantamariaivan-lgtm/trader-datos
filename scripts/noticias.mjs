@@ -71,6 +71,7 @@ async function main(){
     const name=(AL[sym][0]||sym);
     const qq=es?'"'+name+'" (site:eleconomista.es OR site:expansion.com OR site:cincodias.elpais.com OR site:bolsamania.com)':'"'+name+'" (stock OR shares) (site:cnbc.com OR site:marketwatch.com OR site:ft.com OR site:reuters.com OR site:wsj.com OR site:bloomberg.com OR site:barrons.com)';
     try{const x=parse(await get(gnews(qq,es)),'Google');ok++;for(const it of x)if(it.d>=since&&relev(sym,it.t))add(sym,it);}catch(e){fail++;}
+    if(!es){try{const q2='"'+name+'" (site:expansion.com OR site:eleconomista.es OR site:cincodias.elpais.com OR site:bolsamania.com)';const x=parse(await get(gnews(q2,true)),'Google');for(const it of x)if(it.d>=since&&relev(sym,it.t))add(sym,it);}catch(e){}}
   });
   console.log('consultas',ok,'fallidas',fail);
   const out={t:Math.floor(now),g:G.slice(0,30).map(({s,t,u,d})=>({s,t,u,d,k:tone(t)})),s:{}};
