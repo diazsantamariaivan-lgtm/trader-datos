@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 00:08";</script>
+<script>window.BUILD="19/11/2026 13:12";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -213,6 +213,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <div class="seg chips" id="mS"></div>
   <div style="display:flex;gap:8px;margin:0 0 8px"><select id="mNm" aria-label="Nota mínima" style="flex:1"></select><select id="mPt" aria-label="Potencial mínimo" style="flex:1"></select></div>
   <div style="margin:0 0 8px"><select id="mPr" aria-label="Probabilidad de éxito"></select></div>
+  <div style="margin:0 0 8px"><select id="mFu" aria-label="Datos de empresa"></select></div>
   <div id="mBulk"></div>
   <div class="hint" id="mCnt" style="margin:0 2px 8px"></div>
   <div class="card" id="mList" style="padding:4px 14px"></div>
@@ -444,6 +445,50 @@ const GH={q:null,at:0,p:null,hist:new Map(),fail:0,off:0};
 const ghBase=()=>S.gh?'https://raw.githubusercontent.com/'+S.gh.replace(/^\/+|\/+$/g,''):'';
 const ghFile=x=>x.replace(/[^A-Za-z0-9.\-]/g,'_');
 const GH_N={'5d':5,'1mo':22,'3mo':64,'6mo':130,'1y':256,'2y':512,'5y':1400};
+const FU={d:null,at:0};
+try{const c=JSON.parse(localStorage.getItem('tm.fund')||'null');if(c&&c.s){FU.d=c;FU.at=c.t*1000;}}catch(e){}
+async function loadFund(){
+  try{if(!ghBase())return;if(FU.d&&Date.now()-(FU.chk||0)<3600e3)return;FU.chk=Date.now();
+    const j=await ghJson(ghBase()+'/fund/f.json?t='+Math.floor(Date.now()/3600000));
+    if(j&&j.s&&(!FU.d||j.t>=FU.d.t)){FU.d=j;FU.at=j.t*1000;try{localStorage.setItem('tm.fund',JSON.stringify(j));}catch(e){}renderMer();}
+  }catch(e){}
+}
+const fuOf=sym=>FU.d&&FU.d.s?FU.d.s[sym]||null:null;
+const CUS={EUR:'€',USD:'$',GBP:'£',GBp:'p',CHF:'CHF',SEK:'kr',DKK:'kr',NOK:'kr'};
+function capTxt(f){if(!f||!f.mc)return '';const v=f.mc,u=CUS[f.cu]||f.cu||'',n=(x,d)=>x.toLocaleString('es-ES',{maximumFractionDigits:d});
+  return v>=1e12?n(v/1e12,2)+' B '+u:v>=1e9?n(v/1e9,v>=1e11?0:1)+' mil M '+u:n(v/1e6,0)+' M '+u;}
+function capCat(f){if(!f||!f.mc)return '';const e=f.mc/(f.cu==='USD'?1.1:f.cu==='GBP'?0.85:1);return e>=2e10?'gran capitalización':e>=2e9?'mediana':'pequeña';}
+function rocLbl(v){return v>=15?'muy buena':v>=10?'buena':v>=6?'justa':'floja';}
+function fsLbl(v,n){const k=v/n*9;return k>=7?'sólida':k>=4?'normal':'débil';}
+function divInfo(f,price){
+  if(!f||f.dv==null)return null;
+  const paying=f.dv>0&&f.dl&&f.dl>Date.now()/1000-400*86400;
+  if(!paying)return{paga:false};
+  const y=price>0?f.dv/price*100:null;
+  return{paga:true,y,rec:f.dp>=5?'recurrente ('+f.dp+(f.dp>=11?'+':'')+' años seguidos pagándolo)':f.dp>=2?'poco histórico ('+f.dp+' años pagándolo)':'irregular',grow:f.dg>=5?'creciente ('+f.dg+' años subiéndolo seguidos)':f.dg>=2?'sube los últimos '+f.dg+' años':f.dg===1?'subió el último año':'no crece de forma continua',cut:!!f.dc,n:f.dn};
+}
+function fundHTML(sym,price){
+  const f=fuOf(sym);if(!f)return '<div class="hint" style="margin:8px 0">Datos de empresa (ROCE, F-Score, dividendo) todavía no disponibles para este valor.</div>';
+  const di=divInfo(f,price),L=[];
+  if(f.mc)L.push('<li><b>Capitalización:</b> '+esc(capTxt(f))+' · '+capCat(f)+'.</li>');
+  if(f.roce!=null)L.push('<li><b>ROCE:</b> '+nf(f.roce,1)+' % ('+rocLbl(f.roce)+'). Beneficio operativo sobre el capital que usa la empresa; por encima de 15 % suele indicar un buen negocio.</li>');
+  else L.push('<li><b>ROCE:</b> no aplicable (bancos y aseguradoras no lo calculan así).</li>');
+  if(f.fs!=null)L.push('<li><b>F-Score de Piotroski:</b> '+f.fs+' de '+f.fn+' ('+fsLbl(f.fs,f.fn)+'). Cuenta cuántas señales de salud financiera cumple (beneficios, caja, deuda, márgenes, rentabilidad) comparando los dos últimos balances anuales.</li>');
+  if(di){
+    if(!di.paga)L.push('<li><b>Dividendo:</b> no paga dividendo.</li>');
+    else L.push('<li><b>Dividendo:</b> '+(di.y!=null?'rentabilidad '+nf(di.y,2)+' % · ':'')+'se paga '+di.n+' '+(di.n===1?'vez':'veces')+' al año · '+di.rec+' · '+di.grow+(di.cut?' · <span class="neg">recortó el último año</span>':'')+(di.y>8?' · <span class="neg">rentabilidad muy alta: a veces avisa de problemas</span>':'')+'.</li>');
+  }
+  const bad=[];if(f.fs!=null&&f.fs/f.fn*9<4)bad.push('F-Score débil');if(f.roce!=null&&f.roce<6)bad.push('ROCE flojo');
+  return '<div style="font-size:14px;margin:10px 0 2px"><b>La empresa</b> <span class="mut" style="font-size:12px">(balance de '+esc(f.fd||'')+')</span></div><ul style="margin:4px 0;padding-left:18px;font-size:14px">'+L.join('')+'</ul>'+(bad.length?'<div class="hint" style="margin:2px 0 6px">⚠️ '+bad.join(' y ')+': el negocio da señales de fragilidad aunque el gráfico suba.</div>':'');
+}
+function fuChips(sym,price){
+  const f=fuOf(sym);if(!f)return '';const c=[];
+  if(f.mc)c.push('Cap. '+capTxt(f));
+  if(f.roce!=null)c.push('ROCE '+nf(f.roce,0)+' %');
+  if(f.fs!=null)c.push('F '+f.fs+'/'+f.fn);
+  const di=divInfo(f,price);if(di)c.push(di.paga?'Div. '+(di.y!=null?nf(di.y,1)+' %':'sí')+(f.dg>=3?' ↑'+f.dg:''):'Sin div.');
+  return c.length?'<small class="mut">'+c.join(' · ')+'</small>':'';
+}
 async function ghJson(u){
   const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),25000);
   try{const r=await fetch(u,{signal:ctl.signal,cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json();}
@@ -1578,6 +1623,7 @@ function fcStudyHTML(r){
     '<div class="hint">'+durText(r)+'</div>'+
     '<div class="plan"><div><small>Compra</small><b>'+fp(r.p)+'</b></div><div><small>Stop −'+nf(sp,1)+' %</small><b class="neg">'+fp(stop)+'</b></div><div><small>Objetivo +'+nf(tp,1)+' %</small><b class="pos">'+fp(tgt)+'</b></div></div>'+
     '<ul style="margin:6px 0;padding-left:18px;font-size:14px">'+reasons(r).map(x=>'<li>'+x+'</li>').join('')+'</ul>'+
+    fundHTML(r.s,r.p)+
     '<div class="msg '+(why.length?'':'ok')+'">'+(held?'Ya la tienes en cartera. ':'')+(why.length?'Ahora mismo la app no la compraría: '+why.join(', ')+'.':'La app la compraría hoy si hay hueco en la cartera.')+'</div>';
 }
 async function fcStudy(){
@@ -1636,8 +1682,8 @@ $('fcE').onclick=fcStudy;
 })();
 
 /* ====================== mercado: todas las acciones para elegir ====================== */
-const M={f:'uni',s:'nota',q:'',n:60,sel:[],nm:0,pt:0,pr:0};
-const NM_O=[[0,'Nota: todas'],[5,'Nota ≥ 5'],[6,'Nota ≥ 6'],[7,'Nota ≥ 7'],[8,'Nota ≥ 8']],PR_O=[[0,'Prob. de éxito: todas'],[10,'Éxito ≥ 10 % (más probables)'],[20,'Éxito ≥ 20 %'],[30,'Éxito ≥ 30 %'],[40,'Éxito ≥ 40 %'],[-10,'Éxito ≤ 10 % (poco probables)'],[-5,'Éxito ≤ 5 %']],PT_O=[[0,'Potencial: todos'],[3,'Potencial ≥ 3 %'],[5,'Potencial ≥ 5 %'],[8,'Potencial ≥ 8 %'],[10,'Potencial ≥ 10 %']];
+const M={f:'uni',s:'nota',q:'',n:60,sel:[],nm:0,pt:0,pr:0,fu:''};
+const NM_O=[[0,'Nota: todas'],[5,'Nota ≥ 5'],[6,'Nota ≥ 6'],[7,'Nota ≥ 7'],[8,'Nota ≥ 8']],FU_O=[['','Empresa: todas'],['fs7','F-Score ≥ 7 (sólidas)'],['roce15','ROCE ≥ 15 %'],['cal','Calidad: F-Score ≥ 7 y ROCE ≥ 12 %'],['div','Pagan dividendo'],['divg','Dividendo creciente (3+ años)'],['divr','Dividendo recurrente (5+ años)'],['big','Gran capitalización'],['nod','Sin dividendo'],['sin','Sin datos de empresa']],PR_O=[[0,'Prob. de éxito: todas'],[10,'Éxito ≥ 10 % (más probables)'],[20,'Éxito ≥ 20 %'],[30,'Éxito ≥ 30 %'],[40,'Éxito ≥ 40 %'],[-10,'Éxito ≤ 10 % (poco probables)'],[-5,'Éxito ≤ 5 %']],PT_O=[[0,'Potencial: todos'],[3,'Potencial ≥ 3 %'],[5,'Potencial ≥ 5 %'],[8,'Potencial ≥ 8 %'],[10,'Potencial ≥ 10 %']];
 const trkOf=x=>S.trk.find(t=>t.s===x);
 function trkToggle(r){const i=S.trk.findIndex(t=>t.s===r.s);if(i>=0)S.trk.splice(i,1);else S.trk.push({s:r.s,nm:r.nm,cur:r.cur,p0:r.p,hi:r.p,lo:r.p,t0:Date.now(),n0:score10(r)});}
 function trkUpdate(){S.trk.forEach(t=>{const r=S.rows[t.s];if(r&&r.p){t.hi=Math.max(t.hi||r.p,r.p);t.lo=Math.min(t.lo||r.p,r.p);}});}
@@ -1647,7 +1693,7 @@ function mTune(){
   const o=[['uni','Lo que estudio ahora ('+nu+')'],['fav','★ Mis favoritas ('+S.fav.length+')'],['trk','👁 Mi seguimiento ('+S.trk.length+')'],['all','Todos los índices ('+allSyms().length+')'],['multi','Elegir varios índices…']].concat(g.map(x=>[x.id,x.n+' · '+x.c+' ('+x.s.length+')']));
   if(!o.some(([k])=>k===M.f))M.f='uni';
   $('mI').innerHTML=o.map(([k,l])=>'<option value="'+esc(k)+'"'+(M.f===k?' selected':'')+'>'+esc(l)+'</option>').join('');
-  $('mPr').innerHTML=PR_O.map(([k,l])=>'<option value="'+k+'"'+(M.pr===k?' selected':'')+'>'+l+'</option>').join('');$('mNm').innerHTML=NM_O.map(([k,l])=>'<option value="'+k+'"'+(M.nm===k?' selected':'')+'>'+l+'</option>').join('');$('mPt').innerHTML=PT_O.map(([k,l])=>'<option value="'+k+'"'+(M.pt===k?' selected':'')+'>'+l+'</option>').join('');
+  $('mFu').innerHTML=FU_O.map(([k,l])=>'<option value="'+k+'"'+(M.fu===k?' selected':'')+'>'+l+'</option>').join('');$('mPr').innerHTML=PR_O.map(([k,l])=>'<option value="'+k+'"'+(M.pr===k?' selected':'')+'>'+l+'</option>').join('');$('mNm').innerHTML=NM_O.map(([k,l])=>'<option value="'+k+'"'+(M.nm===k?' selected':'')+'>'+l+'</option>').join('');$('mPt').innerHTML=PT_O.map(([k,l])=>'<option value="'+k+'"'+(M.pt===k?' selected':'')+'>'+l+'</option>').join('');
   $('mS').innerHTML='<button type="button" disabled style="flex:none;background:none;border:0;color:var(--mut)">Ordenar:</button>'+MS.map(([k,l])=>'<button type="button" data-s="'+k+'" class="'+(M.s===k?'on':'')+'">'+l+'</button>').join('');
   const gi=g.find(x=>x.id===M.f);
   if(M.f==='multi'){$('mHead').innerHTML='<div class="hint" style="margin:6px 0 2px">Marca los índices que quieres ver juntos:</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+g.map(x=>'<label class="tag" style="padding:6px 10px;font-size:13px;cursor:pointer"><input type="checkbox" data-ms="'+esc(x.id)+'"'+(M.sel.includes(x.id)?' checked':'')+'> '+esc(x.t)+'</label>').join('')+'</div>';return;}
@@ -1668,7 +1714,7 @@ function renderMer(){
   if(!rows.length){$('mList').innerHTML='<div class="empty">Todavía no hay datos. Ve a «Hoy» y pulsa «Actualizar».</div>';$('mCnt').textContent='';$('mMore').style.display='none';return;}
   let B;
   if(M.f==='uni')B=rows.filter(r=>inUni(r.s));else if(M.f==='all'){const st=new Set(allSyms());B=rows.filter(r=>st.has(r.s));}else if(M.f==='multi'){const st=new Set();IDX().filter(x=>M.sel.includes(x.id)).forEach(x=>x.s.forEach(y=>st.add(y)));B=rows.filter(r=>st.has(r.s));}else if(M.f==='fav')B=rows.filter(r=>fav.has(r.s));else if(M.f==='trk'){trkUpdate();B=rows.filter(r=>trkOf(r.s));}else{const st=new Set(gi?gi.s:[]);B=rows.filter(r=>st.has(r.s));}
-  let L=B.filter(r=>score10(r)>=M.nm&&4*r.atr/r.p*100>=M.pt&&(!M.pr||(M.pr>0?adjP(r)*100>=M.pr:adjP(r)*100<=-M.pr))).filter(r=>!q||r.s.toUpperCase().includes(q)||String(r.nm).toUpperCase().includes(q));
+  let L=B.filter(r=>score10(r)>=M.nm&&4*r.atr/r.p*100>=M.pt&&(!M.pr||(M.pr>0?adjP(r)*100>=M.pr:adjP(r)*100<=-M.pr))&&fuOk(r)).filter(r=>!q||r.s.toUpperCase().includes(q)||String(r.nm).toUpperCase().includes(q));
   const key={nota:r=>score10(r),des:r=>{const t=trkOf(r.s);return t?r.p/t.p0:0;},pot:r=>4*r.atr/r.p,prob:r=>adjP(r),hoy:r=>r.ch}[M.s];
   L=M.s==='az'?L.sort((a,b)=>a.s.localeCompare(b.s)):L.sort((a,b)=>key(b)-key(a));
   const cand=L.filter(r=>!trkOf(r.s));
@@ -1679,7 +1725,7 @@ function renderMer(){
   $('mList').innerHTML=L.slice(0,M.n).map(r=>{
     const sc=score10(r);
     return '<div class="mrow"><button class="star'+(fav.has(r.s)?' on':'')+'" data-star="'+esc(r.s)+'" type="button" aria-label="Favorita">'+(fav.has(r.s)?'★':'☆')+'</button>'+
-      '<div class="mm" data-open="'+esc(r.s)+'"><b>'+esc(r.s.replace('.MC',''))+'</b><span class="tag">'+mktOf(r.s)+'</span>'+(held.has(r.s)?'<span class="tag held">EN CARTERA</span>':'')+'<small>'+esc(r.nm)+'</small><small>Nota '+nf(sc,1)+' · Potencial +'+nf(4*r.atr/r.p*100,1)+' % · Éxito '+nf(adjP(r)*100,0)+' %</small>'+(function(){const t=trkOf(r.s);if(!t)return '';const pc=(r.p/t.p0-1)*100,dd=Math.max(0,Math.round((Date.now()-t.t0)/86400000));return '<small class="'+(pc>=0?'pos':'neg')+'">Desde el '+fmtD(new Date(t.t0))+' ('+dd+' d) a '+nf(t.p0)+': '+sg(pc,2)+' % · máx '+sg((t.hi/t.p0-1)*100,1)+' % · mín '+sg((t.lo/t.p0-1)*100,1)+' % · nota '+nf(t.n0,1)+' → '+nf(sc,1)+'</small>';})()+'</div>'+
+      '<div class="mm" data-open="'+esc(r.s)+'"><b>'+esc(r.s.replace('.MC',''))+'</b><span class="tag">'+mktOf(r.s)+'</span>'+(held.has(r.s)?'<span class="tag held">EN CARTERA</span>':'')+'<small>'+esc(r.nm)+'</small><small>Nota '+nf(sc,1)+' · Potencial +'+nf(4*r.atr/r.p*100,1)+' % · Éxito '+nf(adjP(r)*100,0)+' %</small>'+fuChips(r.s,r.p)+(function(){const t=trkOf(r.s);if(!t)return '';const pc=(r.p/t.p0-1)*100,dd=Math.max(0,Math.round((Date.now()-t.t0)/86400000));return '<small class="'+(pc>=0?'pos':'neg')+'">Desde el '+fmtD(new Date(t.t0))+' ('+dd+' d) a '+nf(t.p0)+': '+sg(pc,2)+' % · máx '+sg((t.hi/t.p0-1)*100,1)+' % · mín '+sg((t.lo/t.p0-1)*100,1)+' % · nota '+nf(t.n0,1)+' → '+nf(sc,1)+'</small>';})()+'</div>'+
       '<div class="mp"><span data-open="'+esc(r.s)+'">'+nf(r.p)+' '+esc(r.cur)+'</span><small class="'+(r.ch>=0?'pos':'neg')+'">'+sg(r.ch,2)+' %</small><button class="btn ghost small" data-trk="'+esc(r.s)+'" type="button" style="padding:3px 8px;font-size:12px;margin:4px 0 0">'+(trkOf(r.s)?'👁 Siguiendo':'+ Seguir')+'</button></div></div>';
   }).join('')||'<div class="empty">Sin resultados.</div>';
   $('mMore').style.display=L.length>M.n?'block':'none';
@@ -1705,6 +1751,7 @@ $('mList').onclick=e=>{
   const o=e.target.closest('[data-open]');if(o)fcOpen(o.dataset.open,S.rows[o.dataset.open]);
 };
 $('mNm').onchange=()=>{M.nm=+$('mNm').value;M.n=60;renderMer();};
+$('mFu').onchange=()=>{M.fu=$('mFu').value;M.n=60;renderMer();};
 $('mPr').onchange=()=>{M.pr=+$('mPr').value;M.n=60;renderMer();};
 $('mPt').onchange=()=>{M.pt=+$('mPt').value;M.n=60;renderMer();};
 $('mBulk').onclick=e=>{if(e.target.id==='mRep'){openReport();return;}if(e.target.id!=='mFollowAll')return;
@@ -1713,6 +1760,15 @@ $('mBulk').onclick=e=>{if(e.target.id==='mRep'){openReport();return;}if(e.target
 
 /* ====================== informe del estudio */
 const SIG=[['tr','Tendencia alcista (precio sobre las medias de 20 y 50 días)'],['s50','Precio sobre su media de 50 días'],['rs','Fuerza sana (RSI entre 50 y 68)'],['hi','Cerca de su máximo de 20 días (a menos de un 3 %)'],['mo','Impulso: sube más de un 5 % en 4 semanas']];
+function fuOk(r){
+  if(!M.fu)return true;const f=fuOf(r.s);
+  if(M.fu==='sin')return !f;if(!f)return false;
+  const di=divInfo(f,r.p),fsx=f.fs!=null?f.fs/f.fn*9:-1;
+  switch(M.fu){case 'fs7':return fsx>=7;case 'roce15':return f.roce!=null&&f.roce>=15;case 'cal':return fsx>=7&&f.roce!=null&&f.roce>=12;
+    case 'div':return !!(di&&di.paga);case 'divg':return !!(di&&di.paga&&f.dg>=3);case 'divr':return !!(di&&di.paga&&f.dp>=5);
+    case 'big':return capCat(f)==='gran capitalización';case 'nod':return !!(di&&!di.paga);}
+  return true;
+}
 function explainRow(r){
   const sc=score10(r),pT=adjP(r),ev=r.ev-S.cal.bias,sp=2*r.atr/r.p*100,tp=4*r.atr/r.p*100,W=S.W,tot=FK.reduce((a,k)=>a+W[k],0);
   const sig=SIG.map(([k,l],i)=>({ok:!!r.f[i],t:l,w:W[k]}));
@@ -1735,12 +1791,12 @@ function reportText(L){
 }
 function explainHTML(r){const e=explainRow(r);return '<div class="hint" style="margin:8px 0 2px">'+esc(e.nota)+'</div><ul style="margin:4px 0;padding-left:18px;font-size:14px">'+e.sig.map(x=>'<li>'+(x.ok?'✅ ':'⬜ ')+esc(x.t)+'</li>').join('')+e.pen.map(x=>'<li>⚠️ '+esc(x)+'</li>').join('')+'</ul>'+
       '<div style="font-size:14px;margin:4px 0">Tendencia: <b>'+esc(e.tend)+'</b>.</div><div style="font-size:14px;margin:4px 0">'+esc(e.prob)+'</div><div style="font-size:14px;margin:4px 0">'+esc(e.pot)+'</div><div style="font-size:14px;margin:4px 0">'+esc(e.res)+'</div><div style="font-size:14px;margin:4px 0">'+esc(e.plazo)+'</div>'+
-      '<div class="msg '+(e.buy?'ok':'')+'" style="margin-top:8px">'+(e.buy?'La app la compraría hoy si hay hueco y efectivo.':'La app no la compraría ahora: '+esc(e.why.join(', '))+'.')+'</div>';}
+      fundHTML(r.s,r.p)+'<div class="msg '+(e.buy?'ok':'')+'" style="margin-top:8px">'+(e.buy?'La app la compraría hoy si hay hueco y efectivo.':'La app no la compraría ahora: '+esc(e.why.join(', '))+'.')+'</div>';}
 function openReport(){
   const L=(M.last||[]).slice(0,40);go('est');
   const d=GH.q&&GH.q.at?new Date(GH.q.at*1000):new Date();
-  $('eHead').innerHTML='<div class="hint" style="margin:0">Datos de '+d.toLocaleString('es-ES')+'. Lista: <b>'+esc(($('mI').selectedOptions[0]||{}).text||'')+'</b>'+(M.nm?' · nota ≥ '+M.nm:'')+(M.pt?' · potencial ≥ '+M.pt+' %':'')+(M.pr?' · éxito '+(M.pr>0?'≥ ':'≤ ')+Math.abs(M.pr)+' %':'')+' · '+L.length+' valores, ordenados como en Mercado.</div>'+
-    '<div class="msg" style="margin-top:8px"><b>Cómo estudia la app.</b> Mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo, impulso), simula 1000 futuros posibles con los movimientos reales de la acción y calcula así la probabilidad, el potencial y el plazo. Solo compra con nota ≥ 6, resultado simulado positivo y precio sobre su media de 50 días. No mira resultados de empresa ni noticias.</div>';
+  $('eHead').innerHTML='<div class="hint" style="margin:0">Datos de '+d.toLocaleString('es-ES')+'. Lista: <b>'+esc(($('mI').selectedOptions[0]||{}).text||'')+'</b>'+(M.nm?' · nota ≥ '+M.nm:'')+(M.pt?' · potencial ≥ '+M.pt+' %':'')+(M.pr?' · éxito '+(M.pr>0?'≥ ':'≤ ')+Math.abs(M.pr)+' %':'')+(M.fu?' · '+((FU_O.find(x=>x[0]===M.fu)||[])[1]||''):'')+' · '+L.length+' valores, ordenados como en Mercado.</div>'+
+    '<div class="msg" style="margin-top:8px"><b>Cómo estudia la app.</b> Mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo, impulso), simula 1000 futuros posibles con los movimientos reales de la acción y calcula así la probabilidad, el potencial y el plazo. Solo compra con nota ≥ 6, resultado simulado positivo y precio sobre su media de 50 días. No mira noticias. Aparte, enseña datos de la empresa (capitalización, ROCE, F-Score y dividendo), que de momento no cambian la nota.</div>';
   $('eList').innerHTML=L.length?L.map((r,i)=>{const e=explainRow(r);
     return '<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>'+(i+1)+'. '+esc(r.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(r.s)+'</span><br><small class="mut">'+esc(r.nm)+'</small></div><div style="text-align:right"><b>'+nf(r.p)+' '+esc(r.cur)+'</b><br><small>Nota '+nf(e.sc,1)+' · '+nf(e.pT*100,0)+' % · +'+nf(e.tp,1)+' %</small></div></div>'+
       explainHTML(r)+'</div>';}).join(''):'<div class="empty">No hay valores con estos filtros.</div>';
@@ -1907,6 +1963,7 @@ applyTheme(S.theme);
 if(S.apr&&(S.ext||[]).length)learn();
 try{$('verTxt').textContent='Versión: '+(window.BUILD||'archivo local (no se actualiza solo)');}catch(e){}
 renderAll();
+loadFund();setInterval(loadFund,3600e3);
 setTimeout(()=>autopilot(false),300);
 if(S.watchMode)keepAwake(true);
 function tick(){
