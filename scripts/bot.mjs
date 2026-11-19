@@ -67,6 +67,9 @@ const seed = Object.assign({}, S0, {
   maxDays: cfg.dias_maximos, com: cfg.comision_eur, slip: cfg.deslizamiento_pct,
   limD: cfg.freno_perdida_dia_pct, limS: cfg.freno_perdida_semana_pct,
   uni: { on: cfg.indices }, fav: cfg.favoritas || [], srv: false, srvAt: 0,
+  ...(cfg.fscore_minimo != null ? { minFs: +cfg.fscore_minimo } : {}), ...(cfg.roce_minimo_pct != null ? { minRoc: +cfg.roce_minimo_pct } : {}),
+  ...(cfg.vetar_noticias_negativas != null ? { vetoNews: !!cfg.vetar_noticias_negativas } : {}), ...(cfg.mercado_vigilar != null ? { regOn: !!cfg.mercado_vigilar } : {}),
+  ...(cfg.analistas != null ? { anOn: !!cfg.analistas } : {}), ...(cfg.resultados_dias != null ? { earnD: +cfg.resultados_dias } : {}),
   modo: cfg.estrategia || 'mom', momN: cfg.momentum_n || 20, momFreq: cfg.revision_momentum || 'm', labCustom: Array.isArray(cfg.laboratorio) ? cfg.laboratorio : []
 });
 // operaciones compartidas por otras apps (solo señales y resultado) llegadas al tema común
@@ -91,6 +94,7 @@ if (fresh) {
 }
 if (!(ageMin <= 45)) { console.log('Cotizaciones demasiado antiguas: no se opera esta vez'); process.exit(0); }
 
+const NTFYQ = [];
 const html = readFileSync(APP, 'utf8');
 const spList = (Q.idx.find(g => g.id === 'SP500') || { s: [] }).s;
 const ok = b => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(b)), json: () => Promise.resolve(b) });
@@ -101,7 +105,7 @@ const dom = new JSDOM(html, {
     w.localStorage.setItem(KEY, JSON.stringify(seed));
     w.fetch = (u, o) => {
       u = String(u);
-      if (u.startsWith('https://ntfy.sh/')) return fetch(u, o);
+      if (u.startsWith('https://ntfy.sh/')) { NTFYQ.push({ u, o: { method: (o && o.method) || 'POST', headers: o && o.headers, body: o && o.body } }); return ok({}); }
       if (u.includes('wikipedia')) return ok({ parse: { text: { '*': '<table class="wikitable"><tbody><tr><th>x</th></tr>' + spList.map(t => '<tr><td>' + t + '</td></tr>').join('') + '</tbody></table>' } } });
       if (u.includes('/quotes/q.json')) return ok(Q);
       if (u.includes('/fund/f.json') && FJ) return ok(FJ);
@@ -144,5 +148,7 @@ const own = S.closed.filter(t => !t.manual && t.why !== 'manual' && t.u).map(t =
 const seen = new Set(own.map(e => e.u)), pool = own.concat((S.ext || []).filter(e => !seen.has(e.u)));
 writeFileSync(OUT + '/aprendizaje.json', JSON.stringify({ at: Date.now(), t: pool.slice(-800) }));
 writeFileSync(OUT + '/state.enc.json', JSON.stringify(enc(state)));
+// los avisos se mandan después de guardar la cartera (paso siguiente del workflow)
+writeFileSync('ntfy-queue.json', JSON.stringify(NTFYQ));
 console.log('Cartera', eq.toFixed(2), '€ · efectivo', S.cash.toFixed(2), '· abiertas', S.pos.length, '· cerradas', S.closed.length, '· errores', errs.slice(0, 2));
 process.exit(0);

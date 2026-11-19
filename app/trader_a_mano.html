@@ -308,6 +308,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <label for="sMf">Cada cuánto se revisa la cartera de momentum</label><select id="sMf"><option value="w">Cada semana</option><option value="q">Cada 2 semanas</option><option value="m">Cada mes (recomendado)</option><option value="t">Cada trimestre</option></select>
     <div class="hint">La primera revisión se hace en cuanto activas la estrategia o cambias la frecuencia. En las pruebas con 20 años ninguna frecuencia superó claramente a la mensual.</div>
     <div class="hint" id="sMhint"></div>
+    <label for="sDisp">Mostrar precios en</label><select id="sDisp"><option value="nat">Moneda de cada acción ($ en EE. UU.)</option><option value="eur">Euros (como Trade Republic)</option></select>
     <label for="sTok">Token de GitHub (opcional)</label><input id="sTok" type="password" autocomplete="off" placeholder="github_pat_…">
     <div class="hint">Con un token que solo tenga permiso de <b>Contenidos: lectura y escritura</b> en este repositorio, la app puede cambiar la configuración del piloto (estrategia, frecuencia, carteras del laboratorio) sin que entres en GitHub. Se guarda solo en este móvil.</div>
     <label for="sMn">Acciones en la cartera de momentum</label><select id="sMn"><option value="10">10 (más concentrada)</option><option value="20">20 (recomendada)</option><option value="30">30</option><option value="40">40 (más repartida)</option></select>
@@ -539,24 +540,28 @@ function momDue(){
 async function momRebalance(){
   if(!S.auto||!modoMom())return;
   if(!momDue())return;
-  if(!MO.d||Date.now()/1000-MO.d.t>6*86400||!CX.d)return;
+  if(!MO.d||Date.now()/1000-MO.d.t>4*86400||!CX.d)return;
   const mk0=momMarket();if(!mk0)return;
+  if(!(GH.q&&GH.q.idx&&GH.q.idx.length))return;
   const N=momN(),R=momRank(),top=new Set(mk0.on?R.slice(0,N).map(x=>x.s):[]);
   if(mk0.on&&R.length<N)return;
   const mine=S.pos.filter(p=>p.mom);let sold=0,bought=0;
   for(const p of mine){
     if(top.has(p.s))continue;
-    const v=MO.d.s[p.s],px=(v&&v.p)||p.last||p.entry;
+    const v=MO.d.s[p.s],rw=S.rows&&S.rows[p.s],px=(rw&&rw.p>0&&rw.p)||(v&&v.p)||p.last||p.entry;
+    adjSplit(p,px);
     closePos(p,{px,why:'rebalanceo',days:Math.max(1,Math.round((Date.now()-p.openTs)/864e5)),dk:dayKey(Date.now())});sold++;
   }
   if(mk0.on){
     for(const x of R.slice(0,N)){
       if(S.pos.some(p=>p.s===x.s))continue;
-      const fx=await getFx('USD'),eq=equity(),pxIn=x.p*(1+S.slip/100),entryE=pxIn/fx;
+      if(!S.fx.USD||!(S.fx.USD.v>0))break;
+      const lp=livePx(x.s,x.p);if(!lp)continue;
+      const fx=await getFx('USD'),eq=equity(),pxIn=lp*(1+S.slip/100),entryE=pxIn/fx;
       let sh=Math.min(eq/N/entryE,(S.cash-S.com)/entryE);sh=Math.floor(sh*1000)/1000;const cost=sh*entryE;
       if(!(sh>0)||cost<20)continue;
       S.cash-=cost+S.com;
-      S.pos.push({mom:true,id:Date.now()+Math.random(),s:x.s,nm:(S.rows[x.s]&&S.rows[x.s].nm)||x.s,cur:'USD',shares:sh,entry:pxIn,stop:pxIn*0.6,target:pxIn*1.8,last:x.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:[0,0,0,0,0]});
+      S.pos.push({mom:true,id:Date.now()+Math.random(),s:x.s,nm:(S.rows[x.s]&&S.rows[x.s].nm)||x.s,cur:'USD',shares:sh,entry:pxIn,stop:pxIn*0.6,target:pxIn*1.8,last:lp,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:[0,0,0,0,0]});
       bought++;
     }
   }
@@ -587,9 +592,9 @@ const shDefs=()=>SH_DEF.concat((Array.isArray(S.labCustom)?S.labCustom:[]).filte
 const _rkc={};
 function momRankPure(win){
   if(!MO.d||!MO.d.s)return [];
-  const k=(win===6?'m6':'m'),key=k+'|'+MO.d.t+'|'+S.uni.on.join(',');
+  const k=(win===6?'m6':'m'),key=k+'|'+MO.d.t+'|'+S.uni.on.join(',')+'|'+(Date.now()/6e4|0)+'|'+S.minFs+'|'+S.minRoc;
   if(_rkc[k]&&_rkc[k].key===key)return _rkc[k].v;
-  const v=Object.entries(MO.d.s).filter(([x,q])=>q&&isFinite(q[k])&&q.p>0&&inUni(x)&&!noTrade(x)).sort((a,b)=>b[1][k]-a[1][k]).map(([x,q])=>({s:x,p:q.p}));
+  const v=Object.entries(MO.d.s).filter(([x,q])=>q&&isFinite(q[k])&&q.p>0&&inUni(x)&&!noTrade(x)&&!newsVeto(x)&&!minFund(x)).sort((a,b)=>b[1][k]-a[1][k]).map(([x,q])=>({s:x,p:q.p}));
   _rkc[k]={key,v};return v;
 }
 function nextDue(f,at){
@@ -606,19 +611,20 @@ function shDue(sh,f){
   if(f==='t')return qKey(sh.at)!==qKey();
   return monthKey(sh.at)!==monthKey();
 }
-function shEq(sh,fx){let e=sh.c;for(const [x,v] of Object.entries(sh.p)){const q=MO.d.s[x],px=q&&q.p?q.p:v[1];v[1]=px;e+=v[0]*px/fx;}return e;}
+function shEq(sh,fx){let e=sh.c;for(const [x,v] of Object.entries(sh.p)){const q=MO.d.s[x],px=q&&q.p?q.p:v[1];const k=splitRatio(v[1],px,x);if(k!==1){v[0]=Math.round(v[0]*k*1000)/1000;if(v[2])v[2]/=k;}v[1]=px;e+=v[0]*px/fx;}return e;}
 function shadowStep(){
   try{
-    if(!modoMom()||!MO.d||!CX.d||Date.now()/1000-MO.d.t>6*86400)return;
+    if(!modoMom()||!MO.d||!CX.d||Date.now()/1000-MO.d.t>4*86400)return;
     const m=momMarket();if(!m)return;
-    const fx=fxOf('USD')||1,today=dayKey(Date.now());
+    if(!S.fx.USD||!(S.fx.USD.v>0))return;
+    const fx=S.fx.USD.v,today=dayKey(Date.now());
     S.shadow=S.shadow||{};
     if(!S.shBench)S.shBench={d:today,x:m.p};
     const rk6=momRankPure(12),rk12=momRankPure(6);if(rk6.length<40)return;
     const ids=new Set(shDefs().map(d=>d.id));for(const k of Object.keys(S.shadow))if(!ids.has(k))delete S.shadow[k];
     for(const d of shDefs()){
       const rk=d.w===6?rk12:rk6;
-      const sh=S.shadow[d.id]||(S.shadow[d.id]={c:S.cap0,p:{},at:0,h:[],nt:0,d0:today});
+      const sh=S.shadow[d.id]||(S.shadow[d.id]={c:S.cap0,p:{},at:0,h:[],nt:0,d0:today,bx:m.p});
       if(shDue(sh,d.f)){
         const on=d.filt?m.on:true,top=on?rk.slice(0,d.N):[],keep=new Set(top.map(x=>x.s));
         for(const [x,v] of Object.entries(sh.p)){
@@ -660,7 +666,7 @@ function renderLab(){
   const dd=h=>{let pk=0,mx=0;for(const [,e] of h){pk=Math.max(pk,e);mx=Math.max(mx,(pk-e)/pk*100);}return mx;};
   const rows=shDefs().map(d=>{
     const sh=SHd[d.id];if(!sh||!sh.h.length)return '';
-    const e=sh.h[sh.h.length-1][1],ret=(e/S.cap0-1)*100,open=labOpen.has(d.id);
+    const e=sh.h[sh.h.length-1][1],ret=(e/S.cap0-1)*100,open=labOpen.has(d.id),bb=sh.bx||(b&&b.x),br=bb&&m?(m.p/bb-1)*100:null;
     let det='';
     if(open){
       const hold=Object.entries(sh.p).map(([x,v])=>({s:x,val:v[0]*v[1]/fx,pl:v[2]?(v[1]/v[2]-1)*100:null})).sort((a,b)=>b.val-a.val);
@@ -668,7 +674,7 @@ function renderLab(){
         (hold.length?hold.map(x=>'<div class="row" style="margin-top:4px"><span>'+esc(x.s)+'</span><b>'+eur(x.val)+' · '+nf(x.val/e*100,0)+' %'+(x.pl!=null?' · <span class="'+(x.pl>=0?'pos':'neg')+'">'+sg(x.pl,1)+' %</span>':'')+'</b></div>').join(''):'<div class="hint">Ahora mismo en efectivo (el mercado está en contra o aún no ha entrado).</div>')+
         (d.id.startsWith('c')?'<div style="margin-top:8px"><button class="btn ghost small" data-labdel="'+esc(d.id)+'" type="button">Eliminar esta cartera</button></div>':'');
     }
-    return '<div class="fac" data-labrow="'+esc(d.id)+'" style="cursor:pointer"><div class="t"><span>'+esc(d.n)+' '+(open?'▾':'▸')+'</span><b class="'+(ret>=0?'pos':'neg')+'">'+sg(ret,1)+' %</b></div><div class="hint" style="margin:3px 0 0">'+(bret!=null?'Frente al S&P 500: '+sg(ret-bret,1)+' puntos · ':'')+'caída máxima '+nf(dd(sh.h),1)+' % · '+Object.keys(sh.p).length+' acciones · '+sh.nt+' operaciones</div>'+det+'</div>';
+    return '<div class="fac" data-labrow="'+esc(d.id)+'" style="cursor:pointer"><div class="t"><span>'+esc(d.n)+' '+(open?'▾':'▸')+'</span><b class="'+(ret>=0?'pos':'neg')+'">'+sg(ret,1)+' %</b></div><div class="hint" style="margin:3px 0 0">'+(br!=null?'Frente al S&P 500: '+sg(ret-br,1)+' puntos · ':'')+'caída máxima '+nf(dd(sh.h),1)+' % · '+Object.keys(sh.p).length+' acciones · '+sh.nt+' operaciones</div>'+det+'</div>';
   }).join('');
   const d0=(SHd.m20&&SHd.m20.d0)||(b&&b.d);
   el.innerHTML='<div class="hint" style="margin:0 0 8px">Desde el '+fmtD(new Date(d0+'T12:00:00'))+', con el mismo dinero ficticio y las mismas comisiones. '+(bret!=null?'<b>S&amp;P 500: '+sg(bret,1)+' %</b>. ':'')+'Pulsa una cartera para ver su configuración y sus acciones.</div>'+rows+
@@ -727,7 +733,7 @@ function anAdj(r){
 }
 function anTxt(r){
   const a=anOf(r.s,r.p);if(!a)return '';
-  return 'Analistas ('+a.n+'): '+a.b+' comprar, '+a.h+' mantener, '+a.s+' vender'+(a.pt?'; precio objetivo medio '+nf(a.pt,2)+' '+esc(r.cur)+' ('+sg(a.up,0)+' % sobre el precio actual)':'')+(Math.abs(anAdj(r))>=0.05?'; ajusta la nota '+sg(anAdj(r),1)+'.':'.');
+  return 'Analistas ('+a.n+'): '+a.b+' comprar, '+a.h+' mantener, '+a.s+' vender'+(a.pt?'; precio objetivo medio '+esc(pxD(a.pt,r.cur,2))+' ('+sg(a.up,0)+' % sobre el precio actual)':'')+(Math.abs(anAdj(r))>=0.05?'; ajusta la nota '+sg(anAdj(r),1)+'.':'.');
 }
 async function loadCheck(){
   try{if(!ghBase()||Date.now()-FCK.chk<3600e3)return;FCK.chk=Date.now();
@@ -1029,9 +1035,28 @@ async function getFx(cur){
   return c?c.v:1;
 }
 const fxOf=cur=>(S.fx[cur]&&S.fx[cur].v)||1;
+const dispEur=()=>{try{return localStorage.getItem('tm.disp')==='eur';}catch(e){return false;}};
+function pxD(v,cur,d){if(d===undefined)d=2;if(dispEur()&&cur&&cur!=='EUR'&&S.fx[cur]&&S.fx[cur].v>0)return nf(v/S.fx[cur].v,d)+' €';return nf(v,d)+' '+(cur||'');}
 
 /* ====================== cartera virtual ====================== */
 const posValue=p=>p.shares*(p.last||p.entry)/fxOf(p.cur);
+/* split / contrasplit: si el precio cambia de golpe por un factor casi entero, se ajustan acciones y precios (el valor no cambia) */
+function splitRatio(prev,now,sym){
+  if(!(prev>0&&now>0))return 1;
+  const r=prev/now,hasSpl=!!(CX.d&&CX.d.spl&&CX.d.spl[sym]);
+  if(r>=1.9){const k=Math.round(r);if(Math.abs(r-k)/k<0.08&&(hasSpl||r>=3))return k;}
+  if(r<=1/1.9){const k=Math.round(1/r);if(Math.abs(1/r-k)/k<0.08&&(hasSpl||k>=3))return 1/k;}
+  return 1;
+}
+function adjSplit(pos,now){
+  const k=splitRatio(pos.last||pos.entry,now,pos.s);if(k===1)return false;
+  pos.shares=Math.round(pos.shares*k*1000)/1000;pos.entry/=k;if(pos.stop)pos.stop/=k;if(pos.target)pos.target/=k;
+  if(pos.cx&&pos.cx.p)pos.cx.p/=k;
+  log('Split detectado en <b>'+esc(pos.s)+'</b> (x'+(k>=1?nf(k,0):'1/'+nf(1/k,0))+'): se ajustan acciones y precios; el valor de la posición no cambia.');
+  return true;
+}
+/* precio vivo (cotizaciones) para operar; si difiere mucho del de m.json no se opera ese valor */
+function livePx(s,mp){const r=S.rows&&S.rows[s];if(r&&r.p>0){if(mp>0&&Math.abs(r.p/mp-1)>0.08)return null;return r.p;}return mp>0?mp:null;}
 const equity=()=>S.cash+S.pos.reduce((a,p)=>a+posValue(p),0);
 /* ---- avisos al móvil (ntfy) con cola por si no hay conexión ---- */
 const plain=h=>String(h).replace(/<[^>]+>/g,'').replace(/&amp;/g,'&');
@@ -1172,10 +1197,10 @@ async function updatePositions(){
   for(const pos of S.pos.slice()){
     try{
       await getFx(pos.cur);
-      if(pos.mom){const dm=await chart(pos.s,'1d','1mo',0);if(dm&&dm.c.length)pos.last=dm.meta.regularMarketPrice||dm.c[dm.c.length-1];pos.days=Math.max(0,Math.round((Date.now()-pos.openTs)/864e5));continue;}
+      if(pos.mom){const dm=await chart(pos.s,'1d','1mo',0);if(dm&&dm.c.length){const np=dm.meta.regularMarketPrice||dm.c[dm.c.length-1];adjSplit(pos,np);pos.last=np;}pos.days=Math.max(0,Math.round((Date.now()-pos.openTs)/864e5));continue;}
       const d=await chart(pos.s,'1d','3mo',0),res=evalPos(pos,d);
       pos.days=res.days;
-      if(res.done)closePos(pos,res);else pos.last=res.last;
+      if(res.done)closePos(pos,res);else{adjSplit(pos,res.last);pos.last=res.last;}
     }catch(e){}
   }
 }
@@ -1249,7 +1274,7 @@ async function openTrades(){
     S.pos.push({pred,id:Date.now()+Math.random(),s:r.s,nm:r.nm,cur:r.cur,shares:sh,entry:pxIn,stop,target,last:r.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:r.f.slice(),cx:cxSnap(r,sc)});
     S.buysToday++;
     const ed=expDays(r.dm||S.maxDays);
-    log('Compró <b>'+esc(r.s.replace('.MC',''))+'</b> a '+nf(pxIn)+' '+esc(r.cur)+' ('+eur(cost)+'). Stop '+nf(stop)+', objetivo '+nf(target)+'. Plazo previsto: unos '+ed+(ed===1?' día':' días')+', hasta el '+fmtD(addBiz(Date.now(),ed))+'.',true);
+    log('Compró <b>'+esc(r.s.replace('.MC',''))+'</b> a '+pxD(pxIn,r.cur)+' ('+eur(cost)+'). Stop '+pxD(stop,r.cur)+', objetivo '+pxD(target,r.cur)+'. Plazo previsto: unos '+ed+(ed===1?' día':' días')+', hasta el '+fmtD(addBiz(Date.now(),ed))+'.',true);
   }
 }
 /* ---- aprender en común: se comparten solo señales y resultados, sin nombres, importes ni fechas ---- */
@@ -1279,7 +1304,8 @@ async function aprSync(){
 function snapshot(){
   const t=Date.now(),e=equity(),L=S.eq[S.eq.length-1];
   if(L&&t-L.t<300000)L.e=e;else S.eq.push({t,e});
-  S.eq=S.eq.slice(-400);
+  if(S.eq.length>400){const lim=t-36*36e5;let lk=-1;S.eq=S.eq.filter(x=>{if(x.t>=lim)return true;const k=Math.floor(x.t/(6*36e5));if(k===lk)return false;lk=k;return true;});}
+  S.eq=S.eq.slice(-700);
 }
 
 /* ====================== listas de valores ====================== */
@@ -1642,7 +1668,7 @@ function candHTML(r,sc,i,open){
   const stop=r.p-2*r.atr,tgt=r.p+4*r.atr;
   return '<div class="cand'+(open?' open':'')+'" data-s="'+esc(r.s)+'">'+
     '<div class="ch" data-tg="1"><span class="rk">'+(i||'·')+'</span><div class="nm"><b>'+esc(r.s.replace('.MC',''))+'</b><span class="tag">'+mktOf(r.s)+'</span>'+(held?'<span class="tag held">EN CARTERA</span>':'')+'<small>'+esc(r.nm)+'</small></div>'+
-    '<div class="pr">'+nf(r.p)+' '+esc(r.cur)+'<small class="'+(r.ch>=0?'pos':'neg')+'">'+sg(r.ch,2)+' % hoy</small></div></div>'+
+    '<div class="pr">'+esc(pxD(r.p,r.cur))+'<small class="'+(r.ch>=0?'pos':'neg')+'">'+sg(r.ch,2)+' % hoy</small></div></div>'+
     '<div class="kp" data-tg="1"><div><small>Nota</small><b>'+nf(sc,1)+'</b></div><div><small>Potencial</small><b class="pos">+'+nf(tp,1)+' %</b></div><div><small>Prob. éxito</small><b>'+nf(pT*100,0)+' %</b></div></div>'+
     '<div class="dur" data-tg="1">'+durText(r)+'</div>'+
     (fuChips(r.s,r.p)?'<div class="dur" data-tg="1" style="margin-top:4px">'+fuChips(r.s,r.p)+'</div>':'')+
@@ -1760,7 +1786,7 @@ function renderMov(){
     const nm=esc(String(e.s).replace('.MC',''));
     const tag=e.k==='c'?'<span class="tag held" style="margin:0 6px 0 0">COMPRA</span>':'<span class="tag" style="margin:0 6px 0 0;background:'+(e.pnl>=0?'var(--okbg);color:var(--ok)':'var(--badbg);color:var(--pink)')+'">VENTA</span>';
     const right=e.k==='v'?'<span class="'+(e.pnl>=0?'pos':'neg')+'">'+sg(e.pnl,2)+' € ('+sg(e.pct)+' %)</span>':'<span class="mut">'+nf(e.sh,3)+' acc.</span>';
-    return '<div class="row" style="margin-top:0;padding:9px 0;border-bottom:1px solid var(--line);align-items:center"><span>'+tag+'<b>'+nm+'</b> a '+nf(e.px)+(e.man?' · a mano':'')+'<br><small class="mut">'+d+(e.why?' · '+esc(String(e.why)):'')+'</small></span><b style="font-size:13px;text-align:right">'+right+'</b></div>';
+    return '<div class="row" style="margin-top:0;padding:9px 0;border-bottom:1px solid var(--line);align-items:center"><span>'+tag+'<b>'+nm+'</b> a '+pxD(e.px,e.cur)+(e.man?' · a mano':'')+'<br><small class="mut">'+d+(e.why?' · '+esc(String(e.why)):'')+'</small></span><b style="font-size:13px;text-align:right">'+right+'</b></div>';
   }).join(''):'<div class="empty">Aún no hay movimientos.</div>';
 }
 function renderCar(){
@@ -1769,10 +1795,10 @@ function renderCar(){
   $('eqHint').textContent=S.eq.length>1?'Valor de la cartera cada vez que la app trabaja. La línea discontinua es tu capital inicial.':'La gráfica se irá llenando con cada uso.';
   $('posBox').innerHTML=(S.pos.length?S.pos.map(p=>{
     const v=posValue(p),pnl=v-p.costEur,pct=pnl/p.costEur*100,pos=Math.max(0,Math.min(100,(p.last-p.stop)/(p.target-p.stop)*100));
-    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+nf(p.entry)+(p.mom?' · momentum: se revisa '+FREQ[momFreq()]+'':' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays))+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+(fuChips(p.s,p.last)?'<br>'+fuChips(p.s,p.last):'')+(earnTxt(p.s)?'<br><small class="neg"><b>⚠ '+earnTxt(p.s)+'</b></small>':'')+'</div>'+
+    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+pxD(p.entry,p.cur)+(p.mom?' · momentum: se revisa '+FREQ[momFreq()]+'':' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays))+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+(fuChips(p.s,p.last)?'<br>'+fuChips(p.s,p.last):'')+(earnTxt(p.s)?'<br><small class="neg"><b>⚠ '+earnTxt(p.s)+'</b></small>':'')+'</div>'+
       '<div class="v">'+eur(v)+'<br><small class="'+(pnl>=0?'pos':'neg')+'">'+sg(pnl,2)+' € ('+sg(pct)+' %)</small></div>'+
       '<svg class="rng" aria-hidden="true"><defs><linearGradient id="rg'+p.id+'"><stop offset="0" stop-color="#ff1f44"/><stop offset=".5" stop-color="#ffb000"/><stop offset="1" stop-color="#00c853"/></linearGradient></defs><rect x="0" y="6" width="100%" height="10" rx="5" fill="url(#rg'+p.id+')"/><circle cx="'+pos+'%" cy="11" r="9" fill="#fff" stroke="#101828" stroke-width="3.5"/></svg>'+
-      '<small>Stop '+nf(p.stop)+'</small><small style="text-align:right">Objetivo '+nf(p.target)+'</small></div>'+
+      '<small>Stop '+pxD(p.stop,p.cur)+'</small><small style="text-align:right">Objetivo '+pxD(p.target,p.cur)+'</small></div>'+
       '<div class="det"><canvas class="cc"></canvas>'+LEG+'<div class="hint" data-cap style="margin:8px 0 0"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn small" data-fc="1" data-id="'+p.id+'" type="button">Gráfico completo</button><button class="btn ghost small" data-sell="'+p.id+'" type="button">Vender ahora (simulación)</button></div></div></div>';
   }).join(''):'<div class="empty">Sin posiciones abiertas.'+(S.auto?' La app comprará cuando encuentre buenas oportunidades.':'')+'</div>')+row2('Efectivo disponible',eur(S.cash));
   drawOpenPos();
@@ -2147,7 +2173,7 @@ function renderMer(){
     const sc=score10(r);
     return '<div class="mrow"><button class="star'+(fav.has(r.s)?' on':'')+'" data-star="'+esc(r.s)+'" type="button" aria-label="Favorita">'+(fav.has(r.s)?'★':'☆')+'</button>'+
       '<div class="mm" data-open="'+esc(r.s)+'"><b>'+esc(r.s.replace('.MC',''))+'</b><span class="tag">'+mktOf(r.s)+'</span>'+(held.has(r.s)?'<span class="tag held">EN CARTERA</span>':'')+'<small>'+esc(r.nm)+'</small><small>Nota '+nf(sc,1)+' · Potencial +'+nf(4*r.atr/r.p*100,1)+' % · Éxito '+nf(adjP(r)*100,0)+' %</small>'+fuChips(r.s,r.p)+(function(){const t=trkOf(r.s);if(!t)return '';const pc=(r.p/t.p0-1)*100,dd=Math.max(0,Math.round((Date.now()-t.t0)/86400000));return '<small class="'+(pc>=0?'pos':'neg')+'">Desde el '+fmtD(new Date(t.t0))+' ('+dd+' d) a '+nf(t.p0)+': '+sg(pc,2)+' % · máx '+sg((t.hi/t.p0-1)*100,1)+' % · mín '+sg((t.lo/t.p0-1)*100,1)+' % · nota '+nf(t.n0,1)+' → '+nf(sc,1)+'</small>';})()+'</div>'+
-      '<div class="mp"><span data-open="'+esc(r.s)+'">'+nf(r.p)+' '+esc(r.cur)+'</span><small class="'+(r.ch>=0?'pos':'neg')+'">'+sg(r.ch,2)+' %</small><button class="btn ghost small" data-trk="'+esc(r.s)+'" type="button" style="padding:3px 8px;font-size:12px;margin:4px 0 0">'+(trkOf(r.s)?'👁 Siguiendo':'+ Seguir')+'</button></div></div>';
+      '<div class="mp"><span data-open="'+esc(r.s)+'">'+esc(pxD(r.p,r.cur))+'</span><small class="'+(r.ch>=0?'pos':'neg')+'">'+sg(r.ch,2)+' %</small><button class="btn ghost small" data-trk="'+esc(r.s)+'" type="button" style="padding:3px 8px;font-size:12px;margin:4px 0 0">'+(trkOf(r.s)?'👁 Siguiendo':'+ Seguir')+'</button></div></div>';
   }).join('')||'<div class="empty">Sin resultados.</div>';
   $('mMore').style.display=L.length>M.n?'block':'none';
   $('mMore').textContent='Ver más ('+(L.length-M.n)+' restantes)';
@@ -2207,7 +2233,7 @@ function explainRow(r){
 function reportText(L){
   const d=new Date(GH.q&&GH.q.at?GH.q.at*1000:Date.now());
   let t='INFORME DEL ESTUDIO · Trader a mano\nDatos de '+d.toLocaleString('es-ES')+' · Universo: '+uniNames()+'\n\nCómo estudia la app: para cada acción mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo y impulso), simula 1000 futuros posibles con sus propios movimientos recientes y calcula probabilidad, potencial y plazo. Solo compra si nota ≥ 6, resultado medio simulado positivo y precio sobre su media de 50 días. Es un filtro técnico: no mira resultados de la empresa ni noticias.\n';
-  L.forEach((r,i)=>{const e=explainRow(r);t+='\n'+(i+1)+'. '+r.s.replace('.MC','')+' · '+r.nm+' · '+nf(r.p)+' '+r.cur+'\n   '+e.nota+'\n'+e.sig.map(x=>'   '+(x.ok?'[sí] ':'[no] ')+x.t).join('\n')+(e.pen.length?'\n   '+e.pen.join(' '):'')+'\n   Tendencia: '+e.tend+'.\n   '+e.prob+'\n   '+e.pot+'\n   '+e.res+'\n   '+e.plazo+'\n   Conclusión: '+(e.buy?'la app la compraría hoy si hay hueco y efectivo.':'la app no la compraría ahora: '+e.why.join(', ')+'.')+'\n';});
+  L.forEach((r,i)=>{const e=explainRow(r);t+='\n'+(i+1)+'. '+r.s.replace('.MC','')+' · '+r.nm+' · '+pxD(r.p,r.cur)+'\n   '+e.nota+'\n'+e.sig.map(x=>'   '+(x.ok?'[sí] ':'[no] ')+x.t).join('\n')+(e.pen.length?'\n   '+e.pen.join(' '):'')+'\n   Tendencia: '+e.tend+'.\n   '+e.prob+'\n   '+e.pot+'\n   '+e.res+'\n   '+e.plazo+'\n   Conclusión: '+(e.buy?'la app la compraría hoy si hay hueco y efectivo.':'la app no la compraría ahora: '+e.why.join(', ')+'.')+'\n';});
   return t;
 }
 function explainHTML(r){const e=explainRow(r);return '<div class="hint" style="margin:8px 0 2px">'+esc(e.nota)+'</div><ul style="margin:4px 0;padding-left:18px;font-size:14px">'+e.sig.map(x=>'<li>'+(x.ok?'✅ ':'⬜ ')+esc(x.t)+'</li>').join('')+e.pen.map(x=>'<li>⚠️ '+esc(x)+'</li>').join('')+'</ul>'+
@@ -2219,7 +2245,7 @@ function openReport(){
   $('eHead').innerHTML='<div class="hint" style="margin:0">Datos de '+d.toLocaleString('es-ES')+'. Lista: <b>'+esc(($('mI').selectedOptions[0]||{}).text||'')+'</b>'+(M.nm?' · nota ≥ '+M.nm:'')+(M.pt?' · potencial ≥ '+M.pt+' %':'')+(M.pr?' · éxito '+(M.pr>0?'≥ ':'≤ ')+Math.abs(M.pr)+' %':'')+(M.fu?' · '+((FU_O.find(x=>x[0]===M.fu)||[])[1]||''):'')+' · '+L.length+' valores, ordenados como en Mercado.</div>'+
     '<div class="msg" style="margin-top:8px"><b>Cómo estudia la app.</b> Mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo, impulso), simula 1000 futuros posibles con los movimientos reales de la acción y calcula así la probabilidad, el potencial y el plazo. Solo compra con nota ≥ 6, resultado simulado positivo y precio sobre su media de 50 días. No mira noticias. Aparte, enseña datos de la empresa (capitalización, ROCE, F-Score y dividendo), que se combinan con el análisis técnico en la nota (por defecto 35 % empresa y 65 % gráfico; se cambia en Más).</div>';
   $('eList').innerHTML=L.length?L.map((r,i)=>{const e=explainRow(r);
-    return '<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>'+(i+1)+'. '+esc(r.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(r.s)+'</span><br><small class="mut">'+esc(r.nm)+'</small></div><div style="text-align:right"><b>'+nf(r.p)+' '+esc(r.cur)+'</b><br><small>Nota '+nf(e.sc,1)+' · '+nf(e.pT*100,0)+' % · +'+nf(e.tp,1)+' %</small></div></div>'+
+    return '<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>'+(i+1)+'. '+esc(r.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(r.s)+'</span><br><small class="mut">'+esc(r.nm)+'</small></div><div style="text-align:right"><b>'+esc(pxD(r.p,r.cur))+'</b><br><small>Nota '+nf(e.sc,1)+' · '+nf(e.pT*100,0)+' % · +'+nf(e.tp,1)+' %</small></div></div>'+
       explainHTML(r)+'</div>';}).join(''):'<div class="empty">No hay valores con estos filtros.</div>';
   $('eMsg').innerHTML='';
 }
@@ -2320,6 +2346,8 @@ $('sApr').onchange=async()=>{S.apr=$('sApr').checked;save();if(S.apr){await aprS
 $('sAprT').onchange=()=>{S.aprT=$('sAprT').value.trim().replace(/[^A-Za-z0-9_-]/g,'');save();aprFlush();renderApr2();};
 $('sKey').value=S.srvKey;
 try{$('sTok').value=localStorage.getItem('tm.tok')||'';}catch(e){}
+try{$('sDisp').value=dispEur()?'eur':'nat';}catch(e){}
+$('sDisp').onchange=()=>{try{localStorage.setItem('tm.disp',$('sDisp').value);}catch(e){}renderAll();};
 $('labBox').addEventListener('click',labClick);
 $('sTok').onchange=()=>{try{const v=$('sTok').value.trim();if(v)localStorage.setItem('tm.tok',v);else localStorage.removeItem('tm.tok');}catch(e){}renderSrv();renderAll();};
 $('sKey').onchange=async()=>{S.srvKey=$('sKey').value.trim();try{localStorage.setItem('tm.key',S.srvKey);}catch(e){}S.srvAt=0;S.srvErr='';save();await srvSync();save();renderSrv();renderAll();};
@@ -2351,7 +2379,7 @@ $('sReset').onclick=()=>{
   if(!(v>=50)){$('sMsg').innerHTML='<div class="msg bad">Pon un capital inicial de al menos 50 €.</div>';return;}
   if(!resetArmed){resetArmed=true;$('sReset').textContent='Toca otra vez para confirmar';$('sMsg').innerHTML='<div class="msg">Se borrarán las posiciones, el historial y lo aprendido.</div>';setTimeout(()=>{resetArmed=false;$('sReset').textContent='Reiniciar cartera con el capital indicado';},5000);return;}
   resetArmed=false;$('sReset').textContent='Reiniciar cartera con el capital indicado';
-  S.cap0=v;S.cash=v;S.pos=[];S.closed=[];S.eq=[];S.log=[];S.W=Object.assign({},BASE_W);S.buysToday=0;S.startedAt=Date.now();
+  S.cap0=v;S.cash=v;S.pos=[];S.closed=[];S.eq=[];S.log=[];S.W=Object.assign({},BASE_W);S.buysToday=0;S.startedAt=Date.now();S.momAt=0;S.momMonth='';S.shadow={};S.shBench=null;
   save();$('sMsg').innerHTML='<div class="msg ok">Cartera reiniciada con '+eur(v)+'.</div>';renderAll();
 };
 $('sGh').value=S.gh;
@@ -2415,7 +2443,7 @@ document.addEventListener('visibilitychange',()=>{
   if(S.watchMode&&!wl)keepAwake(true);
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
-window.__trader={fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>

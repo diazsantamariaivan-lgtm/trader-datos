@@ -61,3 +61,6 @@ jobs:
             git commit -q -m "cartera $(date -u +%FT%TZ)"
             git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" bot
           fi
+      - name: Enviar avisos
+        if: success()
+        run: node scripts/avisos.mjs
