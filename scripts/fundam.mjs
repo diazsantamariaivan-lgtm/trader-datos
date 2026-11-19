@@ -1,3 +1,4 @@
+import { loadQ } from './universo.mjs';
 // Fundamentales de cada empresa: ROCE, F-Score de Piotroski, capitalización y dividendos.
 // Uso: node scripts/fundam.mjs   (lee la lista de valores de la rama quotes y escribe out/f.json)
 import {mkdirSync,writeFileSync} from 'node:fs';
@@ -73,7 +74,7 @@ function divStats(dv){
 }
 async function pool(items,n,fn){let i=0;await Promise.all(Array.from({length:n},async()=>{while(i<items.length){const it=items[i++];await fn(it);await sleep(120+Math.random()*180);}}));}
 async function main(){
-  const q=await (await fetch('https://raw.githubusercontent.com/'+REPO+'/quotes/q.json',{signal:AbortSignal.timeout(30000)})).json();
+  const q=await loadQ(REPO);
   let syms=Object.keys(q.s||{}).filter(s=>!/^\^|=X$|=F$|-USD$/.test(s));
   if(LIMIT)syms=syms.slice(0,LIMIT);
   console.log('valores',syms.length);

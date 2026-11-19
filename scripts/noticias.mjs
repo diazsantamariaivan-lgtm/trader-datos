@@ -1,3 +1,4 @@
+import { loadQ } from './universo.mjs';
 // Noticias económicas por empresa: prensa económica (Cinco Días, Expansión, El Economista vía Google News,
 // Investing, CNBC, MarketWatch, FT) + titulares por valor. Genera out/n.json.
 import {mkdirSync,writeFileSync} from 'node:fs';
@@ -52,7 +53,7 @@ const relev=(sym,t)=>{if(JUNK.test(t))return false;const nt=' '+norm(t).replace(
 const gnews=(q,es)=>'https://news.google.com/rss/search?q='+encodeURIComponent(q+' when:3d')+(es?'&hl=es&gl=ES&ceid=ES:es':'&hl=en-US&gl=US&ceid=US:en');
 async function main(){
   const now=Date.now()/1000,since=now-MAXAGE*3600;
-  const q=await (await fetch('https://raw.githubusercontent.com/'+REPO+'/quotes/q.json',{signal:AbortSignal.timeout(30000)})).json();
+  const q=await loadQ(REPO);
   let syms=Object.keys(q.s||{}).filter(s=>!/^\^|=X$|=F$|-USD$/.test(s));if(LIMIT)syms=syms.slice(0,LIMIT);
   for(const s of syms)AL[s]=alias(s,q.s[s].nm);
   // 1) prensa económica general

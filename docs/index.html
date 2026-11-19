@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 22:38";</script>
+<script>window.BUILD="19/11/2026 22:57";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -533,14 +533,16 @@ async function loadCtx(){
     if(j&&(j.vix||j.idx)){CX.d=j;try{renderAll();}catch(e){}}
   }catch(e){}
 }
-const IDXN={SPX:'S&P 500',NDX:'Nasdaq 100',IBEX:'IBEX 35',STOXX:'Eurostoxx 50',DAX:'DAX',CAC:'CAC 40',FTSE:'FTSE 100',MIB:'FTSE MIB',AEX:'AEX'};
-function idxKey(sym){const m=/\.([A-Z]+)$/.exec(sym);if(!m)return 'SPX';return {MC:'IBEX',PA:'CAC',DE:'DAX',L:'FTSE',MI:'MIB',AS:'AEX'}[m[1]]||'STOXX';}
+const IDXN={SPX:'S&P 500',NDX:'Nasdaq 100',IBEX:'IBEX 35',STOXX:'Eurostoxx 50',DAX:'DAX',CAC:'CAC 40',FTSE:'FTSE 100',MIB:'FTSE MIB',AEX:'AEX',SMI:'SMI',N225:'Nikkei 225',HSI:'Hang Seng',KS11:'KOSPI',TWII:'Taiwán',NSEI:'Nifty 50',TSX:'S&P/TSX',ASX:'ASX 200',BVSP:'Bovespa',OMXS:'OMX Estocolmo',OMXC:'OMX Copenhague',OMXH:'OMX Helsinki',BFX:'BEL 20'};
+const MKT_N={SPX:'EE. UU.',IBEX:'España/Europa',N225:'Japón',HSI:'Hong Kong',KS11:'Corea',TWII:'Taiwán',NSEI:'India',TSX:'Canadá',ASX:'Australia',BVSP:'Brasil',OMXS:'Suecia',OMXC:'Dinamarca',OMXH:'Finlandia',BFX:'Bélgica'};
+function idxKey(sym){const m=/\.([A-Z]+)$/.exec(sym);if(!m)return 'SPX';return {MC:'IBEX',PA:'CAC',DE:'DAX',L:'FTSE',MI:'MIB',AS:'AEX',SW:'SMI',T:'N225',HK:'HSI',KS:'KS11',TW:'TWII',NS:'NSEI',TO:'TSX',AX:'ASX',SA:'BVSP',ST:'OMXS',CO:'OMXC',HE:'OMXH',BR:'BFX'}[m[1]]||'STOXX';}
 const idxOf=sym=>{const k=idxKey(sym),I=CX.d&&CX.d.idx;return I&&(I[k]||(k!=='SPX'&&I.STOXX))||null;};
-function regime(sym){
+function regime(sym){return regimeK(idxKey(sym));}
+function regimeK(key){
   if(S.regOn===false||!CX.d)return {st:'ok',min:6,why:''};
-  const v=CX.d.vix,i=idxOf(sym),w=[];let bad=0,mid=0;
+  const v=CX.d.vix,I=CX.d.idx,i=I&&(I[key]||(key!=='SPX'&&I.STOXX)),w=[];let bad=0,mid=0;
   if(v){if(v.p>=30){bad++;w.push('VIX '+nf(v.p,0)+' (miedo alto)');}else if(v.p>=25){mid++;w.push('VIX '+nf(v.p,0)+' (nervioso)');}}
-  if(i){const n=IDXN[idxKey(sym)]||'índice';if(i.s200&&i.p<i.s50&&i.p<i.s200){bad++;w.push(n+' bajo sus medias de 50 y 200 días');}else if(i.p<i.s50){mid++;w.push(n+' bajo su media de 50 días');}}
+  if(i){const n=IDXN[I[key]?key:'STOXX']||'índice';if(i.s200&&i.p<i.s50&&i.p<i.s200){bad++;w.push(n+' bajo sus medias de 50 y 200 días');}else if(i.p<i.s50){mid++;w.push(n+' bajo su media de 50 días');}}
   const st=bad?'mal':mid?'cautela':'ok';
   return {st,min:st==='mal'?8:st==='cautela'?7:6,why:w.join(' · ')};
 }
@@ -859,7 +861,7 @@ function renderLV(){
 $('lvBox').addEventListener('click',e=>{const r=e.target.closest('[data-lvrow]');if(!r||e.target.closest('[data-study]'))return;const id=r.dataset.lvrow;LV.open.has(id)?LV.open.delete(id):LV.open.add(id);renderLV();});
 $('lvBox').addEventListener('change',e=>{if(e.target.id==='lvS')LV.sort=e.target.value;else if(e.target.id==='lvF')LV.flt=e.target.value;else return;renderLV();});
 /* ---- pestaña Divid.: calendario de dividendos publicado (Nasdaq) de todas las acciones ---- */
-const DV={q:'',range:'30',sort:'ex',scope:'uni',min:'0',n:60};
+const DV={q:'',range:'30',sort:'ex',scope:'uni',min:'0',n:60,est:'1'};
 function dvPrice(sym){const r=S.rows&&S.rows[sym];if(r&&r.p>0)return r.p;const q=MO.d&&MO.d.s&&MO.d.s[sym];return q&&q.p>0?q.p:null;}
 function renderDV(partial){
   const el=$('dvBox');if(!el||!$('t-div').classList.contains('on'))return;
@@ -867,6 +869,17 @@ function renderDV(partial){
   const mine=new Set(S.pos.map(p=>p.s).concat(S.fav||[]));
   const lab=S.shadow&&S.shadow.m20;if(lab)Object.keys(lab.p).forEach(x=>mine.add(x));
   const all=Object.entries(CX.d.div).filter(([x,v])=>v&&v.x&&v.a>0).map(([x,v])=>{const px=dvPrice(x),d=dDiff(v.x);return{s:x,v,d,px,yl:px&&v.y>0?v.y/px*100:null,ys:px?v.a/px*100:null,mine:mine.has(x),nm:v.n||(S.rows[x]&&S.rows[x].nm)||''};});
+  /* estimadas: acciones que pagan dividendo pero aún no tienen fecha publicada (o son de fuera de EE. UU., sin calendario) */
+  if(DV.est!=='0'&&FU.d&&FU.d.s){
+    const have=new Set(all.map(x=>x.s)),now=Date.now()/1000;
+    for(const [x,f] of Object.entries(FU.d.s)){
+      if(have.has(x)||!(f.dv>0)||!f.dl||!(f.dn>=1)||f.dl<now-400*86400)continue;
+      const per=Math.max(25,Math.round(365/f.dn))*86400;let t=f.dl+per,k=0;while(t<now-5*86400&&k++<6)t+=per;
+      if(t<now-5*86400)continue;
+      const ds=new Date(t*1000).toISOString().slice(0,10),px=dvPrice(x),a=f.dv/f.dn;
+      all.push({s:x,v:{x:ds,p:'',a,y:f.dv,r:'',n:'',est:1},d:dDiff(ds),px,yl:px?f.dv/px*100:null,ys:px?a/px*100:null,mine:mine.has(x),nm:(S.rows[x]&&S.rows[x].nm)||'',est:1,cu:f.cu});
+    }
+  }
   const R=DV.range==='past'?(x=>x.d<0):(x=>x.d>=0&&x.d<=+DV.range);
   const q=DV.q.trim().toUpperCase(),mn=+DV.min;
   let L=all.filter(R).filter(x=>DV.scope==='all'||inUni(x.s)||x.mine).filter(x=>!q||x.s.includes(q)||x.nm.toUpperCase().includes(q)).filter(x=>!mn||(x.yl!=null&&x.yl>=mn));
@@ -875,18 +888,18 @@ function renderDV(partial){
   const sel=(id,v,o)=>'<select id="'+id+'" style="margin:0;flex:1;min-width:0">'+o.map(x=>'<option value="'+x[0]+'"'+(x[0]===v?' selected':'')+'>'+x[1]+'</option>').join('')+'</select>';
   const dd=x=>x.d===0?'hoy':x.d===1?'mañana':x.d<0?'hace '+(-x.d)+' d':'en '+x.d+' d';
   const rows=L.slice(0,DV.n).map(x=>'<div class="fac" data-study="'+esc(x.s)+'" style="cursor:pointer"><div class="t"><span><b>'+esc(x.s)+'</b> ›'+(x.mine?' <span class="tag held">TUYA</span>':'')+'<br><small class="mut">'+esc(x.nm)+'</small></span><b>'+(x.yl!=null?nf(x.yl,1)+' %':'–')+'<br><small class="mut">al año</small></b></div>'+
-    '<div class="hint" style="margin:3px 0 0">Fecha ex: <b>'+fmtD(new Date(x.v.x+'T12:00:00Z'))+'</b> ('+dd(x)+')'+(x.v.p?' · pago: <b>'+fmtD(new Date(x.v.p+'T12:00:00Z'))+'</b>':'')+(x.v.r?' · registro: '+fmtD(new Date(x.v.r+'T12:00:00Z')):'')+'<br>'+esc(pxD(x.v.a,'USD',2))+' por acción'+(x.ys!=null?' ('+nf(x.ys,2)+' % de golpe)':'')+(x.v.y>0?' · '+esc(pxD(x.v.y,'USD',2))+' al año':'')+'</div></div>').join('');
+    '<div class="hint" style="margin:3px 0 0">'+(x.est?'<span class="tag">ESTIMADA</span> ':'')+'Fecha ex: <b>'+(x.est?'~ ':'')+fmtD(new Date(x.v.x+'T12:00:00Z'))+'</b> ('+dd(x)+')'+(x.v.p?' · pago: <b>'+fmtD(new Date(x.v.p+'T12:00:00Z'))+'</b>':'')+(x.v.r?' · registro: '+fmtD(new Date(x.v.r+'T12:00:00Z')):'')+'<br>'+esc(pxD(x.v.a,x.cu||'USD',2))+' por acción'+(x.ys!=null?' ('+nf(x.ys,2)+' % de golpe)':'')+(x.v.y>0?' · '+esc(pxD(x.v.y,x.cu||'USD',2))+' al año':'')+'</div></div>').join('');
   const at=CX.d.t?new Date(CX.d.t*1000).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-  const html='<div class="hint" style="margin:0 0 8px">Calendario publicado por Nasdaq (acciones de EE. UU.). Para cobrar el dividendo hay que tener la acción <b>antes</b> de la fecha ex; se paga en la fecha de pago. La rentabilidad es el dividendo anual indicado entre el precio actual. Datos de '+at+'; las fechas pueden cambiar. Los dividendos de acciones europeas no están en este calendario.</div>'+
+  const html='<div class="hint" style="margin:0 0 8px">Calendario publicado por Nasdaq (acciones de EE. UU.); para las que aún no han anunciado fecha y para las de otros países se muestra una fecha <b>estimada</b> (último pago + su frecuencia habitual), solo orientativa. Para cobrar el dividendo hay que tener la acción <b>antes</b> de la fecha ex; se paga en la fecha de pago. La rentabilidad es el dividendo anual indicado entre el precio actual. Datos de '+at+'; las fechas pueden cambiar. Los dividendos de acciones europeas no están en este calendario.</div>'+
     '<input id="dvQ" type="search" placeholder="Buscar acción o empresa" value="'+esc(DV.q)+'" style="margin:0 0 8px">'+
     '<div style="display:flex;gap:8px;margin:0 0 8px">'+sel('dvR',DV.range,[['7','Próximos 7 días'],['15','Próximos 15 días'],['30','Próximos 30 días'],['45','Próximos 45 días'],['past','Ya pasados (5 días)']])+sel('dvS',DV.sort,[['ex','Por fecha ex'],['yl','Por rentabilidad'],['amt','Por importe']])+'</div>'+
-    '<div style="display:flex;gap:8px;margin:0 0 8px">'+sel('dvM',DV.min,[['0','Cualquier rentab.'],['1','≥ 1 % al año'],['2','≥ 2 %'],['3','≥ 3 %'],['5','≥ 5 %']])+sel('dvC',DV.scope,[['uni','Mi universo y favoritas'],['all','Todo el mercado']])+'</div>'+
+    '<div style="display:flex;gap:8px;margin:0 0 8px">'+sel('dvM',DV.min,[['0','Cualquier rentab.'],['1','≥ 1 % al año'],['2','≥ 2 %'],['3','≥ 3 %'],['5','≥ 5 %']])+sel('dvC',DV.scope,[['uni','Mi universo y favoritas'],['all','Todo el mercado']])+sel('dvE',DV.est,[['1','Con estimadas'],['0','Solo confirmadas']])+'</div>'+
     '<div id="dvRows"><div class="hint" style="margin:0 0 6px">'+L.length+' dividendos'+(L.length>DV.n?' (se muestran '+DV.n+')':'')+'. Pulsa uno para estudiar la acción.</div>'+(rows||'<div class="empty">No hay dividendos con ese filtro.</div>')+(L.length>DV.n?'<div style="margin-top:8px"><button class="btn ghost small" id="dvMore" type="button">Mostrar más</button></div>':'')+'</div>';
   if(partial&&$('dvRows')){const t=document.createElement('div');t.innerHTML=html;$('dvRows').innerHTML=t.querySelector('#dvRows').innerHTML;return;}
   el.innerHTML=html;
 }
 $('dvBox').addEventListener('input',e=>{if(e.target.id!=='dvQ')return;DV.q=e.target.value;DV.n=60;renderDV(true);});
-$('dvBox').addEventListener('change',e=>{const m={dvR:'range',dvS:'sort',dvM:'min',dvC:'scope'}[e.target.id];if(!m)return;DV[m]=e.target.value;DV.n=60;renderDV();});
+$('dvBox').addEventListener('change',e=>{const m={dvR:'range',dvS:'sort',dvM:'min',dvC:'scope',dvE:'est'}[e.target.id];if(!m)return;DV[m]=e.target.value;DV.n=60;renderDV();});
 $('dvBox').addEventListener('click',e=>{if(e.target.id==='dvMore'){DV.n+=80;renderDV();}});
 /* ---- compartir con un amigo ---- */
 function shMsg(h){const m=$('shMsg');if(m)m.innerHTML=h;}
@@ -1252,7 +1265,7 @@ function notaTxt(r){
 }
 const adjP=r=>Math.max(0,Math.min(0.95,r.pT*S.cal.p));
 function topList(){
-  return Object.values(S.rows).filter(r=>inUni(r.s)&&!r.pen[1]&&r.rsi<=78&&!newsVeto(r.s)&&!minFund(r.s)&&!earnBlock(r.s)).map(r=>({r,sc:score10(r),rank:score10(r)+(r.ev-S.cal.bias)/2}))
+  return Object.values(S.rows).filter(r=>inUni(r.s)&&!r.pen[1]&&r.rsi<=78&&r.ev-S.cal.bias>0&&!newsVeto(r.s)&&!minFund(r.s)&&!earnBlock(r.s)).map(r=>({r,sc:score10(r),rank:score10(r)+(r.ev-S.cal.bias)/2}))
     .sort((a,b)=>b.rank-a.rank).slice(0,10);
 }
 
@@ -2012,10 +2025,11 @@ const openSet=new Set();
 function renderTop(){renderTop0();document.querySelectorAll('#top .cand.open').forEach(ensureChart);}
 function mktBanner(){
   if(!CX.d||S.regOn===false)return '';
-  const us=regime('X'),eu=regime('X.MC'),v=CX.d.vix;
+  const v=CX.d.vix,keys=['SPX','IBEX'];
+  try{const seen=new Set();Object.values(S.rows).forEach(r=>{if(inUni(r.s))seen.add(idxKey(r.s));});Object.keys(MKT_N).forEach(k=>{if(!keys.includes(k)&&seen.has(k)&&CX.d.idx&&CX.d.idx[k])keys.push(k);});}catch(e){}
   const c=g=>g.st==='mal'?'var(--neg,#e5566b)':g.st==='cautela'?'#e0a43a':'var(--pos,#3fb68b)';
   const row=(n,g)=>'<div><b style="color:'+c(g)+'">● '+n+': '+(g.st==='mal'?'mal momento':g.st==='cautela'?'cautela':'normal')+'</b>'+(g.st!=='ok'?' — '+g.why+'. Nota mínima para comprar: <b>'+g.min+'</b>.':'')+'</div>';
-  return '<div class="hint" style="margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px"><b>Estado del mercado</b>'+(v?' (VIX '+nf(v.p,1)+')':'')+row('EE. UU.',us)+row('España/Europa',eu)+'</div>';
+  return '<div class="hint" style="margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px"><b>Estado del mercado</b>'+(v?' (VIX '+nf(v.p,1)+')':'')+keys.map(k=>row(MKT_N[k]||k,regimeK(k))).join('')+'</div>';
 }
 function renderTop0(){
   const T=topList();

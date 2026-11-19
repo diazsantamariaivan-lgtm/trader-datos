@@ -4,7 +4,7 @@ const OUT=process.env.OUT||'out';
 const UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function gj(u,h){for(let i=0;i<3;i++){try{const r=await fetch(u,{headers:{'User-Agent':UA,Accept:'application/json',...(h||{})}});if(r.ok)return await r.json();}catch(e){}await sleep(800*(i+1));}return null;}
-const IDX={SPX:'^GSPC',NDX:'^NDX',IBEX:'^IBEX',STOXX:'^STOXX50E',DAX:'^GDAXI',CAC:'^FCHI',FTSE:'^FTSE',MIB:'FTSEMIB.MI',AEX:'^AEX'};
+const IDX={SPX:'^GSPC',NDX:'^NDX',IBEX:'^IBEX',STOXX:'^STOXX50E',DAX:'^GDAXI',CAC:'^FCHI',FTSE:'^FTSE',MIB:'FTSEMIB.MI',AEX:'^AEX',SMI:'^SSMI',N225:'^N225',HSI:'^HSI',KS11:'^KS11',TWII:'^TWII',NSEI:'^NSEI',TSX:'^GSPTSE',ASX:'^AXJO',BVSP:'^BVSP',OMXS:'^OMX',OMXC:'^OMXC25',OMXH:'^OMXH25',BFX:'^BFX'};
 const sma=(a,n)=>a.length>=n?a.slice(-n).reduce((x,y)=>x+y,0)/n:null;
 async function serie(sym){
   const j=await gj('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?range=1y&interval=1d');
