@@ -41,6 +41,8 @@
 :root:not([data-th]) .rk{background:var(--blue);color:#fff}
 :root:not([data-th]) .btn.ghost{background:#fff;color:var(--blue);border-color:var(--blue)}
 :root:not([data-th]) .card{border-color:#b9cbe8}
+#newsBox a,[data-nw] a{text-decoration:none}
+#newsBox li{font-size:13.5px}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--tx);font:15px/1.45 var(--sans);display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent}
@@ -180,6 +182,9 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <div id="stMsg"></div>
   </div>
 
+  <h2>Noticias de la prensa económica</h2>
+  <div class="card" id="newsBox"><div class="empty">Cargando noticias…</div></div>
+
   <h2>Las 10 con más potencial</h2>
   <div id="top"><div class="empty">Estudiando el mercado… la primera vez tarda unos minutos. Los resultados van apareciendo según avanza.</div></div>
 
@@ -283,6 +288,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
       <div><label for="sLimD">Pausa si cae en 1 día %</label><input id="sLimD" type="number" inputmode="decimal" step="any"></div>
       <div><label for="sLimS">Pausa si cae en 1 semana %</label><input id="sLimS" type="number" inputmode="decimal" step="any"></div>
     </div>
+    <label class="sw"><input id="sNv" type="checkbox"><span>No comprar si hay noticias negativas<br><small class="mut">Si en 48 h hay 2 o más titulares negativos (y más que positivos) en la prensa económica, la app no compra esa acción. El tono sale de palabras clave: es orientativo.</small></span></label>
     <label class="sw"><input id="sComb" type="checkbox"><span>Combinar análisis técnico y de empresa<br><small class="mut">La nota mezcla el gráfico con la calidad de la empresa (F-Score, ROCE, dividendo, tamaño). Afecta a la lista, a los filtros y a lo que compra la app. Si una empresa no tiene datos, se usa solo el gráfico.</small></span></label>
     <label for="sWf">Peso de la empresa en la nota</label><select id="sWf"><option value="0.2">20 % (manda el gráfico)</option><option value="0.35">35 % (equilibrado)</option><option value="0.5">50 % (mitad y mitad)</option></select>
     <label class="sw"><input id="sPro" type="checkbox"><span>Prorrogar si sigue al alza<br><small class="mut">Al cumplirse el plazo máximo, si el precio sigue sobre su media de 20 días y en ganancia, no vende: sube el stop (nunca por debajo de tu entrada) y sigue hasta 3 veces el plazo. Si la tendencia se rompe, vende.</small></span></label>
@@ -480,12 +486,43 @@ function fundHTML(sym,price,rr){
   return '<div style="font-size:14px;margin:10px 0 2px"><b>La empresa</b> <span class="mut" style="font-size:12px">(balance de '+esc(f.fd||'')+')</span></div><ul style="margin:4px 0;padding-left:18px;font-size:14px">'+L.join('')+'</ul>'+(nt?'<div class="msg" style="margin:6px 0">'+esc(nt)+'. Las dos miradas cuentan a la vez: una acción con buen gráfico pero empresa débil baja de nota, y al revés.</div>':'')+(bad.length?'<div class="hint" style="margin:2px 0 6px">⚠️ '+bad.join(' y ')+': el negocio da señales de fragilidad aunque el gráfico suba.</div>':'');
 }
 function fuChips(sym,price){
-  const f=fuOf(sym);if(!f)return '';const c=[];
+  const f=fuOf(sym),nc=newsCnt(sym),nl=newsOf(sym).length;let nt='';if(nl)nt='<small class="'+(nc.n>nc.p?'neg':nc.p>nc.n?'pos':'mut')+'">📰 '+nl+(nc.n?' · '+nc.n+' negativa'+(nc.n>1?'s':''):'')+(nc.p?' · '+nc.p+' positiva'+(nc.p>1?'s':''):'')+'</small>';
+  if(!f)return nt;const c=[];
   if(f.mc)c.push('Cap. '+capTxt(f));
   if(f.roce!=null)c.push('ROCE '+nf(f.roce,0)+' %');
   if(f.fs!=null)c.push('F '+f.fs+'/'+f.fn);
   const di=divInfo(f,price);if(di)c.push(di.paga?'Div. '+(di.y!=null?nf(di.y,1)+' %':'sí')+(f.dg>=3?' ↑'+f.dg:''):'Sin div.');
-  return c.length?'<small class="mut">'+c.join(' · ')+'</small>':'';
+  return (c.length?'<small class="mut">'+c.join(' · ')+'</small>':'')+nt;
+}
+const NW={d:null,chk:0,f:{}};
+async function loadNewsFeed(){
+  try{if(!ghBase()||Date.now()-NW.chk<10*60000)return;NW.chk=Date.now();
+    const j=await ghJson(ghBase()+'/news/n.json?t='+Math.floor(Date.now()/600000));
+    if(j&&j.s){NW.d=j;NW.f={};try{renderAll();}catch(e){}}
+  }catch(e){}
+}
+const newsOf=sym=>NW.d&&NW.d.s?NW.d.s[sym]||[]:[];
+function newsCnt(sym){const lim=Date.now()/1000-48*3600;let p=0,n=0;for(const x of newsOf(sym)){if(x.d<lim)continue;if(x.k>0)p++;else if(x.k<0)n++;}return{p,n};}
+function newsVeto(sym){if(S.vetoNews===false)return false;const c=newsCnt(sym);return c.n>=2&&c.n>c.p;}
+const ago=d=>{const h=Math.max(0,(Date.now()/1000-d)/3600);return h<1?'hace '+Math.max(1,Math.round(h*60))+' min':h<48?'hace '+Math.round(h)+' h':'hace '+Math.round(h/24)+' d';};
+const toneIc=k=>k>0?'🟢':k<0?'🔴':'⚪';
+function newsItemsHTML(a){return a.map(x=>'<li style="margin:3px 0">'+toneIc(x.k)+' '+(x.u?'<a href="'+esc(x.u)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a>':esc(x.t))+' <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span></li>').join('');}
+function newsHTML(sym){
+  const a=NW.f[sym]||newsOf(sym);
+  if(!NW.d)return '';
+  const c=newsCnt(sym);
+  return '<div style="font-size:14px;margin:10px 0 2px"><b>Noticias</b> <span class="mut" style="font-size:12px">(prensa económica, últimos 3 días)</span></div>'+
+    (a.length?'<ul data-nw="'+esc(sym)+'" style="margin:4px 0;padding-left:16px;font-size:14px;list-style:none">'+newsItemsHTML(a)+'</ul><div class="hint" style="margin:2px 0 6px">El color (🟢 positiva, 🔴 negativa) sale de palabras del titular: es orientativo, léela antes de fiarte.'+(newsVeto(sym)?' <b class="neg">Hay varias noticias negativas seguidas: la app no la compra por ahora.</b>':'')+'</div>':'<div class="hint" style="margin:2px 0 6px" data-nw="'+esc(sym)+'">Sin noticias recientes en la prensa económica consultada.</div>');
+}
+async function newsFill(sym){
+  try{if(!NW.f[sym]&&ghBase()&&newsOf(sym).length){NW.f[sym]=await ghJson(ghBase()+'/news/n/'+encodeURIComponent(ghFile(sym))+'.json?t='+Math.floor(Date.now()/600000));}}catch(e){return;}
+  document.querySelectorAll('[data-nw="'+sym+'"]').forEach(el=>{if(NW.f[sym]&&el.tagName==='UL')el.innerHTML=newsItemsHTML(NW.f[sym]);});
+}
+const ES_SRC=/cinco d|expansi|economista|bolsaman/i;
+function renderNews(){
+  const b=$('newsBox');if(!b)return;
+  const g=(NW.d&&NW.d.g)||[];
+  b.innerHTML=g.length?'<ul style="margin:0;padding:0;list-style:none;font-size:14px">'+g.slice().sort((a,b)=>(ES_SRC.test(b.s)?1:0)-(ES_SRC.test(a.s)?1:0)||b.d-a.d).slice(0,6).map(x=>'<li style="margin:6px 0">'+toneIc(x.k)+' <a href="'+esc(x.u)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a> <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span></li>').join('')+'</ul>':'<div class="empty">Cargando noticias…</div>';
 }
 async function ghJson(u){
   const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),25000);
@@ -679,7 +716,7 @@ function notaTxt(r){
 }
 const adjP=r=>Math.max(0,Math.min(0.95,r.pT*S.cal.p));
 function topList(){
-  return Object.values(S.rows).filter(r=>inUni(r.s)&&!r.pen[1]&&r.rsi<=78).map(r=>({r,sc:score10(r),rank:score10(r)+(r.ev-S.cal.bias)/2}))
+  return Object.values(S.rows).filter(r=>inUni(r.s)&&!r.pen[1]&&r.rsi<=78&&!newsVeto(r.s)).map(r=>({r,sc:score10(r),rank:score10(r)+(r.ev-S.cal.bias)/2}))
     .sort((a,b)=>b.rank-a.rank).slice(0,10);
 }
 
@@ -822,7 +859,7 @@ async function srvSync(){
     if(j.at>S.srvAt){
       SRV_K.forEach(k=>{if(j.S[k]!==undefined)S[k]=j.S[k];});
       const c=j.config||{};
-      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
+      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
       S.srvAt=j.at;
     }
     return true;
@@ -1488,7 +1525,7 @@ function renderPred(){
   h+='<div style="margin-top:12px">'+P.slice(0,8).map(t=>'<div class="log"><b>'+esc(t.s.replace('.MC',''))+'</b> · preveía '+sg(t.pred.ev,1)+' % · salió <b class="'+(t.gross>=0?'pos':'neg')+'">'+sg(t.gross,1)+' %</b> · '+(t.gross>=t.pred.ev?'mejor':'peor')+' de lo previsto</div>').join('')+'</div>';
   $('predBox').innerHTML=h;
 }
-function renderAll(){renderHero();renderStatus();renderLog();renderCar();renderApr();renderPred();renderTop();renderMer();}
+function renderAll(){renderHero();renderStatus();renderLog();renderCar();renderApr();renderPred();renderTop();renderMer();renderNews();}
 
 /* ====================== gráfico completo (estilo broker) ====================== */
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
@@ -1637,13 +1674,13 @@ function sellManual(id,btn){
 }
 function fcStudyHTML(r){
   const sc=score10(r),pT=adjP(r),ev=r.ev-S.cal.bias,sp=2*r.atr/r.p*100,tp=4*r.atr/r.p*100,stop=r.p-2*r.atr,tgt=r.p+4*r.atr;
-  const why=[];if(sc<6)why.push('la nota ('+nf(sc,1)+') es baja');if(ev<=0)why.push('el resultado medio simulado es negativo');if(r.pen[1])why.push('está por debajo de su media de 50 días');if(r.rsi>78)why.push('está muy sobrecomprada');
+  const why=[];if(sc<6)why.push('la nota ('+nf(sc,1)+') es baja');if(ev<=0)why.push('el resultado medio simulado es negativo');if(r.pen[1])why.push('está por debajo de su media de 50 días');if(r.rsi>78)why.push('está muy sobrecomprada');if(newsVeto(r.s))why.push('hay varias noticias negativas recientes');
   const held=S.pos.some(p=>p.s===r.s);
   return '<div class="kp" style="padding:12px 0 0"><div><small>Nota</small><b>'+nf(sc,1)+'</b></div><div><small>Potencial</small><b class="pos">+'+nf(tp,1)+' %</b></div><div><small>Prob. éxito</small><b>'+nf(pT*100,0)+' %</b></div></div>'+
     '<div class="hint">'+durText(r)+'</div>'+
     '<div class="plan"><div><small>Compra</small><b>'+fp(r.p)+'</b></div><div><small>Stop −'+nf(sp,1)+' %</small><b class="neg">'+fp(stop)+'</b></div><div><small>Objetivo +'+nf(tp,1)+' %</small><b class="pos">'+fp(tgt)+'</b></div></div>'+
     '<ul style="margin:6px 0;padding-left:18px;font-size:14px">'+reasons(r).map(x=>'<li>'+x+'</li>').join('')+'</ul>'+
-    fundHTML(r.s,r.p,r)+
+    fundHTML(r.s,r.p,r)+newsHTML(r.s)+
     '<div class="msg '+(why.length?'':'ok')+'">'+(held?'Ya la tienes en cartera. ':'')+(why.length?'Ahora mismo la app no la compraría: '+why.join(', ')+'.':'La app la compraría hoy si hay hueco en la cartera.')+'</div>';
 }
 async function fcStudy(){
@@ -1664,7 +1701,7 @@ async function fcOpen(sym,row,pos){
   if(pos)FC.plan={p:pos.entry,stop:pos.stop,target:pos.target,cone:null,pos:true};
   const lp=fcLoad(FC.range);
   if(!pos)getCh(sym).then(({f})=>{if(sym!==FC.sym)return;FC.plan=FC.plan||{p:f.p,stop:f.stop,target:f.target,cone:f.cone};fcOpts();}).catch(()=>{});
-  if(row&&row.f){$('fcA').innerHTML=fcStudyHTML(row);}
+  if(row&&row.f){$('fcA').innerHTML=fcStudyHTML(row);newsFill(sym);}
   await lp;
 }
 function fcClose(){$('fc').classList.remove('on');FC.tok++;}
@@ -1794,7 +1831,7 @@ function explainRow(r){
   const sig=SIG.map(([k,l],i)=>({ok:!!r.f[i],t:l,w:W[k]}));
   const pen=[];if(r.pen[0])pen.push('Sobrecomprada (RSI '+nf(r.rsi,0)+' > 75): resta nota.');if(r.pen[1])pen.push('Por debajo de su media de 50 días: resta nota y la app no la compra.');
   const tend=r.f[0]?'alcista':r.f[1]?'a medio plazo positiva, sin tendencia fuerte':r.pen[1]?'bajista a medio plazo':'sin dirección clara';
-  const why=[];if(sc<6)why.push('la nota ('+nf(sc,1)+') no llega a 6');if(ev<=0)why.push('el resultado medio simulado es negativo');if(r.pen[1])why.push('está bajo su media de 50 días');if(r.rsi>78)why.push('está muy sobrecomprada');
+  const why=[];if(sc<6)why.push('la nota ('+nf(sc,1)+') no llega a 6');if(ev<=0)why.push('el resultado medio simulado es negativo');if(r.pen[1])why.push('está bajo su media de 50 días');if(r.rsi>78)why.push('está muy sobrecomprada');if(newsVeto(r.s))why.push('hay varias noticias negativas recientes');
   const buy=!why.length;
   return{r,sc,pT,ev,sp,tp,sig,pen,tend,buy,why,
     nota:'Nota '+nf(sc,1)+' de 10. Se suman las señales cumplidas, cada una con el peso que la app ha ido aprendiendo ('+FK.map(k=>nf(W[k],1)).join(' / ')+' sobre '+nf(tot,1)+') y se restan las penalizaciones.',
@@ -1811,7 +1848,7 @@ function reportText(L){
 }
 function explainHTML(r){const e=explainRow(r);return '<div class="hint" style="margin:8px 0 2px">'+esc(e.nota)+'</div><ul style="margin:4px 0;padding-left:18px;font-size:14px">'+e.sig.map(x=>'<li>'+(x.ok?'✅ ':'⬜ ')+esc(x.t)+'</li>').join('')+e.pen.map(x=>'<li>⚠️ '+esc(x)+'</li>').join('')+'</ul>'+
       '<div style="font-size:14px;margin:4px 0">Tendencia: <b>'+esc(e.tend)+'</b>.</div><div style="font-size:14px;margin:4px 0">'+esc(e.prob)+'</div><div style="font-size:14px;margin:4px 0">'+esc(e.pot)+'</div><div style="font-size:14px;margin:4px 0">'+esc(e.res)+'</div><div style="font-size:14px;margin:4px 0">'+esc(e.plazo)+'</div>'+
-      fundHTML(r.s,r.p,r)+'<div class="msg '+(e.buy?'ok':'')+'" style="margin-top:8px">'+(e.buy?'La app la compraría hoy si hay hueco y efectivo.':'La app no la compraría ahora: '+esc(e.why.join(', '))+'.')+'</div>';}
+      fundHTML(r.s,r.p,r)+newsHTML(r.s)+'<div class="msg '+(e.buy?'ok':'')+'" style="margin-top:8px">'+(e.buy?'La app la compraría hoy si hay hueco y efectivo.':'La app no la compraría ahora: '+esc(e.why.join(', '))+'.')+'</div>';}
 function openReport(){
   const L=(M.last||[]).slice(0,40);go('est');
   const d=GH.q&&GH.q.at?new Date(GH.q.at*1000):new Date();
@@ -1876,6 +1913,7 @@ $('sDays').oninput=()=>{
   const v=Math.round(num($('sDays')));
   if(v>=3&&v<=30&&v!==S.maxDays){S.maxDays=v;S.rows={};S.scanAt=0;save();$('sMsg').innerHTML='<div class="msg">Plazo máximo cambiado a '+v+' días. El mercado se estudiará de nuevo la próxima vez.</div>';}
 };
+$('sNv').checked=S.vetoNews!==false;$('sNv').onchange=e=>{S.vetoNews=e.target.checked;save();renderAll();};
 $('sComb').checked=S.comb!==false;$('sComb').onchange=e=>{S.comb=e.target.checked;S.rows&&save();renderAll();};
 $('sWf').value=String(S.wFu==null?0.35:S.wFu);$('sWf').onchange=()=>{S.wFu=+$('sWf').value;save();renderAll();};
 $('sPro').checked=S.prorroga!==false;$('sPro').onchange=e=>{S.prorroga=e.target.checked;save();};
@@ -1985,7 +2023,7 @@ applyTheme(S.theme);
 if(S.apr&&(S.ext||[]).length)learn();
 try{$('verTxt').textContent='Versión: '+(window.BUILD||'archivo local (no se actualiza solo)');}catch(e){}
 renderAll();
-loadFund();setInterval(loadFund,3600e3);
+loadFund();setInterval(loadFund,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
 setTimeout(()=>autopilot(false),300);
 if(S.watchMode)keepAwake(true);
 function tick(){
@@ -2000,7 +2038,7 @@ document.addEventListener('visibilitychange',()=>{
   if(S.watchMode&&!wl)keepAwake(true);
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
-window.__trader={score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={loadNewsFeed,ghBase,NW,newsOf,newsVeto,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>

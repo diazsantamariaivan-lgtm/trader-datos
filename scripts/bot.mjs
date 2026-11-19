@@ -7,6 +7,7 @@ import { createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
 const REPO = process.env.REPO || 'diazsantamariaivan-lgtm/trader-datos';
 const QFILE = process.env.QFILE || 'q.json';
 const FFILE = process.env.FFILE || 'f.json';
+const NFILE = process.env.NFILE || 'n.json';
 const STATE_IN = process.env.STATE_IN || 'botstate/state.enc.json';
 const STATE_OLD = 'botstate/state.json';
 const CLAVE = process.env.CLAVE || '';
@@ -38,6 +39,7 @@ function dec(env) {
 const cfg = JSON.parse(readFileSync('bot.json', 'utf8'));
 if (cfg.activo === false) { console.log('bot.json: activo=false, no se hace nada'); process.exit(0); }
 const Q = JSON.parse(readFileSync(QFILE, 'utf8'));
+let NJ = null; try { if (existsSync(NFILE)) NJ = JSON.parse(readFileSync(NFILE, 'utf8')); } catch (e) { NJ = null; }
 let FJ = null; try { if (existsSync(FFILE)) FJ = JSON.parse(readFileSync(FFILE, 'utf8')); } catch (e) { FJ = null; }
 const ageMin = (Date.now() / 1000 - Q.at) / 60;
 console.log('cotizaciones de hace', ageMin.toFixed(0), 'min,', Object.keys(Q.s).length, 'valores');
@@ -94,6 +96,7 @@ const dom = new JSDOM(html, {
       if (u.includes('wikipedia')) return ok({ parse: { text: { '*': '<table class="wikitable"><tbody><tr><th>x</th></tr>' + spList.map(t => '<tr><td>' + t + '</td></tr>').join('') + '</tbody></table>' } } });
       if (u.includes('/quotes/q.json')) return ok(Q);
       if (u.includes('/fund/f.json') && FJ) return ok(FJ);
+      if (u.includes('/news/n.json') && NJ) return ok(NJ);
       return Promise.reject(new TypeError('sin red'));
     };
     w.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: (t, k) => k === 'measureText' ? () => ({ width: 50 }) : () => {}, set: () => true });
