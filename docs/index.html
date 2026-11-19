@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 19:43";</script>
+<script>window.BUILD="19/11/2026 19:46";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -593,7 +593,16 @@ const SH_DEF=[
   {id:'m30',n:'Mensual · 30 acciones',f:'m',N:30,filt:true},
   {id:'m20nf',n:'Mensual · 20 · SIN filtro de mercado',f:'m',N:20,filt:false}
 ];
-const shDefs=()=>SH_DEF.concat((Array.isArray(S.labCustom)?S.labCustom:[]).filter(c=>c&&c.id&&FREQ[c.f]).slice(0,10));
+/* 100 carteras con distintas reglas (4 frecuencias x tamaños x filtro de mercado x señal) */
+const GRID=(()=>{
+  const FN={w:'Semanal',q:'Quincenal',m:'Mensual',t:'Trimestral'},L=[],seen=new Set(SH_DEF.map(d=>d.f+'|'+d.N+'|'+d.filt+'|12'));
+  const add=(f,N,filt,w)=>{const k=f+'|'+N+'|'+filt+'|'+w;if(seen.has(k))return;seen.add(k);L.push({id:'g'+f+N+(filt?'f':'n')+w,n:FN[f]+' · '+N+(filt?'':' · sin filtro')+(w===6?' · 6-1':''),f,N,filt,w,g:1});};
+  for(const w of [12,6])for(const filt of [true,false])for(const N of [10,15,20,30,40])for(const f of ['w','q','m','t'])add(f,N,filt,w);
+  for(const w of [12,6])for(const filt of [true,false])for(const f of ['w','q','m','t'])add(f,50,filt,w);
+  for(const filt of [true,false])for(const f of ['m','q'])add(f,5,filt,12);
+  return L;
+})();
+const shDefs=()=>SH_DEF.concat(S.labGrid?GRID:[],(Array.isArray(S.labCustom)?S.labCustom:[]).filter(c=>c&&c.id&&FREQ[c.f]).slice(0,10));
 const _rkc={};
 function momRankPure(win){
   if(!MO.d||!MO.d.s)return [];
@@ -669,7 +678,7 @@ function renderLab(){
   if(!SHd||!Object.keys(SHd).length){el.innerHTML='<div class="empty">El laboratorio empieza a registrar en cuanto el piloto (o la app) haga su primera pasada con los datos de momentum. Aquí verás varias carteras en paralelo con la misma señal y reglas distintas.</div>'+labForm();return;}
   const m=momMarket(),b=S.shBench,bret=b&&m?(m.p/b.x-1)*100:null,fx=fxOf('USD')||1;
   const dd=h=>{let pk=0,mx=0;for(const [,e] of h){pk=Math.max(pk,e);mx=Math.max(mx,(pk-e)/pk*100);}return mx;};
-  const rows=shDefs().map(d=>{
+  const rowHTML=d=>{
     const sh=SHd[d.id];if(!sh||!sh.h.length)return '';
     const e=sh.h[sh.h.length-1][1],ret=(e/S.cap0-1)*100,open=labOpen.has(d.id),bb=sh.bx||(b&&b.x),br=bb&&m?(m.p/bb-1)*100:null;
     let det='';
@@ -680,9 +689,29 @@ function renderLab(){
         (d.id.startsWith('c')?'<div style="margin-top:8px"><button class="btn ghost small" data-labdel="'+esc(d.id)+'" type="button">Eliminar esta cartera</button></div>':'');
     }
     return '<div class="fac" data-labrow="'+esc(d.id)+'" style="cursor:pointer"><div class="t"><span>'+esc(d.n)+' '+(open?'▾':'▸')+'</span><b class="'+(ret>=0?'pos':'neg')+'">'+sg(ret,1)+' %</b></div><div class="hint" style="margin:3px 0 0">'+(br!=null?'Frente al S&P 500: '+sg(ret-br,1)+' puntos · ':'')+'caída máxima '+nf(dd(sh.h),1)+' % · '+Object.keys(sh.p).length+' acciones · '+sh.nt+' operaciones</div>'+det+'</div>';
-  }).join('');
+  };
+  const defs=shDefs(),mainD=defs.filter(d=>!d.g),gridD=defs.filter(d=>d.g);
+  const rows=mainD.map(rowHTML).join('');
+  let gridH='';
+  if(gridD.length){
+    const L=[];for(const d of defs){const sh=SHd[d.id];if(!sh||!sh.h.length)continue;const e=sh.h[sh.h.length-1][1],bb=sh.bx||(b&&b.x);L.push({d,ret:(e/S.cap0-1)*100,rel:bb&&m?(e/S.cap0-1)*100-(m.p/bb-1)*100:null});}
+    if(L.length>=10){
+      const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+      const grp=(lab,key,fmt)=>{const g={};L.forEach(x=>{const k=key(x.d);(g[k]=g[k]||[]).push(x);});return '<div class="row" style="margin-top:4px;align-items:flex-start"><span>'+lab+'</span><b style="text-align:right;font-size:13px">'+Object.keys(g).sort((a,b)=>a-b).map(k=>fmt(k)+' '+sg(avg(g[k].map(x=>x.ret)),1)+' %').join(' · ')+'</b></div>';};
+      const srt=L.slice().sort((a,b)=>b.ret-a.ret),best=srt.slice(0,8),worst=srt.slice(-4).reverse();
+      const mini=x=>'<div class="row" style="margin-top:4px"><span style="font-size:13px">'+esc(x.d.n)+'</span><b class="'+(x.ret>=0?'pos':'neg')+'">'+sg(x.ret,1)+' %'+(x.rel!=null?' <small>('+sg(x.rel,1)+' vs S&amp;P)</small>':'')+'</b></div>';
+      gridH='<h3 style="margin:14px 0 6px;font-size:15px">Las '+L.length+' carteras: qué reglas funcionan</h3>'+
+        '<div class="hint" style="margin:0 0 6px">Rentabilidad media de todas las carteras que usan cada regla (esto es lo que se aprende; no la ganadora).</div>'+
+        grp('Revisión',d=>({w:1,q:2,m:3,t:4})[d.f],k=>({1:'semanal',2:'quincenal',3:'mensual',4:'trimestral'})[k])+
+        grp('Nº de acciones',d=>d.N,k=>k)+
+        grp('Filtro de mercado',d=>d.filt?1:0,k=>k==1?'con':'sin')+
+        grp('Señal',d=>d.w===6?6:12,k=>k+'-1')+
+        '<div class="hint" style="margin:10px 0 4px"><b>Mejores 8</b></div>'+best.map(mini).join('')+'<div class="hint" style="margin:8px 0 4px"><b>Peores 4</b></div>'+worst.map(mini).join('')+
+        '<div class="msg" style="margin-top:8px">Con 100 carteras, alguna siempre sale en cabeza por pura suerte. Fíate de los promedios por regla y de que se repitan durante meses, no de la mejor cartera suelta.</div>';
+    }else gridH='<div class="hint" style="margin-top:10px">Las '+gridD.length+' carteras del laboratorio empiezan a registrar en la próxima pasada del piloto.</div>';
+  }
   const d0=(SHd.m20&&SHd.m20.d0)||(b&&b.d);
-  el.innerHTML='<div class="hint" style="margin:0 0 8px">Desde el '+fmtD(new Date(d0+'T12:00:00'))+', con el mismo dinero ficticio y las mismas comisiones. '+(bret!=null?'<b>S&amp;P 500: '+sg(bret,1)+' %</b>. ':'')+'Pulsa una cartera para ver su configuración y sus acciones.</div>'+rows+
+  el.innerHTML='<div class="hint" style="margin:0 0 8px">Desde el '+fmtD(new Date(d0+'T12:00:00'))+', con el mismo dinero ficticio y las mismas comisiones. '+(bret!=null?'<b>S&amp;P 500: '+sg(bret,1)+' %</b>. ':'')+'Pulsa una cartera para ver su configuración y sus acciones.</div>'+rows+gridH+
     '<div class="msg">Esto es para aprender sin riesgo: todas usan la misma señal y solo cambian las reglas. Con pocas semanas la diferencia entre ellas es pura casualidad. No cambies la estrategia por lo que veas aquí hasta tener al menos 6 meses, y mejor un año.</div>'+labForm();
 }
 function labForm(){
@@ -1190,7 +1219,7 @@ async function srvSync(){
     if(j.at>S.srvAt){
       SRV_K.forEach(k=>{if(j.S[k]!==undefined)S[k]=j.S[k];});
       const c=j.config||{};
-      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;if(c.estrategia!=null)S.modo=c.estrategia;if(Array.isArray(c.laboratorio))S.labCustom=c.laboratorio;if(c.revision_momentum!=null)S.momFreq=c.revision_momentum;if(c.momentum_n!=null)S.momN=+c.momentum_n;if(c.analistas!=null)S.anOn=!!c.analistas;if(c.mercado_vigilar!=null)S.regOn=!!c.mercado_vigilar;if(c.resultados_dias!=null)S.earnD=+c.resultados_dias;if(c.fscore_minimo!=null)S.minFs=+c.fscore_minimo;if(c.roce_minimo_pct!=null)S.minRoc=+c.roce_minimo_pct;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
+      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;if(c.estrategia!=null)S.modo=c.estrategia;if(Array.isArray(c.laboratorio))S.labCustom=c.laboratorio;if(c.laboratorio_100!=null)S.labGrid=!!c.laboratorio_100;if(c.revision_momentum!=null)S.momFreq=c.revision_momentum;if(c.momentum_n!=null)S.momN=+c.momentum_n;if(c.analistas!=null)S.anOn=!!c.analistas;if(c.mercado_vigilar!=null)S.regOn=!!c.mercado_vigilar;if(c.resultados_dias!=null)S.earnD=+c.resultados_dias;if(c.fscore_minimo!=null)S.minFs=+c.fscore_minimo;if(c.roce_minimo_pct!=null)S.minRoc=+c.roce_minimo_pct;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
       S.srvAt=j.at;
     }
     return true;
@@ -2449,7 +2478,7 @@ document.addEventListener('visibilitychange',()=>{
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
 try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
-window.__trader={splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
