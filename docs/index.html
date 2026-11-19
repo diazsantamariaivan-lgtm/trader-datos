@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 22:14";</script>
+<script>window.BUILD="19/11/2026 22:22";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -354,6 +354,11 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <a class="btn ghost small" id="sSrvEd" target="_blank" rel="noopener" style="margin-top:8px;display:inline-block">Cambiar la configuración del piloto (en GitHub)</a>
   </div>
 
+  <h2>Copia de seguridad</h2>
+  <div class="card"><div class="hint" style="margin:0 0 8px">Tu cartera principal, órdenes, diario, favoritas y ajustes viven solo en este móvil. Guarda una copia antes de borrar datos del navegador o reinstalar la app.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" id="bkCp" type="button">Copiar copia</button><button class="btn small ghost" id="bkDl" type="button">Descargar archivo</button></div>
+    <textarea id="bkTx" rows="3" placeholder="Para restaurar: pega aquí la copia y pulsa Restaurar" style="margin-top:8px;width:100%"></textarea>
+    <button class="btn small ghost" id="bkRs" type="button" style="margin-top:6px">Restaurar copia</button><div id="bkMsg"></div></div>
   <h2>Compartir con un amigo</h2>
   <div class="card">
     <div class="hint" style="margin:0 0 8px">Tu amigo abre el mismo enlace y tiene <b>su propia cartera y sus propias 100 carteras de laboratorio</b> en su móvil: no ve nada tuyo ni tú de él. Los datos de mercado, análisis y noticias los recibe del mismo sitio que tú.</div>
@@ -2442,6 +2447,10 @@ function renderDia(){
       [['1','Sí'],['0','No']].map(([v,l])=>'<button class="btn small'+((v==='1'&&t.fp===true)||(v==='0'&&t.fp===false)?'':' ghost')+'" data-fp="'+v+'" data-u="'+esc(t.u)+'" type="button" style="padding:2px 10px;margin-left:4px">'+l+'</button>').join('')+'</div></div>').join('');
   b.onclick=e=>{const x=e.target.closest('[data-fp]');if(!x)return;const t=S.closed.find(y=>y.u===x.dataset.u);if(!t)return;const v=x.dataset.fp==='1';t.fp=t.fp===v?undefined:v;save();renderDia();};
 }
+function bkData(){const o={};for(const k of Object.keys(S)){if(['rows','shadow','shBench','sp','fx','mk','ext'].includes(k))continue;o[k]=S[k];}return JSON.stringify({tm:'backup-v1',at:Date.now(),S:o});}
+$('bkCp').onclick=async()=>{const t=bkData();try{await navigator.clipboard.writeText(t);$('bkMsg').innerHTML='<div class="msg ok">Copia guardada en el portapapeles ('+Math.round(t.length/1024)+' KB). Pégala en una nota o en un mensaje a ti mismo.</div>';}catch(e){$('bkTx').value=t;$('bkTx').select();$('bkMsg').innerHTML='<div class="msg">No pude copiarla sola: está en el cuadro de abajo, selecciónala y cópiala.</div>';}};
+$('bkDl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bkData()],{type:'application/json'}));a.download='trader_copia_'+dayKey(Date.now())+'.json';document.body.appendChild(a);a.click();a.remove();};
+$('bkRs').onclick=()=>{try{const j=JSON.parse($('bkTx').value.trim());if(!j||j.tm!=='backup-v1'||!j.S)throw new Error('formato');if(!confirm('Esto sustituye tu cartera, órdenes, diario y ajustes por los de la copia. ¿Seguir?'))return;Object.assign(S,j.S);save();$('bkMsg').innerHTML='<div class="msg ok">Copia restaurada. Recargando…</div>';setTimeout(()=>location.reload(),800);}catch(e){$('bkMsg').innerHTML='<div class="msg bad">Esa copia no es válida. Pega el texto completo tal como se copió.</div>';}};
 let sellArm=null;
 function sellManual(id,btn){
   if(btn&&btn.textContent==='Vender a mercado'){}
