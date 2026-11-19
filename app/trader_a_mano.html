@@ -1425,7 +1425,7 @@ async function srvSync(){
 }
 function srvAgo(){return S.srvAt?Math.max(0,Math.round((Date.now()-S.srvAt)/60000)):null;}
 async function fillOrders(){
-  S.orders=(S.orders||[]).filter(o=>Date.now()-o.ts<30*864e5);
+  S.orders=(S.orders||[]).filter(o=>o.exp===undefined?Date.now()-o.ts<30*864e5:(!o.exp||Date.now()<o.exp));
   for(const o of S.orders.slice()){
     try{
       if(S.pos.some(p=>p.s===o.s)||S.pos.length>=12){S.orders=S.orders.filter(x=>x!==o);continue;}
@@ -1449,6 +1449,7 @@ async function updatePositions(){
     try{
       await getFx(pos.cur);
       if(pos.mom){const dm=await chart(pos.s,'1d','1mo',0);if(dm&&dm.c.length){const np=dm.meta.regularMarketPrice||dm.c[dm.c.length-1];adjSplit(pos,np);pos.last=np;}pos.days=Math.max(0,Math.round((Date.now()-pos.openTs)/864e5));continue;}
+      if(pos.ord&&pos.ordExp&&Date.now()>pos.ordExp){pos.ord=false;pos.ordExp=0;log('Caducaron el stop y el objetivo de <b>'+esc(pos.s)+'</b>: ahora solo avisan.',true);}
       const d=await chart(pos.s,'1d','3mo',0),res=evalPos(pos,d);
       pos.days=res.days;
       if(res.done&&S.mainManual&&!(pos.ord&&res.why!=='tiempo')){adjSplit(pos,res.last);pos.last=res.last;if(!pos.alert){pos.alert=res.why;log('<b>'+esc(pos.s)+'</b> ha llegado a su '+(res.why==='objetivo'?'objetivo':res.why==='stop'?'stop':'plazo')+' ('+nf(res.last)+' '+esc(pos.cur)+'). Es tu cartera: decide tú si vendes.',true);}}
@@ -2051,8 +2052,8 @@ function renderCar(){
       '<div class="v">'+eur(v)+'<br><small class="'+(pnl>=0?'pos':'neg')+'">'+sg(pnl,2)+' € ('+sg(pct)+' %)</small></div>'+
       '<svg class="rng" aria-hidden="true"><defs><linearGradient id="rg'+p.id+'"><stop offset="0" stop-color="#ff1f44"/><stop offset=".5" stop-color="#ffb000"/><stop offset="1" stop-color="#00c853"/></linearGradient></defs><rect x="0" y="6" width="100%" height="10" rx="5" fill="url(#rg'+p.id+')"/><circle cx="'+pos+'%" cy="11" r="9" fill="#fff" stroke="#101828" stroke-width="3.5"/></svg>'+
       '<small>Stop '+pxD(p.stop,p.cur)+'</small><small style="text-align:right">Objetivo '+pxD(p.target,p.cur)+'</small></div>'+
-      '<div class="det"><canvas class="cc"></canvas>'+LEG+'<div class="hint" data-cap style="margin:8px 0 0"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn small" data-fc="1" data-id="'+p.id+'" type="button">Gráfico completo</button><button class="btn ghost small" data-sell="'+p.id+'" type="button">Vender a mercado</button></div>'+(S.mainManual?'<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:8px;align-items:end"><label class="hint" style="margin:0">Stop<input data-es="'+p.id+'" type="number" step="any" inputmode="decimal" value="'+(+p.stop).toFixed(p.stop>=100?2:3)+'"></label><label class="hint" style="margin:0">Objetivo<input data-et="'+p.id+'" type="number" step="any" inputmode="decimal" value="'+(+p.target).toFixed(p.target>=100?2:3)+'"></label><button class="btn small" data-ord="'+p.id+'" type="button">Guardar</button></div>':'')+'</div></div></div>';
-  }).join(''):'<div class="empty">Sin posiciones abiertas.'+(S.auto?' La app comprará cuando encuentre buenas oportunidades.':'')+'</div>')+((S.orders||[]).length?'<div class="hint" style="margin:10px 0 4px"><b>Órdenes pendientes</b></div>'+S.orders.map(o=>'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line,#2a2f3a)"><span>Comprar <b>'+esc(o.s.replace('.MC',''))+'</b> si baja a '+nf(o.limit)+' '+esc(o.cur)+' · '+eur(o.amt)+'<br><small class="hint">stop '+nf(o.stop)+' · objetivo '+nf(o.target)+'</small></span><button class="btn ghost small" data-cancel="'+o.id+'" type="button">Cancelar</button></div>').join(''):'')+row2('Efectivo disponible',eur(S.cash));
+      '<div class="det"><canvas class="cc"></canvas>'+LEG+'<div class="hint" data-cap style="margin:8px 0 0"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn small" data-fc="1" data-id="'+p.id+'" type="button">Gráfico completo</button><button class="btn ghost small" data-sell="'+p.id+'" type="button">Vender a mercado</button></div>'+(S.mainManual?'<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:8px;align-items:end"><label class="hint" style="margin:0">Stop<input data-es="'+p.id+'" type="number" step="any" inputmode="decimal" value="'+(+p.stop).toFixed(p.stop>=100?2:3)+'"></label><label class="hint" style="margin:0">Objetivo<input data-et="'+p.id+'" type="number" step="any" inputmode="decimal" value="'+(+p.target).toFixed(p.target>=100?2:3)+'"></label><button class="btn small" data-ord="'+p.id+'" type="button">Guardar</button><select data-ed="'+p.id+'" style="grid-column:1/-1"><option value="0">Stop y objetivo: hasta que los quites</option><option value="1">Stop y objetivo: dura 1 día</option><option value="5">Stop y objetivo: dura 1 semana</option><option value="30">Stop y objetivo: dura 30 días</option></select></div>':'')+'</div></div></div>';
+  }).join(''):'<div class="empty">Sin posiciones abiertas.'+(S.auto?' La app comprará cuando encuentre buenas oportunidades.':'')+'</div>')+((S.orders||[]).length?'<div class="hint" style="margin:10px 0 4px"><b>Órdenes pendientes</b></div>'+S.orders.map(o=>'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line,#2a2f3a)"><span>Comprar <b>'+esc(o.s.replace('.MC',''))+'</b> si baja a '+nf(o.limit)+' '+esc(o.cur)+' · '+eur(o.amt)+'<br><small class="hint">'+(o.exp?'caduca '+new Date(o.exp).toLocaleDateString('es-ES')+' · ':'sin caducidad · ')+'stop '+nf(o.stop)+' · objetivo '+nf(o.target)+'</small></span><button class="btn ghost small" data-cancel="'+o.id+'" type="button">Cancelar</button></div>').join(''):'')+row2('Efectivo disponible',eur(S.cash));
   drawOpenPos();
   $('clBox').innerHTML=S.closed.length?S.closed.slice(0,30).map(t=>
     '<div class="pos-row"><div><b>'+esc(t.s.replace('.MC',''))+'</b><br><small>'+({objetivo:'Objetivo',stop:'Stop',tiempo:'Por tiempo',manual:'A mano'}[t.why])+' · '+t.days+' días'+(t.pred&&t.pred.dm?' (preveía ~'+expDays(t.pred.dm)+')':'')+' · '+new Date((t.cd||dayKey(t.close))+'T12:00:00').toLocaleDateString('es-ES')+'</small></div>'+
@@ -2080,7 +2081,7 @@ $('posBox').onclick=e=>{
     const ob=e.target.closest('[data-ord]');
     if(ob){const p=S.pos.find(x=>String(x.id)===ob.dataset.ord);if(!p)return;const c=ob.closest('.det'),ns=parseFloat(c.querySelector('[data-es]').value),nt=parseFloat(c.querySelector('[data-et]').value);
       if(!(ns>0)||!(nt>0)||ns>=p.last||nt<=p.last){ob.textContent='Stop < precio < objetivo';setTimeout(()=>{ob.textContent='Guardar';},2500);return;}
-      p.stop=ns;p.target=nt;delete p.stop0;p.ext=false;p.ord=true;p.alert=null;log('Órdenes de <b>'+esc(p.s)+'</b>: stop '+nf(ns)+' · objetivo '+nf(nt)+' '+esc(p.cur)+'.');save();ob.textContent='Guardado ✓';setTimeout(()=>{if(ob.isConnected)ob.textContent='Guardar';},2000);return;}
+      const dd=parseInt(c.querySelector('[data-ed]').value);p.stop=ns;p.target=nt;delete p.stop0;p.ext=false;p.ord=true;p.ordExp=dd>0?Date.now()+dd*864e5:0;p.alert=null;log('Órdenes de <b>'+esc(p.s)+'</b>: stop '+nf(ns)+' · objetivo '+nf(nt)+' '+esc(p.cur)+'.');save();ob.textContent='Guardado ✓';setTimeout(()=>{if(ob.isConnected)ob.textContent='Guardar';},2000);return;}
     const cb=e.target.closest('[data-cancel]');
     if(cb){S.orders=(S.orders||[]).filter(o=>String(o.id)!==cb.dataset.cancel);save();renderAll();return;}
     const fcb=e.target.closest('[data-fc]');
@@ -2302,6 +2303,7 @@ function manualBox(r){
   '<label class="hint" style="margin:0">Tipo<select id="mbT"><option value="m">A mercado (ahora, '+q(r.p)+')</option><option value="l">A precio límite</option></select></label>'+
   '<label class="hint" style="margin:0">Importe €<input id="mbAmt" type="number" inputmode="decimal" value="'+dflt+'" min="20"></label>'+
   '<label class="hint" style="margin:0;display:none" id="mbLw">Comprar si baja a<input id="mbLim" type="number" inputmode="decimal" step="any" value="'+q(r.p*0.98)+'"></label>'+
+  '<label class="hint" style="margin:0;display:none" id="mbDw">Dura<select id="mbD"><option value="1">1 día</option><option value="5">1 semana</option><option value="30" selected>30 días</option><option value="0">Hasta que la cancele</option></select></label>'+
   '<label class="hint" style="margin:0">Stop (vende si baja a)<input id="mbSt" type="number" inputmode="decimal" step="any" value="'+q(st)+'"></label>'+
   '<label class="hint" style="margin:0">Objetivo (vende si sube a)<input id="mbTg" type="number" inputmode="decimal" step="any" value="'+q(tg)+'"></label></div>'+
   '<button class="btn small" id="mbGo" data-sym="'+esc(r.s)+'" type="button" style="margin-top:10px;width:100%">Comprar</button><div id="mbMsg"></div></div>';
@@ -2321,15 +2323,15 @@ async function buyManual(sym,amt,o){
     if(!(o.limit>0)||o.limit>=r.p*1.0005){m.innerHTML='<div class="msg bad">El precio límite debe estar por debajo del actual ('+nf(r.p)+'). Si quieres comprar ya, elige "A mercado".</div>';return;}
     if(stU>=o.limit||tgU<=o.limit){m.innerHTML='<div class="msg bad">Stop por debajo y objetivo por encima del precio límite.</div>';return;}
     S.orders=S.orders||[];
-    S.orders.push({id:Date.now()+Math.random(),k:'buy',s:r.s,nm:r.nm,cur:r.cur,limit:o.limit,amt,stop:stU,target:tgU,ts:Date.now(),pred:{pT:r.pT,pS:r.pS,ev:r.ev,dm:r.dm,dl:r.dl,dh:r.dh,cone:null},f:r.f.slice()});
+    S.orders.push({id:Date.now()+Math.random(),k:'buy',exp:o.days>0?Date.now()+o.days*864e5:0,s:r.s,nm:r.nm,cur:r.cur,limit:o.limit,amt,stop:stU,target:tgU,ts:Date.now(),pred:{pT:r.pT,pS:r.pS,ev:r.ev,dm:r.dm,dl:r.dl,dh:r.dh,cone:null},f:r.f.slice()});
     log('Orden límite: comprar <b>'+esc(sym.replace('.MC',''))+'</b> a '+nf(o.limit)+' '+esc(r.cur)+' por '+eur(amt)+'.');save();renderAll();
-    m.innerHTML='<div class="msg ok">Orden puesta: se comprará si el precio baja a '+nf(o.limit)+' '+esc(r.cur)+'. Caduca a los 30 días. La ves en Cartera.</div>';return;
+    m.innerHTML='<div class="msg ok">Orden puesta: se comprará si el precio baja a '+nf(o.limit)+' '+esc(r.cur)+'. '+(o.days>0?'Caduca en '+o.days+(o.days===1?' día':' días')+'.':'No caduca hasta que la canceles.')+' La ves en Cartera.</div>';return;
   }
   const fx=await getFx(r.cur),pxIn=r.p*(1+S.slip/100),entryE=pxIn/fx,sh=Math.floor(amt/entryE*1000)/1000;
   if(!(sh>0)){m.innerHTML='<div class="msg bad">Importe demasiado pequeño.</div>';return;}
   const cost=sh*entryE,pred={pT:r.pT,pS:r.pS,ev:r.ev,dm:r.dm,dl:r.dl,dh:r.dh,cone:null};
   S.cash-=cost+S.com;
-  S.pos.push({pred,manual:true,id:Date.now()+Math.random(),s:r.s,nm:r.nm,cur:r.cur,shares:sh,entry:pxIn,stop:stU,target:tgU,ord:usr,last:r.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:r.f.slice(),cx:(()=>{try{return cxSnap(r,score10(r));}catch(e){return null;}})()});
+  S.pos.push({pred,manual:true,id:Date.now()+Math.random(),s:r.s,nm:r.nm,cur:r.cur,shares:sh,entry:pxIn,stop:stU,target:tgU,ord:usr,ordExp:0,last:r.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:r.f.slice(),cx:(()=>{try{return cxSnap(r,score10(r));}catch(e){return null;}})()});
   log('Compra a mano: <b>'+esc(sym.replace('.MC',''))+'</b> por '+eur(cost)+'.');save();renderAll();
   m.innerHTML='<div class="msg ok">Comprada por '+eur(cost)+'. La verás en Cartera con la etiqueta A MANO.</div>';
 }
@@ -2355,7 +2357,7 @@ function fcStudyHTML(r){
     '<div class="msg '+(why.length?'':'ok')+'">'+(held?'Ya la tienes en cartera. ':'')+(why.length?'Ahora mismo la app no la compraría: '+why.join(', ')+'.':'La app la compraría hoy si hay hueco en la cartera.')+'</div>';
 }
 async function fcStudy(){
-  const sym=FC.sym,b=$('fcE');b.disabled=true;if(!$('fcA').dataset.b){$('fcA').dataset.b=1;$('fcA').addEventListener('click',e=>{const g=e.target.closest('#mbGo');if(g){const t=$('mbT').value;buyManual(g.dataset.sym,parseFloat($('mbAmt').value),{type:t,limit:parseFloat($('mbLim').value),stop:parseFloat($('mbSt').value),target:parseFloat($('mbTg').value)});}});$('fcA').addEventListener('change',e=>{if(e.target.id==='mbT')$('mbLw').style.display=e.target.value==='l'?'':'none';});}$('fcA').innerHTML='<div class="empty"><span class="spin"></span>Estudiando '+esc(sym)+'…</div>';
+  const sym=FC.sym,b=$('fcE');b.disabled=true;if(!$('fcA').dataset.b){$('fcA').dataset.b=1;$('fcA').addEventListener('click',e=>{const g=e.target.closest('#mbGo');if(g){const t=$('mbT').value;buyManual(g.dataset.sym,parseFloat($('mbAmt').value),{type:t,limit:parseFloat($('mbLim').value),days:parseInt($('mbD').value),stop:parseFloat($('mbSt').value),target:parseFloat($('mbTg').value)});}});$('fcA').addEventListener('change',e=>{if(e.target.id==='mbT'){$('mbLw').style.display=e.target.value==='l'?'':'none';$('mbDw').style.display=e.target.value==='l'?'':'none';}});}$('fcA').innerHTML='<div class="empty"><span class="spin"></span>Estudiando '+esc(sym)+'…</div>';
   try{
     const r=await analyzeRow(sym,0);if(sym!==FC.sym)return;
     if(!r)throw new Error('sin datos suficientes (hace falta al menos 60 días de histórico)');
