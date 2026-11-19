@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 16:17";</script>
+<script>window.BUILD="19/11/2026 18:12";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -299,6 +299,9 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <label for="sFs">F-Score mínimo para comprar</label><select id="sFs"><option value="0">Sin mínimo</option><option value="3">3 de 9</option><option value="4">4 de 9</option><option value="5">5 de 9</option><option value="6">6 de 9</option><option value="7">7 de 9 (solo empresas sólidas)</option><option value="8">8 de 9</option></select>
     <label for="sRc">ROCE mínimo para comprar</label><select id="sRc"><option value="0">Sin mínimo</option><option value="5">5 %</option><option value="8">8 %</option><option value="10">10 %</option><option value="12">12 %</option><option value="15">15 % (negocios muy buenos)</option><option value="20">20 %</option></select>
     <div class="hint">Las acciones que no cumplan estos mínimos no entran en la lista de Hoy ni las compra la app (ni el piloto). Si de una empresa no hay datos, no se descarta.</div>
+    <label class="sw"><input id="sReg" type="checkbox"><span>Vigilar el estado del mercado<br><small class="mut">Mira el VIX y la tendencia del índice de cada bolsa. Si el mercado está nervioso o a la baja, la app exige más nota para comprar (7 o 8 en vez de 6) y tiene en cuenta si cada acción lo hace mejor o peor que su índice.</small></span></label>
+    <label for="sEr">No comprar si publica resultados en…</label><select id="sEr"><option value="0">Sin límite</option><option value="3">3 días o menos</option><option value="5">5 días o menos</option><option value="7">7 días o menos</option><option value="10">10 días o menos</option></select>
+    <div class="hint">El calendario de resultados es de EE. UU. De las europeas todavía no hay fechas.</div>
     <label class="sw"><input id="sPro" type="checkbox"><span>Prorrogar si sigue al alza<br><small class="mut">Al cumplirse el plazo máximo, si el precio sigue sobre su media de 20 días y en ganancia, no vende: sube el stop (nunca por debajo de tu entrada) y sigue hasta 3 veces el plazo. Si la tendencia se rompe, vende.</small></span></label>
     <label class="sw"><input id="sAuto" type="checkbox"><span>Operar sola con las mejores<br><small class="mut">Si lo desactivas, solo estudia y te enseña la lista.</small></span></label>
     <button class="btn ghost full" id="sReset" type="button">Reiniciar cartera con el capital indicado</button>
@@ -465,6 +468,31 @@ async function loadFund(){
   }catch(e){}
 }
 const FCK={d:null,chk:0};
+/* ---- contexto de mercado: VIX, índices, resultados ---- */
+const CX={d:null,chk:0};
+async function loadCtx(){
+  try{if(!ghBase()||Date.now()-CX.chk<10*60000)return;CX.chk=Date.now();
+    const j=await ghJson(ghBase()+'/ctx/x.json?t='+Math.floor(Date.now()/600000));
+    if(j&&(j.vix||j.idx)){CX.d=j;try{renderAll();}catch(e){}}
+  }catch(e){}
+}
+const IDXN={SPX:'S&P 500',NDX:'Nasdaq 100',IBEX:'IBEX 35',STOXX:'Eurostoxx 50',DAX:'DAX',CAC:'CAC 40',FTSE:'FTSE 100',MIB:'FTSE MIB',AEX:'AEX'};
+function idxKey(sym){const m=/\.([A-Z]+)$/.exec(sym);if(!m)return 'SPX';return {MC:'IBEX',PA:'CAC',DE:'DAX',L:'FTSE',MI:'MIB',AS:'AEX'}[m[1]]||'STOXX';}
+const idxOf=sym=>{const k=idxKey(sym),I=CX.d&&CX.d.idx;return I&&(I[k]||(k!=='SPX'&&I.STOXX))||null;};
+function regime(sym){
+  if(S.regOn===false||!CX.d)return {st:'ok',min:6,why:''};
+  const v=CX.d.vix,i=idxOf(sym),w=[];let bad=0,mid=0;
+  if(v){if(v.p>=30){bad++;w.push('VIX '+nf(v.p,0)+' (miedo alto)');}else if(v.p>=25){mid++;w.push('VIX '+nf(v.p,0)+' (nervioso)');}}
+  if(i){const n=IDXN[idxKey(sym)]||'índice';if(i.s200&&i.p<i.s50&&i.p<i.s200){bad++;w.push(n+' bajo sus medias de 50 y 200 días');}else if(i.p<i.s50){mid++;w.push(n+' bajo su media de 50 días');}}
+  const st=bad?'mal':mid?'cautela':'ok';
+  return {st,min:st==='mal'?8:st==='cautela'?7:6,why:w.join(' · ')};
+}
+const minNota=sym=>regime(sym).min;
+function earnDays(sym){const e=CX.d&&CX.d.earn&&CX.d.earn[sym];if(!e)return null;const t=Date.parse(e.slice(0,10)+'T12:00:00Z');if(isNaN(t))return null;const d=Math.round((t-Date.now())/864e5);return d<0?null:{d,when:e.slice(10)==='a'?'antes de abrir':e.slice(10)==='d'?'al cierre':'',date:e.slice(0,10)};}
+function earnBlock(sym){const n=S.earnD==null?5:+S.earnD;if(!n)return false;const e=earnDays(sym);return !!e&&e.d<=n;}
+function earnTxt(sym){const e=earnDays(sym);if(!e||e.d>14)return '';return 'resultados '+(e.d===0?'hoy':e.d===1?'mañana':'en '+e.d+' días')+(e.when?' ('+e.when+')':'');}
+function rs20(r){const i=idxOf(r.s);return i&&r.mom!=null?r.mom-i.mom20:null;}
+const rsAdj=r=>{if(S.regOn===false)return 0;const x=rs20(r);return x==null?0:Math.max(-0.5,Math.min(0.5,x/20));};
 async function loadCheck(){
   try{if(!ghBase()||Date.now()-FCK.chk<3600e3)return;FCK.chk=Date.now();
     const j=await ghJson(ghBase()+'/check/c.json?t='+Math.floor(Date.now()/3600000));
@@ -735,7 +763,8 @@ function calid10(sym,price){
   return max>=4?10*got/max:null;
 }
 const wFu=sym=>{if(S.comb===false)return 0;let w=Math.max(0,Math.min(0.7,S.wFu==null?0.35:S.wFu));if(sym){const k=fuCheck(sym);if(k&&k.bad.length)w*=0.5;}return w;};
-function score10(r){
+function score10(r){return Math.max(0,Math.min(10,score10b(r)+rsAdj(r)));}
+function score10b(r){
   const t=tech10(r),w=wFu(r.s);if(!w)return t;
   const q=calid10(r.s,r.p);if(q==null)return t;
   return Math.max(0,Math.min(10,t*(1-w)+q*w));
@@ -747,7 +776,7 @@ function notaTxt(r){
 }
 const adjP=r=>Math.max(0,Math.min(0.95,r.pT*S.cal.p));
 function topList(){
-  return Object.values(S.rows).filter(r=>inUni(r.s)&&!r.pen[1]&&r.rsi<=78&&!newsVeto(r.s)&&!minFund(r.s)).map(r=>({r,sc:score10(r),rank:score10(r)+(r.ev-S.cal.bias)/2}))
+  return Object.values(S.rows).filter(r=>inUni(r.s)&&!r.pen[1]&&r.rsi<=78&&!newsVeto(r.s)&&!minFund(r.s)&&!earnBlock(r.s)).map(r=>({r,sc:score10(r),rank:score10(r)+(r.ev-S.cal.bias)/2}))
     .sort((a,b)=>b.rank-a.rank).slice(0,10);
 }
 
@@ -890,7 +919,7 @@ async function srvSync(){
     if(j.at>S.srvAt){
       SRV_K.forEach(k=>{if(j.S[k]!==undefined)S[k]=j.S[k];});
       const c=j.config||{};
-      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;if(c.fscore_minimo!=null)S.minFs=+c.fscore_minimo;if(c.roce_minimo_pct!=null)S.minRoc=+c.roce_minimo_pct;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
+      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;if(c.mercado_vigilar!=null)S.regOn=!!c.mercado_vigilar;if(c.resultados_dias!=null)S.earnD=+c.resultados_dias;if(c.fscore_minimo!=null)S.minFs=+c.fscore_minimo;if(c.roce_minimo_pct!=null)S.minRoc=+c.roce_minimo_pct;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
       S.srvAt=j.at;
     }
     return true;
@@ -963,7 +992,7 @@ async function openTrades(){
   if(S.buyDay!==today){S.buyDay=today;S.buysToday=0;}
   for(const {r,sc} of topList()){
     if(S.pos.length>=S.maxOpen||S.buysToday>=3)break;
-    if(sc<6||r.ev-S.cal.bias<=0||S.pos.some(p=>p.s===r.s))continue;
+    if(sc<minNota(r.s)||r.ev-S.cal.bias<=0||S.pos.some(p=>p.s===r.s))continue;
     const fx=await getFx(r.cur),eq=equity();
     const stop=r.p-2*r.atr,target=r.p+4*r.atr,distE=2*r.atr/fx,pxIn=r.p*(1+S.slip/100),entryE=pxIn/fx;
     let sh=Math.min(eq*S.riesgo/100/distE,eq*S.maxPos/100/entryE,(S.cash-S.com)/entryE);
@@ -1355,6 +1384,9 @@ const reasons=r=>{
   if(r.f[2])L.push('Fuerza sana (RSI '+nf(r.rsi,0)+'): sube sin estar sobrecomprada.');
   if(r.f[3])L.push('Está a solo un '+nf(r.dist,1)+' % de su máximo de 20 días.');
   if(r.f[4])L.push('Ha subido un '+nf(r.mom,1)+' % en las últimas 4 semanas.');
+  {const x=rs20(r),i=idxOf(r.s);if(x!=null&&i)L.push('Fuerza relativa: '+(x>=0?'va ':'va ')+sg(x,1)+' puntos '+(x>=0?'mejor':'peor')+' que su índice ('+(IDXN[idxKey(r.s)]||'')+') en 4 semanas'+(Math.abs(rsAdj(r))>=0.05?'; ajusta la nota '+sg(rsAdj(r),1)+'.':'.'));}
+  {const e=earnTxt(r.s);if(e)L.push('<b>Atención:</b> '+e+'. '+(earnBlock(r.s)?'Por eso no se compra ahora.':'Un resultado puede mover el precio con fuerza.'));}
+  {const g=regime(r.s);if(g.st!=='ok')L.push('Mercado en '+(g.st==='mal'?'mal momento':'cautela')+' ('+g.why+'): para comprar se exige nota '+g.min+'.');}
   if(!L.length)L.push('Cumple pocas condiciones: es una opción marginal.');
   return L;
 };
@@ -1430,10 +1462,17 @@ async function ensureChart(card){
 }
 const openSet=new Set();
 function renderTop(){renderTop0();document.querySelectorAll('#top .cand.open').forEach(ensureChart);}
+function mktBanner(){
+  if(!CX.d||S.regOn===false)return '';
+  const us=regime('X'),eu=regime('X.MC'),v=CX.d.vix;
+  const c=g=>g.st==='mal'?'var(--neg,#e5566b)':g.st==='cautela'?'#e0a43a':'var(--pos,#3fb68b)';
+  const row=(n,g)=>'<div><b style="color:'+c(g)+'">● '+n+': '+(g.st==='mal'?'mal momento':g.st==='cautela'?'cautela':'normal')+'</b>'+(g.st!=='ok'?' — '+g.why+'. Nota mínima para comprar: <b>'+g.min+'</b>.':'')+'</div>';
+  return '<div class="hint" style="margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px"><b>Estado del mercado</b>'+(v?' (VIX '+nf(v.p,1)+')':'')+row('EE. UU.',us)+row('España/Europa',eu)+'</div>';
+}
 function renderTop0(){
   const T=topList();
   if(!T.length){$('top').innerHTML='<div class="empty">'+(running?'Estudiando el mercado… la primera vez tarda unos minutos. Los resultados van apareciendo según avanza.':'Todavía no hay resultados. Pulsa «Actualizar».')+'</div>';return;}
-  $('top').innerHTML=T.map((x,i)=>candHTML(x.r,x.sc,i+1,openSet.has(x.r.s))).join('')+
+  $('top').innerHTML=mktBanner()+T.map((x,i)=>candHTML(x.r,x.sc,i+1,openSet.has(x.r.s))).join('')+
     '<div class="hint">Nota sobre 10 según las señales técnicas. Potencial: lo que ganarías si llega al objetivo. Prob. éxito: simulada, repitiendo los movimientos recientes de cada acción. Es un filtro técnico: no mira resultados de la empresa ni noticias. Estudia y compra: '+esc(uniNames())+'. Puedes cambiarlo en la pestaña Mercado.</div>';
 }
 function bindCands(box){
@@ -1485,7 +1524,7 @@ function renderCar(){
   $('eqHint').textContent=S.eq.length>1?'Valor de la cartera cada vez que la app trabaja. La línea discontinua es tu capital inicial.':'La gráfica se irá llenando con cada uso.';
   $('posBox').innerHTML=(S.pos.length?S.pos.map(p=>{
     const v=posValue(p),pnl=v-p.costEur,pct=pnl/p.costEur*100,pos=Math.max(0,Math.min(100,(p.last-p.stop)/(p.target-p.stop)*100));
-    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+nf(p.entry)+' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays)+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+(fuChips(p.s,p.last)?'<br>'+fuChips(p.s,p.last):'')+'</div>'+
+    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+nf(p.entry)+' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays)+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+(fuChips(p.s,p.last)?'<br>'+fuChips(p.s,p.last):'')+(earnTxt(p.s)?'<br><small class="neg"><b>⚠ '+earnTxt(p.s)+'</b></small>':'')+'</div>'+
       '<div class="v">'+eur(v)+'<br><small class="'+(pnl>=0?'pos':'neg')+'">'+sg(pnl,2)+' € ('+sg(pct)+' %)</small></div>'+
       '<svg class="rng" aria-hidden="true"><defs><linearGradient id="rg'+p.id+'"><stop offset="0" stop-color="#ff1f44"/><stop offset=".5" stop-color="#ffb000"/><stop offset="1" stop-color="#00c853"/></linearGradient></defs><rect x="0" y="6" width="100%" height="10" rx="5" fill="url(#rg'+p.id+')"/><circle cx="'+pos+'%" cy="11" r="9" fill="#fff" stroke="#101828" stroke-width="3.5"/></svg>'+
       '<small>Stop '+nf(p.stop)+'</small><small style="text-align:right">Objetivo '+nf(p.target)+'</small></div>'+
@@ -1707,7 +1746,7 @@ function sellManual(id,btn){
 }
 function fcStudyHTML(r){
   const sc=score10(r),pT=adjP(r),ev=r.ev-S.cal.bias,sp=2*r.atr/r.p*100,tp=4*r.atr/r.p*100,stop=r.p-2*r.atr,tgt=r.p+4*r.atr;
-  const why=[];if(sc<6)why.push('la nota ('+nf(sc,1)+') es baja');if(ev<=0)why.push('el resultado medio simulado es negativo');if(r.pen[1])why.push('está por debajo de su media de 50 días');if(r.rsi>78)why.push('está muy sobrecomprada');if(newsVeto(r.s))why.push('hay varias noticias negativas recientes');
+  const why=[];if(sc<minNota(r.s))why.push('la nota ('+nf(sc,1)+') es baja'+(minNota(r.s)>6?' para el momento del mercado (se exige '+minNota(r.s)+')':''));if(ev<=0)why.push('el resultado medio simulado es negativo');if(r.pen[1])why.push('está por debajo de su media de 50 días');if(r.rsi>78)why.push('está muy sobrecomprada');if(newsVeto(r.s))why.push('hay varias noticias negativas recientes');
   const held=S.pos.some(p=>p.s===r.s);
   return '<div class="kp" style="padding:12px 0 0"><div><small>Nota</small><b>'+nf(sc,1)+'</b></div><div><small>Potencial</small><b class="pos">+'+nf(tp,1)+' %</b></div><div><small>Prob. éxito</small><b>'+nf(pT*100,0)+' %</b></div></div>'+
     '<div class="hint">'+durText(r)+'</div>'+
@@ -1864,7 +1903,7 @@ function explainRow(r){
   const sig=SIG.map(([k,l],i)=>({ok:!!r.f[i],t:l,w:W[k]}));
   const pen=[];if(r.pen[0])pen.push('Sobrecomprada (RSI '+nf(r.rsi,0)+' > 75): resta nota.');if(r.pen[1])pen.push('Por debajo de su media de 50 días: resta nota y la app no la compra.');
   const tend=r.f[0]?'alcista':r.f[1]?'a medio plazo positiva, sin tendencia fuerte':r.pen[1]?'bajista a medio plazo':'sin dirección clara';
-  const why=[];if(sc<6)why.push('la nota ('+nf(sc,1)+') no llega a 6');if(ev<=0)why.push('el resultado medio simulado es negativo');if(r.pen[1])why.push('está bajo su media de 50 días');if(r.rsi>78)why.push('está muy sobrecomprada');if(newsVeto(r.s))why.push('hay varias noticias negativas recientes');
+  const why=[];if(sc<minNota(r.s))why.push('la nota ('+nf(sc,1)+') no llega a '+minNota(r.s)+(minNota(r.s)>6?' (mercado con cautela)':''));if(earnBlock(r.s))why.push('publica resultados pronto ('+earnTxt(r.s)+')');if(ev<=0)why.push('el resultado medio simulado es negativo');if(r.pen[1])why.push('está bajo su media de 50 días');if(r.rsi>78)why.push('está muy sobrecomprada');if(newsVeto(r.s))why.push('hay varias noticias negativas recientes');
   const buy=!why.length;
   return{r,sc,pT,ev,sp,tp,sig,pen,tend,buy,why,
     nota:'Nota '+nf(sc,1)+' de 10. Se suman las señales cumplidas, cada una con el peso que la app ha ido aprendiendo ('+FK.map(k=>nf(W[k],1)).join(' / ')+' sobre '+nf(tot,1)+') y se restan las penalizaciones.',
@@ -1950,6 +1989,8 @@ $('sNv').checked=S.vetoNews!==false;$('sNv').onchange=e=>{S.vetoNews=e.target.ch
 $('sComb').checked=S.comb!==false;$('sComb').onchange=e=>{S.comb=e.target.checked;S.rows&&save();renderAll();};
 $('sFs').value=String(S.minFs||0);$('sFs').onchange=()=>{S.minFs=+$('sFs').value;save();renderAll();};
 $('sRc').value=String(S.minRoc||0);$('sRc').onchange=()=>{S.minRoc=+$('sRc').value;save();renderAll();};
+$('sReg').checked=S.regOn!==false;$('sReg').onchange=e=>{S.regOn=e.target.checked;save();renderAll();};
+$('sEr').value=String(S.earnD==null?5:S.earnD);$('sEr').onchange=()=>{S.earnD=+$('sEr').value;save();renderAll();};
 $('sWf').value=String(S.wFu==null?0.35:S.wFu);$('sWf').onchange=()=>{S.wFu=+$('sWf').value;save();renderAll();};
 $('sPro').checked=S.prorroga!==false;$('sPro').onchange=e=>{S.prorroga=e.target.checked;save();};
 $('sAuto').checked=S.auto;$('sAuto').onchange=e=>{S.auto=e.target.checked;save();};
@@ -2058,7 +2099,7 @@ applyTheme(S.theme);
 if(S.apr&&(S.ext||[]).length)learn();
 try{$('verTxt').textContent='Versión: '+(window.BUILD||'archivo local (no se actualiza solo)');}catch(e){}
 renderAll();
-loadFund();setInterval(loadFund,3600e3);loadCheck();setInterval(loadCheck,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
+loadCtx();setInterval(loadCtx,10*60000);loadFund();setInterval(loadFund,3600e3);loadCheck();setInterval(loadCheck,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
 setTimeout(()=>autopilot(false),300);
 if(S.watchMode)keepAwake(true);
 function tick(){
@@ -2074,7 +2115,7 @@ document.addEventListener('visibilitychange',()=>{
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
 try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
-window.__trader={fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
