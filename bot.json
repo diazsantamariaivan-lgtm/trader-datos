@@ -21,5 +21,6 @@
   "favoritas": [],
   "activo": true,
   "estrategia": "mom",
-  "momentum_n": 20
+  "momentum_n": 20,
+  "revision_momentum": "m"
 }
