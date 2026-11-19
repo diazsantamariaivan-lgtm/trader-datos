@@ -13,5 +13,15 @@ rep("const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,prorro
 rep("uni:{on:['SP500','IBEX35','EXTRA']}", "uni:{on:['SP500','IBEX35','EUROSTOXX50','DAX40','EXTRA']}")
 rep("slip:0.15,limD:3,limS:6,", "slip:0.15,limD:2,limS:5,")
 rep("srv:true,srvKey:'',", "srv:false,srvKey:'',labGrid:true,")
+import glob, json, re, os
+_lib = []
+for f in sorted(glob.glob('biblioteca/*.md')):
+    md = open(f, encoding='utf8').read()
+    m = re.search(r'^#\s+(.+)$', md, re.M)
+    t = m.group(1).strip() if m else os.path.basename(f)
+    if os.path.basename(f).startswith('00_'):
+        continue
+    _lib.append({'t': t, 'md': md})
+rep("const LIB=[];", "const LIB=" + json.dumps(_lib, ensure_ascii=False).replace('</', '<\\/') + ";")
 open('docs/index.html', 'w', encoding='utf8').write(src)
 print('docs/index.html generado', now)

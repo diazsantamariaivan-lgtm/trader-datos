@@ -108,6 +108,7 @@ canvas.cc{height:240px;margin-top:10px;background:var(--cv);border-radius:10px}
 .pos-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:12px 0;border-bottom:1px solid var(--line)}
 .pos-row:last-child{border-bottom:0}
 .pos-row small{color:var(--mut);font-size:12px}
+.lt{border-collapse:collapse;width:100%;margin:6px 0;font-size:13px}.lt th,.lt td{border:1px solid var(--line,#2a2f3a);padding:4px 6px;text-align:left}
 .pos-row .v{font:600 15px var(--mono);text-align:right}
 .rng{grid-column:1/3;display:block;width:100%;height:22px;margin:6px 0 2px;overflow:visible}
 .log{font-size:13px;color:var(--mut);padding:7px 0;border-bottom:1px solid var(--line)}
@@ -248,6 +249,10 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <div class="card" id="predBox"></div>
   <h2>Tú contra la app</h2>
   <div class="card" id="vsBox"></div>
+  <h2>Tu diario y revisión semanal</h2>
+  <div class="card" id="diaBox"></div>
+  <h2>Biblioteca de formación</h2>
+  <div class="card" id="libBox"></div>
   <h2>Laboratorio: carteras en paralelo</h2>
   <div class="card" id="labBox"></div>
   <h2>Por qué la estrategia lenta</h2>
@@ -1342,7 +1347,7 @@ function closePos(pos,res){
   const fx=fxOf(pos.cur),proceeds=pos.shares*res.px/fx;
   S.cash+=proceeds-S.com;
   const pnl=proceeds-pos.costEur-2*S.com+(pos.dv||0);
-  S.closed.unshift({s:pos.s,nm:pos.nm,entry:pos.entry,exit:res.px,shares:pos.shares,cur:pos.cur,pnl,pct:pnl/pos.costEur*100,why:res.why,days:res.days,open:pos.openTs,close:Date.now(),manual:!!pos.manual,mom:!!pos.mom,u:Math.random().toString(36).slice(2,10)+Date.now().toString(36),cd:res.dk||dayKey(Date.now()),f:pos.f,gross:(res.px/pos.entry-1)*100,pred:pos.pred?{pT:pos.pred.pT,ev:pos.pred.ev,dm:pos.pred.dm}:null,cx:pos.cx||null});
+  S.closed.unshift({s:pos.s,nm:pos.nm,entry:pos.entry,exit:res.px,shares:pos.shares,cur:pos.cur,pnl,pct:pnl/pos.costEur*100,why:res.why,days:res.days,open:pos.openTs,close:Date.now(),manual:!!pos.manual,mom:!!pos.mom,pl:pos.plan||null,u:Math.random().toString(36).slice(2,10)+Date.now().toString(36),cd:res.dk||dayKey(Date.now()),f:pos.f,gross:(res.px/pos.entry-1)*100,pred:pos.pred?{pT:pos.pred.pT,ev:pos.pred.ev,dm:pos.pred.dm}:null,cx:pos.cx||null});
   S.closed=S.closed.slice(0,300);
   S.pos=S.pos.filter(p=>p.id!==pos.id);
   const w={objetivo:'llegó al objetivo',stop:'saltó el stop',tiempo:'se cerró por tiempo',manual:'se vendió a mano',rebalanceo:'salió en la revisión de momentum'}[res.why];
@@ -1436,7 +1441,7 @@ async function fillOrders(){
       const px=Math.min(o.limit,last),fx=await getFx(o.cur),entryE=px/fx,sh=Math.floor(o.amt/entryE*1000)/1000;
       if(!(sh>0)||o.amt+S.com>S.cash){log('Orden límite de <b>'+esc(o.s)+'</b> cancelada: no hay efectivo suficiente.',true);S.orders=S.orders.filter(x=>x!==o);continue;}
       const cost=sh*entryE;S.cash-=cost+S.com;S.orders=S.orders.filter(x=>x!==o);
-      S.pos.push({pred:o.pred,manual:true,id:Date.now()+Math.random(),s:o.s,nm:o.nm,cur:o.cur,shares:sh,entry:px,stop:o.stop,target:o.target,ord:true,last,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:o.f,cx:null});
+      S.pos.push({plan:o.plan||null,pred:o.pred,manual:true,id:Date.now()+Math.random(),s:o.s,nm:o.nm,cur:o.cur,shares:sh,entry:px,stop:o.stop,target:o.target,ord:true,last,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:o.f,cx:null});
       log('Orden límite ejecutada: <b>'+esc(o.s.replace('.MC',''))+'</b> a '+nf(px)+' '+esc(o.cur)+' ('+eur(cost)+').',true);
     }catch(e){}
   }
@@ -2174,7 +2179,7 @@ function renderPred(){
   h+='<div style="margin-top:12px">'+P.slice(0,8).map(t=>'<div class="log"><b>'+esc(t.s.replace('.MC',''))+'</b> · preveía '+sg(t.pred.ev,1)+' % · salió <b class="'+(t.gross>=0?'pos':'neg')+'">'+sg(t.gross,1)+' %</b> · '+(t.gross>=t.pred.ev?'mejor':'peor')+' de lo previsto</div>').join('')+'</div>';
   $('predBox').innerHTML=h;
 }
-function renderAll(){try{renderLV();}catch(e){}try{renderDV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();}
+function renderAll(){try{renderLV();}catch(e){}try{renderDV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();try{renderDia();renderLib();}catch(e){}renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();}
 
 /* ====================== gráfico completo (estilo broker) ====================== */
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
@@ -2306,6 +2311,8 @@ function manualBox(r){
   '<label class="hint" style="margin:0;display:none" id="mbDw">Dura<select id="mbD"><option value="1">1 día</option><option value="5">1 semana</option><option value="30" selected>30 días</option><option value="0">Hasta que la cancele</option></select></label>'+
   '<label class="hint" style="margin:0">Stop (vende si baja a)<input id="mbSt" type="number" inputmode="decimal" step="any" value="'+q(st)+'"></label>'+
   '<label class="hint" style="margin:0">Objetivo (vende si sube a)<input id="mbTg" type="number" inputmode="decimal" step="any" value="'+q(tg)+'"></label></div>'+
+  '<label class="hint" style="margin:10px 0 0">Motivo de la compra (obligatorio: es tu plan)<select id="mbM"><option value="">Elige el motivo…</option>'+Object.keys(MOTIVOS).map(k=>'<option value="'+k+'">'+MOTIVOS[k]+'</option>').join('')+'</select></label>'+
+  '<input id="mbN" type="text" maxlength="120" placeholder="Nota opcional: qué esperas que pase" style="margin-top:6px">'+
   '<button class="btn small" id="mbGo" data-sym="'+esc(r.s)+'" type="button" style="margin-top:10px;width:100%">Comprar</button><div id="mbMsg"></div></div>';
 }
 async function buyManual(sym,amt,o){
@@ -2323,7 +2330,7 @@ async function buyManual(sym,amt,o){
     if(!(o.limit>0)||o.limit>=r.p*1.0005){m.innerHTML='<div class="msg bad">El precio límite debe estar por debajo del actual ('+nf(r.p)+'). Si quieres comprar ya, elige "A mercado".</div>';return;}
     if(stU>=o.limit||tgU<=o.limit){m.innerHTML='<div class="msg bad">Stop por debajo y objetivo por encima del precio límite.</div>';return;}
     S.orders=S.orders||[];
-    S.orders.push({id:Date.now()+Math.random(),k:'buy',exp:o.days>0?Date.now()+o.days*864e5:0,s:r.s,nm:r.nm,cur:r.cur,limit:o.limit,amt,stop:stU,target:tgU,ts:Date.now(),pred:{pT:r.pT,pS:r.pS,ev:r.ev,dm:r.dm,dl:r.dl,dh:r.dh,cone:null},f:r.f.slice()});
+    S.orders.push({plan:o.plan||null,id:Date.now()+Math.random(),k:'buy',exp:o.days>0?Date.now()+o.days*864e5:0,s:r.s,nm:r.nm,cur:r.cur,limit:o.limit,amt,stop:stU,target:tgU,ts:Date.now(),pred:{pT:r.pT,pS:r.pS,ev:r.ev,dm:r.dm,dl:r.dl,dh:r.dh,cone:null},f:r.f.slice()});
     log('Orden límite: comprar <b>'+esc(sym.replace('.MC',''))+'</b> a '+nf(o.limit)+' '+esc(r.cur)+' por '+eur(amt)+'.');save();renderAll();
     m.innerHTML='<div class="msg ok">Orden puesta: se comprará si el precio baja a '+nf(o.limit)+' '+esc(r.cur)+'. '+(o.days>0?'Caduca en '+o.days+(o.days===1?' día':' días')+'.':'No caduca hasta que la canceles.')+' La ves en Cartera.</div>';return;
   }
@@ -2331,9 +2338,69 @@ async function buyManual(sym,amt,o){
   if(!(sh>0)){m.innerHTML='<div class="msg bad">Importe demasiado pequeño.</div>';return;}
   const cost=sh*entryE,pred={pT:r.pT,pS:r.pS,ev:r.ev,dm:r.dm,dl:r.dl,dh:r.dh,cone:null};
   S.cash-=cost+S.com;
-  S.pos.push({pred,manual:true,id:Date.now()+Math.random(),s:r.s,nm:r.nm,cur:r.cur,shares:sh,entry:pxIn,stop:stU,target:tgU,ord:usr,ordExp:0,last:r.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:r.f.slice(),cx:(()=>{try{return cxSnap(r,score10(r));}catch(e){return null;}})()});
+  S.pos.push({pred,manual:true,id:Date.now()+Math.random(),s:r.s,nm:r.nm,cur:r.cur,shares:sh,entry:pxIn,stop:stU,target:tgU,ord:usr,ordExp:0,plan:o.plan||null,last:r.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:r.f.slice(),cx:(()=>{try{return cxSnap(r,score10(r));}catch(e){return null;}})()});
   log('Compra a mano: <b>'+esc(sym.replace('.MC',''))+'</b> por '+eur(cost)+'.');save();renderAll();
   m.innerHTML='<div class="msg ok">Comprada por '+eur(cost)+'. La verás en Cartera con la etiqueta A MANO.</div>';
+}
+
+/* ===== Biblioteca de formación (los .md se incrustan al publicar) ===== */
+const LIB=[];
+function mdHTML(md){
+  const inl=t=>esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/`(.+?)`/g,'<code>$1</code>');
+  const L=md.split('\n'),o=[];let ul=0,ol=0,tb=null;
+  const close=()=>{if(ul){o.push('</ul>');ul=0;}if(ol){o.push('</ol>');ol=0;}if(tb){o.push('<table class="lt">'+tb.join('')+'</table>');tb=null;}};
+  for(let i=0;i<L.length;i++){
+    const l=L[i].trimEnd();
+    if(!l.trim()){close();continue;}
+    if(/^---+$/.test(l)){close();o.push('<hr style="border:0;border-top:1px solid var(--line,#2a2f3a)">');continue;}
+    let m;
+    if(m=l.match(/^(#{1,4})\s+(.*)/)){close();const n=Math.min(4,m[1].length+1);o.push('<h'+n+' style="margin:14px 0 4px;font-size:'+(n===2?'17':'15')+'px">'+inl(m[2])+'</h'+n+'>');continue;}
+    if(/^\|/.test(l)){if(/^\|[\s\-|:]+\|?$/.test(l))continue;const c=l.replace(/^\||\|$/g,'').split('|').map(x=>x.trim());if(!tb){tb=[];tb.push('<tr>'+c.map(x=>'<th>'+inl(x)+'</th>').join('')+'</tr>');}else tb.push('<tr>'+c.map(x=>'<td>'+inl(x)+'</td>').join('')+'</tr>');continue;}
+    if(m=l.match(/^\s*[-*]\s+(.*)/)){if(!ul){close();o.push('<ul style="margin:4px 0;padding-left:20px">');ul=1;}o.push('<li>'+inl(m[1])+'</li>');continue;}
+    if(m=l.match(/^\s*\d+\.\s+(.*)/)){if(!ol){close();o.push('<ol style="margin:4px 0;padding-left:22px">');ol=1;}o.push('<li>'+inl(m[1])+'</li>');continue;}
+    close();o.push('<p style="margin:6px 0">'+inl(l)+'</p>');
+  }
+  close();return o.join('');
+}
+function renderLib(){
+  const b=$('libBox');if(!b)return;
+  if(!LIB.length){b.innerHTML='<div class="empty">Aquí irán los documentos de formación.</div>';return;}
+  b.innerHTML='<div class="hint" style="margin:0 0 8px">Material de estudio sobre errores, riesgo, volumen y Bollinger. Son ideas generales de formación, no reglas probadas ni promesas de ganancia: las cifras y ejemplos son afirmaciones de los documentos originales, sin verificar.</div>'+
+    LIB.map((d,i)=>'<details data-lib="'+i+'" style="border-top:1px solid var(--line,#2a2f3a);padding:8px 0"><summary style="cursor:pointer;font-weight:600">'+esc(d.t)+'</summary><div class="libc" style="font-size:14px;line-height:1.45"></div></details>').join('');
+  b.onclick=e=>{const d=e.target.closest('details[data-lib]');if(!d)return;setTimeout(()=>{const c=d.querySelector('.libc');if(d.open&&!c.dataset.r){c.innerHTML=mdHTML(LIB[+d.dataset.lib].md);c.dataset.r=1;}},0);};
+}
+/* ===== Plan de compra: motivo + comprobaciones antes de operar ===== */
+const MOTIVOS={tend:'Tendencia alcista',rupt:'Ruptura con volumen',fund:'Fundamentos / valoración',reb:'Rebote en soporte o rango',cat:'Noticia o catalizador',otro:'Otro'};
+function planCheck(r,amt,entry,stop,target){
+  const W=[],eq=equity()||S.cap0||1;
+  const riesgo=(entry-stop)/entry*amt/eq*100,pos=amt/eq*100;
+  if(riesgo>2)W.push({c:'riesgo',t:'Si salta el stop pierdes ~'+nf(riesgo,1)+' % de la cuenta. Lo habitual es arriesgar entre el 1 % y el 2 %.'});
+  if(pos>20)W.push({c:'conc',t:'Es el '+nf(pos,0)+' % de la cuenta en una sola acción. Mucha concentración: una mala noticia pesa mucho.'});
+  if(r&&(r.mom>=15||r.rsi>=70))W.push({c:'fomo',t:'Ha subido mucho en poco tiempo ('+(r.mom>=15?'+'+nf(r.mom,0)+' % en 20 sesiones':'RSI '+nf(r.rsi,0)+', sobrecomprada')+'). ¿Compras por análisis o por miedo a perderte la subida?'});
+  const et=r?earnTxt(r.s):'';if(et)W.push({c:'earn',t:'Tiene '+et+'. Las buenas noticias pueden estar ya descontadas y la acción caer aunque sean buenas.'});
+  if(target>entry&&entry>stop&&(target-entry)/(entry-stop)<1.5)W.push({c:'rr',t:'Ganas '+nf((target-entry)/(entry-stop),1)+' por cada 1 que arriesgas: poca ventaja. Suele buscarse al menos 1,5.'});
+  return W;
+}
+let mbArm=null;
+function renderDia(){
+  const b=$('diaBox');if(!b)return;
+  const M=S.closed.filter(t=>t.manual||t.pl);
+  if(!M.length){b.innerHTML='<div class="empty">Cuando cierres operaciones a mano, aquí quedará tu diario: motivo, resultado y si seguiste el plan. Cada semana te saldrá un resumen con tus errores más repetidos.</div>';return;}
+  const wk=M.filter(t=>t.close>Date.now()-7*864e5),A=x=>x.length?x.reduce((a,t)=>a+t.pnl,0):0;
+  const ins=[],all=M.slice(0,40),gan=all.filter(t=>t.pnl>0),per=all.filter(t=>t.pnl<=0),av=(X,f)=>X.length?X.reduce((a,t)=>a+f(t),0)/X.length:0;
+  if(gan.length>=3&&per.length>=3){
+    if(av(per,t=>t.days)>av(gan,t=>t.days)*1.5)ins.push('Aguantas las perdedoras ('+nf(av(per,t=>t.days),0)+' días de media) bastante más que las ganadoras ('+nf(av(gan,t=>t.days),0)+'). Es la trampa de no aceptar el error: corta antes.');
+    if(av(gan,t=>t.pct)<Math.abs(av(per,t=>t.pct)))ins.push('Ganas de media '+nf(av(gan,t=>t.pct),1)+' % y pierdes '+nf(Math.abs(av(per,t=>t.pct)),1)+' %: recoges pronto y dejas correr las pérdidas.');
+  }
+  const fo=all.filter(t=>t.pl&&(t.pl.w||[]).includes('fomo')),fn=all.filter(t=>t.pl&&!(t.pl.w||[]).includes('fomo'));
+  if(fo.length>=3&&fn.length>=3&&A(fo)/fo.length<A(fn)/fn.length)ins.push('Las '+fo.length+' compras tras una subida fuerte te han ido peor que las demás ('+eur(A(fo)/fo.length)+' de media frente a '+eur(A(fn)/fn.length)+').');
+  const nop=all.filter(t=>t.fp===false);if(nop.length>=2)ins.push('Has marcado '+nop.length+' operaciones como "no seguí el plan": '+(A(nop)<0?'te han costado '+eur(-A(nop))+'.':'ojo, no todas salieron mal.'));
+  b.innerHTML='<div class="hint" style="margin:0 0 6px"><b>Esta semana</b>: '+(wk.length?wk.length+' operaciones cerradas, '+wk.filter(t=>t.pnl>0).length+' con ganancia, resultado '+eur(A(wk)):'ninguna operación cerrada')+'.</div>'+
+    (ins.length?'<ul style="margin:6px 0;padding-left:18px">'+ins.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'<div class="hint">Con pocas operaciones todavía no hay patrones claros. Cuando tengas unas 10, te señalaré tus errores repetidos.</div>')+
+    '<div class="hint" style="margin:8px 0 4px">Revisión semanal: ¿qué operaciones siguieron el plan? ¿compraste tras subidas fuertes? ¿vendiste pronto las ganadoras? ¿dejaste correr perdedoras?</div>'+
+    all.slice(0,15).map(t=>'<div style="border-top:1px solid var(--line,#2a2f3a);padding:7px 0"><div style="display:flex;justify-content:space-between;gap:8px"><b>'+esc(t.s.replace('.MC',''))+'</b><span class="'+(t.pnl>=0?'pos':'neg')+'">'+(t.pnl>=0?'+':'')+nf(t.pnl,2)+' € ('+nf(t.pct,1)+' %)</span></div><div class="hint" style="margin:2px 0">'+fmtD(new Date(t.close))+' · '+t.days+' d · '+({objetivo:'objetivo',stop:'stop',tiempo:'tiempo',manual:'venta a mano'}[t.why]||t.why)+(t.pl?' · motivo: '+esc(MOTIVOS[t.pl.m]||t.pl.m)+(t.pl.n?' — «'+esc(t.pl.n)+'»':''):'')+(t.pl&&t.pl.w&&t.pl.w.length?' · avisos ignorados: '+t.pl.w.length:'')+'</div><div class="hint" style="margin:0">¿Seguí el plan? '+
+      [['1','Sí'],['0','No']].map(([v,l])=>'<button class="btn small'+((v==='1'&&t.fp===true)||(v==='0'&&t.fp===false)?'':' ghost')+'" data-fp="'+v+'" data-u="'+esc(t.u)+'" type="button" style="padding:2px 10px;margin-left:4px">'+l+'</button>').join('')+'</div></div>').join('');
+  b.onclick=e=>{const x=e.target.closest('[data-fp]');if(!x)return;const t=S.closed.find(y=>y.u===x.dataset.u);if(!t)return;const v=x.dataset.fp==='1';t.fp=t.fp===v?undefined:v;save();renderDia();};
 }
 let sellArm=null;
 function sellManual(id,btn){
@@ -2357,7 +2424,12 @@ function fcStudyHTML(r){
     '<div class="msg '+(why.length?'':'ok')+'">'+(held?'Ya la tienes en cartera. ':'')+(why.length?'Ahora mismo la app no la compraría: '+why.join(', ')+'.':'La app la compraría hoy si hay hueco en la cartera.')+'</div>';
 }
 async function fcStudy(){
-  const sym=FC.sym,b=$('fcE');b.disabled=true;if(!$('fcA').dataset.b){$('fcA').dataset.b=1;$('fcA').addEventListener('click',e=>{const g=e.target.closest('#mbGo');if(g){const t=$('mbT').value;buyManual(g.dataset.sym,parseFloat($('mbAmt').value),{type:t,limit:parseFloat($('mbLim').value),days:parseInt($('mbD').value),stop:parseFloat($('mbSt').value),target:parseFloat($('mbTg').value)});}});$('fcA').addEventListener('change',e=>{if(e.target.id==='mbT'){$('mbLw').style.display=e.target.value==='l'?'':'none';$('mbDw').style.display=e.target.value==='l'?'':'none';}});}$('fcA').innerHTML='<div class="empty"><span class="spin"></span>Estudiando '+esc(sym)+'…</div>';
+  const sym=FC.sym,b=$('fcE');b.disabled=true;if(!$('fcA').dataset.b){$('fcA').dataset.b=1;$('fcA').addEventListener('click',e=>{const g=e.target.closest('#mbGo');if(g){const t=$('mbT').value,sy=g.dataset.sym,r=QROW[sy]||S.rows[sy],amt=parseFloat($('mbAmt').value),st=parseFloat($('mbSt').value),tg=parseFloat($('mbTg').value),lim=parseFloat($('mbLim').value),mo=$('mbM').value,mm=$('mbMsg');
+      if(!mo){mm.innerHTML='<div class="msg bad">Elige el motivo de la compra. Sin plan no se compra: así luego puedes revisar si acertaste por la razón correcta.</div>';return;}
+      const W=r?planCheck(r,amt,t==='l'&&lim>0?lim:r.p,st>0?st:r.p-2*r.atr,tg>0?tg:r.p+4*r.atr):[],sig=sy+'|'+amt+'|'+st+'|'+tg+'|'+t+'|'+lim;
+      if(W.length&&mbArm!==sig){mbArm=sig;mm.innerHTML='<div class="msg bad"><b>Antes de comprar, mira esto:</b><ul style="margin:6px 0 0;padding-left:18px">'+W.map(w=>'<li>'+esc(w.t)+'</li>').join('')+'</ul><div style="margin-top:6px">Si sigues queriendo, toca otra vez "Comprar".</div></div>';g.textContent='Comprar igualmente';return;}
+      mbArm=null;g.textContent='Comprar';
+      buyManual(sy,amt,{type:t,limit:lim,days:parseInt($('mbD').value),stop:st,target:tg,plan:{m:mo,n:($('mbN').value||'').trim(),w:W.map(w=>w.c)}});}});$('fcA').addEventListener('change',e=>{if(e.target.id==='mbT'){$('mbLw').style.display=e.target.value==='l'?'':'none';$('mbDw').style.display=e.target.value==='l'?'':'none';}});}$('fcA').innerHTML='<div class="empty"><span class="spin"></span>Estudiando '+esc(sym)+'…</div>';
   try{
     const r=await analyzeRow(sym,0);if(sym!==FC.sym)return;
     if(!r)throw new Error('sin datos suficientes (hace falta al menos 60 días de histórico)');
