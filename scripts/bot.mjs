@@ -63,7 +63,7 @@ if (!OPEN) console.log('Mercado cerrado: no se compra, solo se vigila y se guard
 const S0 = fresh ? {} : prev.S;
 const LRN = cfg.aprender_laboratorio !== false;
 const seed = Object.assign({}, S0, {
-  gh: REPO, auto: OPEN, ntfy: NTFY,
+  gh: REPO, auto: OPEN && cfg.cartera_principal !== 'manual', ntfy: NTFY,
   riesgo: cfg.riesgo_por_operacion_pct, maxPos: cfg.max_por_valor_pct, maxOpen: cfg.max_posiciones,
   maxDays: cfg.dias_maximos, com: cfg.comision_eur, slip: cfg.deslizamiento_pct,
   limD: cfg.freno_perdida_dia_pct, limS: cfg.freno_perdida_semana_pct,

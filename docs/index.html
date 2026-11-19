@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 20:44";</script>
+<script>window.BUILD="19/11/2026 20:56";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -1260,7 +1260,7 @@ const posValue=p=>p.shares*(p.last||p.entry)/fxOf(p.cur);
 const DIV_NET=0.85;
 function divDue(sym){const v=CX.d&&CX.d.div&&CX.d.div[sym];if(!v||!v.x||!(v.a>0))return null;const t=dayKey(Date.now());if(v.x>t)return null;if((Date.parse(t+'T12:00:00Z')-Date.parse(v.x+'T12:00:00Z'))/864e5>6)return null;return v;}
 function divCredit(){
-  if(srvOn())return;
+  if(!portLocal())return;
   S.divDone=S.divDone||{};
   for(const p of S.pos){
     const v=divDue(p.s);if(!v)continue;
@@ -1404,7 +1404,10 @@ function decState(env,pass){
 }
 /* ---- piloto en GitHub: la cartera la lleva el servidor y el móvil la lee ---- */
 const srvOn=()=>S.srv&&!!S.srvKey&&S.srvAt>0;
+/* cartera principal manual: la operas tú en el móvil; el piloto solo lleva el laboratorio y lo que aprende */
+const portLocal=()=>!srvOn()||!!S.mainManual;
 const SRV_K=['divDone','lrn','lrnLog','momFilt','momW','cap0','cash','pos','closed','eq','log','W','cal','buyDay','buysToday','brakeDay','startedAt','sumDay','momMonth','momAt','shadow','shBench'];
+const LAB_K=['lrn','lrnLog','momFilt','momW','momMonth','momAt','shadow','shBench'];
 async function srvSync(){
   if(!S.srv||!ghBase())return false;
   if(!S.srvKey){S.srvErr='Falta la clave: escribe la misma frase que pusiste en GitHub (CARTERA_CLAVE).';return false;}
@@ -1415,7 +1418,8 @@ async function srvSync(){
     if(!j||!j.S)throw new Error('formato inesperado');
     S.srvChk=Date.now();S.srvErr='';
     if(j.at>S.srvAt){
-      SRV_K.forEach(k=>{if(j.S[k]!==undefined)S[k]=j.S[k];});
+      S.mainManual=((j.config||{}).cartera_principal==='manual');
+      (S.mainManual?LAB_K:SRV_K).forEach(k=>{if(j.S[k]!==undefined)S[k]=j.S[k];});
       const c=j.config||{};
       if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;if(c.estrategia!=null)S.modo=c.estrategia;if(Array.isArray(c.laboratorio))S.labCustom=c.laboratorio;if(c.laboratorio_100!=null)S.labGrid=!!c.laboratorio_100;if(c.revision_momentum!=null)S.momFreq=c.revision_momentum;if(c.momentum_n!=null)S.momN=+c.momentum_n;if(c.analistas!=null)S.anOn=!!c.analistas;if(c.mercado_vigilar!=null)S.regOn=!!c.mercado_vigilar;if(c.resultados_dias!=null)S.earnD=+c.resultados_dias;if(c.fscore_minimo!=null)S.minFs=+c.fscore_minimo;if(c.roce_minimo_pct!=null)S.minRoc=+c.roce_minimo_pct;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
       if(S.lrn&&c.aprender_laboratorio!==false){S.momFreq=S.lrn.f;S.momN=S.lrn.N;S.momFilt=S.lrn.filt;S.momW=S.lrn.w;}
@@ -1426,21 +1430,22 @@ async function srvSync(){
 }
 function srvAgo(){return S.srvAt?Math.max(0,Math.round((Date.now()-S.srvAt)/60000)):null;}
 async function updatePositions(){
-  if(srvOn())return;
+  if(!portLocal())return;
   for(const pos of S.pos.slice()){
     try{
       await getFx(pos.cur);
       if(pos.mom){const dm=await chart(pos.s,'1d','1mo',0);if(dm&&dm.c.length){const np=dm.meta.regularMarketPrice||dm.c[dm.c.length-1];adjSplit(pos,np);pos.last=np;}pos.days=Math.max(0,Math.round((Date.now()-pos.openTs)/864e5));continue;}
       const d=await chart(pos.s,'1d','3mo',0),res=evalPos(pos,d);
       pos.days=res.days;
-      if(res.done)closePos(pos,res);else{adjSplit(pos,res.last);pos.last=res.last;}
+      if(res.done&&S.mainManual){adjSplit(pos,res.last);pos.last=res.last;if(!pos.alert){pos.alert=res.why;log('<b>'+esc(pos.s)+'</b> ha llegado a su '+(res.why==='objetivo'?'objetivo':res.why==='stop'?'stop':'plazo')+' ('+nf(res.last)+' '+esc(pos.cur)+'). Es tu cartera: decide tú si vendes.',true);}}
+      else if(res.done)closePos(pos,res);else{adjSplit(pos,res.last);pos.last=res.last;if(pos.alert&&S.mainManual)pos.alert=null;}
     }catch(e){}
   }
 }
 const aprRec=t=>({u:t.u,f:t.f,pnl:t.pct,gross:t.gross,why:t.why,days:t.days,pred:t.pred});
 function aprOk(e){return e&&typeof e.u==='string'&&e.u.length<=40&&Array.isArray(e.f)&&e.f.length===5&&e.f.every(x=>x===0||x===1)&&isFinite(e.pnl)&&Math.abs(e.pnl)<100&&['objetivo','stop','tiempo'].includes(e.why)&&isFinite(e.days)&&e.days>=0&&e.days<=60&&(e.gross==null||(isFinite(e.gross)&&Math.abs(e.gross)<100))&&(e.pred==null||(isFinite(e.pred.pT)&&isFinite(e.pred.ev)));}
 function learn(){
-  const mine=S.closed.filter(t=>!t.manual&&t.why!=='manual'&&!t.mom);
+  const mine=S.closed.filter(t=>S.mainManual?(!t.mom&&t.f&&t.pred):(!t.manual&&t.why!=='manual'&&!t.mom));
   const own=new Set(mine.map(t=>t.u).filter(Boolean));
   const C=mine.concat(S.apr||S.srvMode?(S.ext||[]).filter(e=>!own.has(e.u)):[]);
   if(C.length<8)S.W=Object.assign({},BASE_W);
@@ -1829,7 +1834,7 @@ async function scan(){
 let lastRes=null;
 async function quickCheck(){
   if(running)return;running=true;
-  try{await srvSync();if(!srvOn()){await updatePositions();snapshot();}}catch(e){}
+  try{await srvSync();if(portLocal()){await updatePositions();divCredit();snapshot();}}catch(e){}
   finally{running=false;lastCheck=Date.now();save();renderAll();}
 }
 async function autopilot(force,bg){
@@ -1849,9 +1854,9 @@ async function autopilot(force,bg){
       const b=$('errT');if(b)b.onclick=()=>{go('mas');$('connTest').click();};
     }else{
       if(!srvOn())await openTrades();
-      if(!srvOn())favAlerts();trkUpdate();
+      if(portLocal()){divCredit();favAlerts();}trkUpdate();
     }
-    if(!srvOn())snapshot();
+    if(portLocal())snapshot();
   }catch(e){
     $('stMsg').innerHTML='<div class="msg bad">Error: '+esc(e.message||e)+'</div>';
   }finally{
@@ -1878,7 +1883,7 @@ function renderHero(){
   $('hVal').textContent=eur(e);
   $('hDelta').innerHTML='<span class="'+(d>=0?'pos':'neg')+'">'+(d>=0?'+':'−')+nf(Math.abs(d))+' € ('+sg(d/S.cap0*100)+' %)</span>';
   const n=S.closed.length,w=S.closed.filter(t=>t.pnl>0).length;
-  $('hSub').textContent=(srvOn()?'Lo opera GitHub · ':'')+'Empezó con '+eur(S.cap0)+' · '+S.pos.length+' abiertas · '+(n?w+' de '+n+' cerradas con ganancia':'sin operaciones cerradas todavía');
+  $('hSub').textContent=(S.mainManual&&srvOn()?'La operas tú · ':srvOn()?'Lo opera GitHub · ':'')+'Empezó con '+eur(S.cap0)+' · '+S.pos.length+' abiertas · '+(n?w+' de '+n+' cerradas con ganancia':'sin operaciones cerradas todavía');
 }
 const reasons=r=>{
   const L=[];
@@ -2028,7 +2033,7 @@ function renderCar(){
   $('eqHint').textContent=S.eq.length>1?'Valor de la cartera cada vez que la app trabaja. La línea discontinua es tu capital inicial.':'La gráfica se irá llenando con cada uso.';
   $('posBox').innerHTML=(S.pos.length?S.pos.map(p=>{
     const v=posValue(p),pnl=v-p.costEur,pct=pnl/p.costEur*100,pos=Math.max(0,Math.min(100,(p.last-p.stop)/(p.target-p.stop)*100));
-    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+pxD(p.entry,p.cur)+(p.mom?' · momentum: se revisa '+FREQ[momFreq()]+'':' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays))+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+(fuChips(p.s,p.last)?'<br>'+fuChips(p.s,p.last):'')+(earnTxt(p.s)?'<br><small class="neg"><b>⚠ '+earnTxt(p.s)+'</b></small>':'')+'</div>'+
+    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+pxD(p.entry,p.cur)+(p.mom?' · momentum: se revisa '+FREQ[momFreq()]+'':' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays))+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+(fuChips(p.s,p.last)?'<br>'+fuChips(p.s,p.last):'')+(earnTxt(p.s)?'<br><small class="neg"><b>⚠ '+earnTxt(p.s)+'</b></small>':'')+(p.alert?'<br><small class="neg"><b>⚠ Llegó a su '+(p.alert==='objetivo'?'objetivo':p.alert==='stop'?'stop':'plazo')+': decide tú si vendes.</b></small>':'')+'</div>'+
       '<div class="v">'+eur(v)+'<br><small class="'+(pnl>=0?'pos':'neg')+'">'+sg(pnl,2)+' € ('+sg(pct)+' %)</small></div>'+
       '<svg class="rng" aria-hidden="true"><defs><linearGradient id="rg'+p.id+'"><stop offset="0" stop-color="#ff1f44"/><stop offset=".5" stop-color="#ffb000"/><stop offset="1" stop-color="#00c853"/></linearGradient></defs><rect x="0" y="6" width="100%" height="10" rx="5" fill="url(#rg'+p.id+')"/><circle cx="'+pos+'%" cy="11" r="9" fill="#fff" stroke="#101828" stroke-width="3.5"/></svg>'+
       '<small>Stop '+pxD(p.stop,p.cur)+'</small><small style="text-align:right">Objetivo '+pxD(p.target,p.cur)+'</small></div>'+
@@ -2274,7 +2279,7 @@ function manualBox(r){
   return '<div class="card" style="margin:12px 0 0"><b>Comprar tú a mano (simulación)</b><div class="hint">Importe en €. Usa el mismo stop y objetivo que la app, y se anota aparte para compararte con ella.</div><div style="display:flex;gap:8px;margin-top:8px"><input id="mbAmt" type="number" inputmode="decimal" value="'+dflt+'" min="20" style="flex:1"><button class="btn small" id="mbGo" data-sym="'+esc(r.s)+'" type="button">Comprar</button></div><div id="mbMsg"></div></div>';
 }
 async function buyManual(sym,amt){
-  if(srvOn()){$('mbMsg').innerHTML='<div class="msg bad">Con el piloto de GitHub activo la cartera la lleva el servidor y no admite compras a mano. Puedes desactivarlo en Más.</div>';return;}
+  if(srvOn()&&!S.mainManual){$('mbMsg').innerHTML='<div class="msg bad">Con el piloto de GitHub activo la cartera la lleva el servidor y no admite compras a mano. Puedes desactivarlo en Más.</div>';return;}
   const r=QROW[sym]||S.rows[sym],m=$('mbMsg');
   if(!r){m.innerHTML='<div class="msg bad">Primero estudia la acción.</div>';return;}
   if(S.pos.some(p=>p.s===sym)){m.innerHTML='<div class="msg bad">Ya la tienes.</div>';return;}
@@ -2284,13 +2289,13 @@ async function buyManual(sym,amt){
   if(!(sh>0)){m.innerHTML='<div class="msg bad">Importe demasiado pequeño.</div>';return;}
   const cost=sh*entryE,pred={pT:r.pT,pS:r.pS,ev:r.ev,dm:r.dm,dl:r.dl,dh:r.dh,cone:null};
   S.cash-=cost+S.com;
-  S.pos.push({pred,manual:true,id:Date.now()+Math.random(),s:r.s,nm:r.nm,cur:r.cur,shares:sh,entry:pxIn,stop:r.p-2*r.atr,target:r.p+4*r.atr,last:r.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:r.f.slice()});
+  S.pos.push({pred,manual:true,id:Date.now()+Math.random(),s:r.s,nm:r.nm,cur:r.cur,shares:sh,entry:pxIn,stop:r.p-2*r.atr,target:r.p+4*r.atr,last:r.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:r.f.slice(),cx:(()=>{try{return cxSnap(r,score10(r));}catch(e){return null;}})()});
   log('Compra a mano: <b>'+esc(sym.replace('.MC',''))+'</b> por '+eur(cost)+'.');save();renderAll();
   m.innerHTML='<div class="msg ok">Comprada por '+eur(cost)+'. La verás en Cartera con la etiqueta A MANO.</div>';
 }
 let sellArm=null;
 function sellManual(id,btn){
-  if(srvOn()){btn.textContent='Con el piloto de GitHub no se vende a mano';return;}
+  if(srvOn()&&!S.mainManual){btn.textContent='Con el piloto de GitHub no se vende a mano';return;}
   const p=S.pos.find(x=>String(x.id)===String(id));if(!p)return;
   if(sellArm!==id){sellArm=id;btn.textContent='Toca otra vez para confirmar';setTimeout(()=>{if(sellArm===id){sellArm=null;if(btn.isConnected)btn.textContent='Vender ahora (simulación)';}},4000);return;}
   sellArm=null;
