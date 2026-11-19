@@ -1060,6 +1060,7 @@ async function ghQuotes(){
     await Promise.all(need.map(async id=>{
       try{const sh=await ghJson(ghBase()+'/quotes/qi/'+encodeURIComponent(id)+'.json');if(sh&&sh.s)Object.assign(j.s,sh.s);}catch(e){}
     }));
+    try{S.idxC=(j.idx||[]).map(g=>({id:g.id,n:g.n,c:g.c,t:g.t,s:g.s,sh:g.sh}));save();}catch(e){}
     GH.q=j;GH.at=Date.now();return j;}).finally(()=>{GH.p=null;});
   return GH.p;
 }
@@ -1177,7 +1178,7 @@ function forecast(d){
   return{p,a,stop:p-2*a,target:p+4*a,cone:bootCone(rets,S.maxDays,10000)};
 }
 const noTrade=s=>s.startsWith('^')||s.startsWith('IDX:')||s.indexOf('=')>=0||/-USD$/.test(s);
-const IDX_FB=()=>[{id:'SP500',n:'S&P 500',c:'EE. UU.',t:'S&P',s:S.sp.list.length?S.sp.list:SP_FALLBACK},{id:'IBEX35',n:'IBEX 35',c:'España',t:'IBEX',s:IBEX_MC}];
+const IDX_FB=()=>(S.idxC&&S.idxC.length)?S.idxC:[{id:'SP500',n:'S&P 500',c:'EE. UU.',t:'S&P',s:S.sp.list.length?S.sp.list:SP_FALLBACK},{id:'IBEX35',n:'IBEX 35',c:'España',t:'IBEX',s:IBEX_MC}];
 const IDX=()=>(GH.q&&GH.q.idx&&GH.q.idx.length)?GH.q.idx:IDX_FB();
 const allSyms=()=>{const st=new Set();IDX().forEach(g=>{if(g.id!=='VER')g.s.forEach(x=>st.add(x));});return[...st];};
 let _tag=null,_tk='',_us=null,_uk='';
@@ -1861,7 +1862,7 @@ async function scan(){
   },(d,t)=>{progress={d,t};renderStatus();});
   progress=null;
   const set=new Set(list);Object.keys(S.rows).forEach(k=>{if(!set.has(k))delete S.rows[k];});
-  if(ok>=list.length*0.5){S.scanAt=Date.now();log('Estudió <b>'+ok+'</b> valores del S&amp;P 500 e IBEX 35.');}
+  if(ok>=list.length*0.5){S.scanAt=Date.now();log('Estudió <b>'+ok+'</b> valores de '+(IDX().filter(g=>g.id!=='VER'&&S.uni.on.includes(g.id)).length||'tus')+' índices.');}
   return {ok,total:list.length};
 }
 let lastRes=null;
@@ -2442,7 +2443,7 @@ function renderDia(){
       [['1','Sí'],['0','No']].map(([v,l])=>'<button class="btn small'+((v==='1'&&t.fp===true)||(v==='0'&&t.fp===false)?'':' ghost')+'" data-fp="'+v+'" data-u="'+esc(t.u)+'" type="button" style="padding:2px 10px;margin-left:4px">'+l+'</button>').join('')+'</div></div>').join('');
   b.onclick=e=>{const x=e.target.closest('[data-fp]');if(!x)return;const t=S.closed.find(y=>y.u===x.dataset.u);if(!t)return;const v=x.dataset.fp==='1';t.fp=t.fp===v?undefined:v;save();renderDia();};
 }
-function bkData(){const o={};for(const k of Object.keys(S)){if(['rows','shadow','shBench','sp','fx','mk','ext'].includes(k))continue;o[k]=S[k];}return JSON.stringify({tm:'backup-v1',at:Date.now(),S:o});}
+function bkData(){const o={};for(const k of Object.keys(S)){if(['rows','shadow','shBench','sp','fx','mk','ext','idxC'].includes(k))continue;o[k]=S[k];}return JSON.stringify({tm:'backup-v1',at:Date.now(),S:o});}
 $('bkCp').onclick=async()=>{const t=bkData();try{await navigator.clipboard.writeText(t);$('bkMsg').innerHTML='<div class="msg ok">Copia guardada en el portapapeles ('+Math.round(t.length/1024)+' KB). Pégala en una nota o en un mensaje a ti mismo.</div>';}catch(e){$('bkTx').value=t;$('bkTx').select();$('bkMsg').innerHTML='<div class="msg">No pude copiarla sola: está en el cuadro de abajo, selecciónala y cópiala.</div>';}};
 $('bkDl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bkData()],{type:'application/json'}));a.download='trader_copia_'+dayKey(Date.now())+'.json';document.body.appendChild(a);a.click();a.remove();};
 $('bkRs').onclick=()=>{try{const j=JSON.parse($('bkTx').value.trim());if(!j||j.tm!=='backup-v1'||!j.S)throw new Error('formato');if(!confirm('Esto sustituye tu cartera, órdenes, diario y ajustes por los de la copia. ¿Seguir?'))return;Object.assign(S,j.S);save();$('bkMsg').innerHTML='<div class="msg ok">Copia restaurada. Recargando…</div>';setTimeout(()=>location.reload(),800);}catch(e){$('bkMsg').innerHTML='<div class="msg bad">Esa copia no es válida. Pega el texto completo tal como se copió.</div>';}};

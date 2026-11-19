@@ -78,13 +78,14 @@ function indices(){
     if(m){const p=m[1].split('|').map(x=>x.trim());cur={id:p[0],n:p[1]||p[0],c:p[2]||'',t:p[3]||p[0],s:[]};out.push(cur);continue;}
     if(cur)for(const w of t.split(/[\s,;]+/))if(/^[A-Za-z0-9.^=\-]{1,14}$/.test(w))cur.s.push(w.toUpperCase());
   }
-  out.forEach(g=>{g.s=[...new Set(g.s)];});return out;
+  const seen=new Set();const u=out.filter(g=>seen.has(g.id)?false:(seen.add(g.id),true));
+  u.forEach(g=>{g.s=[...new Set(g.s)];});return u;
 }
 const EX=extras(),IX=indices();
 const SP=await sp500(),IB=IBEX.map(x=>x+'.MC');
 const FX=['EURUSD=X','EURGBP=X','EURCHF=X','EURJPY=X','EURHKD=X','EURCAD=X','EURAUD=X','EURKRW=X','EURTWD=X','EURINR=X','EURBRL=X','EURSEK=X','EURDKK=X','EURNOK=X'];
 // Índices "del núcleo" (van en q.json). El resto se publica por separado (qi/<ID>.json) y el móvil solo baja los que estudias.
-const CORE_IDS=new Set(['EUROSTOXX50','DAX40','CAC40','FTSEMIB','AEX','SMI','FTSE100']);
+const CORE_IDS=new Set(['EUROSTOXX50','DAX40','CAC40','FTSEMIB','AEX','SMI','FTSE100','NASDAQ100','DOW30']);
 const coreSyms=new Set(IB.concat(SP,FX,EX.study,EX.view,...IX.filter(g=>CORE_IDS.has(g.id)).map(g=>g.s)));
 const list=MODE==='hist'?[...coreSyms]:[...new Set([...coreSyms,...IX.flatMap(g=>g.s)])];
 const syms=LIMIT?list.slice(0,LIMIT).concat(EX.study.slice(0,3),EX.view.slice(0,2)):list;
