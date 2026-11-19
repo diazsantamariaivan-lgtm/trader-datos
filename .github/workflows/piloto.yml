@@ -36,6 +36,7 @@ jobs:
           git clone -q --depth 1 -b news "https://github.com/${{ github.repository }}.git" ndata && cp ndata/n.json n.json || echo "sin noticias"
           git clone -q --depth 1 -b ctx "https://github.com/${{ github.repository }}.git" xdata && cp xdata/x.json x.json || echo "sin contexto"
           git clone -q --depth 1 -b ana "https://github.com/${{ github.repository }}.git" adata && cp adata/a.json a.json || echo "sin analistas"
+          git clone -q --depth 1 -b mom "https://github.com/${{ github.repository }}.git" mdata && cp mdata/m.json m.json || echo "sin momentum"
           git clone -q --depth 1 -b check "https://github.com/${{ github.repository }}.git" cdata && cp cdata/c.json c.json || echo "sin contraste"
           git clone -q --depth 1 -b bot "https://github.com/${{ github.repository }}.git" botstate || echo "sin cartera previa"
       - name: Ejecutar el piloto
