@@ -1424,15 +1424,34 @@ async function srvSync(){
   }catch(e){S.srvChk=Date.now();S.srvErr=e.bad?'La clave no coincide con la de GitHub (CARTERA_CLAVE). Revísala.':/404/.test(e.message)?'Todavía no hay cartera cifrada en GitHub: se crea en la primera pasada del piloto, cuando exista el secreto CARTERA_CLAVE.':String(e.message||e);return false;}
 }
 function srvAgo(){return S.srvAt?Math.max(0,Math.round((Date.now()-S.srvAt)/60000)):null;}
+async function fillOrders(){
+  S.orders=(S.orders||[]).filter(o=>Date.now()-o.ts<30*864e5);
+  for(const o of S.orders.slice()){
+    try{
+      if(S.pos.some(p=>p.s===o.s)||S.pos.length>=12){S.orders=S.orders.filter(x=>x!==o);continue;}
+      const d=await chart(o.s,'1d','5d',0);if(!d||!d.c.length)continue;
+      const last=d.meta.regularMarketPrice||d.c[d.c.length-1],k=d.t.length-1;
+      const low=Math.min(last,...(d.t.map((t,i)=>t*1000>=o.ts?d.l[i]:Infinity)));
+      if(!(low<=o.limit))continue;
+      const px=Math.min(o.limit,last),fx=await getFx(o.cur),entryE=px/fx,sh=Math.floor(o.amt/entryE*1000)/1000;
+      if(!(sh>0)||o.amt+S.com>S.cash){log('Orden límite de <b>'+esc(o.s)+'</b> cancelada: no hay efectivo suficiente.',true);S.orders=S.orders.filter(x=>x!==o);continue;}
+      const cost=sh*entryE;S.cash-=cost+S.com;S.orders=S.orders.filter(x=>x!==o);
+      S.pos.push({pred:o.pred,manual:true,id:Date.now()+Math.random(),s:o.s,nm:o.nm,cur:o.cur,shares:sh,entry:px,stop:o.stop,target:o.target,ord:true,last,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:o.f,cx:null});
+      log('Orden límite ejecutada: <b>'+esc(o.s.replace('.MC',''))+'</b> a '+nf(px)+' '+esc(o.cur)+' ('+eur(cost)+').',true);
+    }catch(e){}
+  }
+  save();
+}
 async function updatePositions(){
   if(!portLocal())return;
+  if(S.orders&&S.orders.length)await fillOrders();
   for(const pos of S.pos.slice()){
     try{
       await getFx(pos.cur);
       if(pos.mom){const dm=await chart(pos.s,'1d','1mo',0);if(dm&&dm.c.length){const np=dm.meta.regularMarketPrice||dm.c[dm.c.length-1];adjSplit(pos,np);pos.last=np;}pos.days=Math.max(0,Math.round((Date.now()-pos.openTs)/864e5));continue;}
       const d=await chart(pos.s,'1d','3mo',0),res=evalPos(pos,d);
       pos.days=res.days;
-      if(res.done&&S.mainManual){adjSplit(pos,res.last);pos.last=res.last;if(!pos.alert){pos.alert=res.why;log('<b>'+esc(pos.s)+'</b> ha llegado a su '+(res.why==='objetivo'?'objetivo':res.why==='stop'?'stop':'plazo')+' ('+nf(res.last)+' '+esc(pos.cur)+'). Es tu cartera: decide tú si vendes.',true);}}
+      if(res.done&&S.mainManual&&!(pos.ord&&res.why!=='tiempo')){adjSplit(pos,res.last);pos.last=res.last;if(!pos.alert){pos.alert=res.why;log('<b>'+esc(pos.s)+'</b> ha llegado a su '+(res.why==='objetivo'?'objetivo':res.why==='stop'?'stop':'plazo')+' ('+nf(res.last)+' '+esc(pos.cur)+'). Es tu cartera: decide tú si vendes.',true);}}
       else if(res.done)closePos(pos,res);else{adjSplit(pos,res.last);pos.last=res.last;if(pos.alert&&S.mainManual)pos.alert=null;}
     }catch(e){}
   }
@@ -2032,8 +2051,8 @@ function renderCar(){
       '<div class="v">'+eur(v)+'<br><small class="'+(pnl>=0?'pos':'neg')+'">'+sg(pnl,2)+' € ('+sg(pct)+' %)</small></div>'+
       '<svg class="rng" aria-hidden="true"><defs><linearGradient id="rg'+p.id+'"><stop offset="0" stop-color="#ff1f44"/><stop offset=".5" stop-color="#ffb000"/><stop offset="1" stop-color="#00c853"/></linearGradient></defs><rect x="0" y="6" width="100%" height="10" rx="5" fill="url(#rg'+p.id+')"/><circle cx="'+pos+'%" cy="11" r="9" fill="#fff" stroke="#101828" stroke-width="3.5"/></svg>'+
       '<small>Stop '+pxD(p.stop,p.cur)+'</small><small style="text-align:right">Objetivo '+pxD(p.target,p.cur)+'</small></div>'+
-      '<div class="det"><canvas class="cc"></canvas>'+LEG+'<div class="hint" data-cap style="margin:8px 0 0"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn small" data-fc="1" data-id="'+p.id+'" type="button">Gráfico completo</button><button class="btn ghost small" data-sell="'+p.id+'" type="button">Vender ahora (simulación)</button></div></div></div>';
-  }).join(''):'<div class="empty">Sin posiciones abiertas.'+(S.auto?' La app comprará cuando encuentre buenas oportunidades.':'')+'</div>')+row2('Efectivo disponible',eur(S.cash));
+      '<div class="det"><canvas class="cc"></canvas>'+LEG+'<div class="hint" data-cap style="margin:8px 0 0"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn small" data-fc="1" data-id="'+p.id+'" type="button">Gráfico completo</button><button class="btn ghost small" data-sell="'+p.id+'" type="button">Vender a mercado</button></div>'+(S.mainManual?'<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:8px;align-items:end"><label class="hint" style="margin:0">Stop<input data-es="'+p.id+'" type="number" step="any" inputmode="decimal" value="'+(+p.stop).toFixed(p.stop>=100?2:3)+'"></label><label class="hint" style="margin:0">Objetivo<input data-et="'+p.id+'" type="number" step="any" inputmode="decimal" value="'+(+p.target).toFixed(p.target>=100?2:3)+'"></label><button class="btn small" data-ord="'+p.id+'" type="button">Guardar</button></div>':'')+'</div></div></div>';
+  }).join(''):'<div class="empty">Sin posiciones abiertas.'+(S.auto?' La app comprará cuando encuentre buenas oportunidades.':'')+'</div>')+((S.orders||[]).length?'<div class="hint" style="margin:10px 0 4px"><b>Órdenes pendientes</b></div>'+S.orders.map(o=>'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line,#2a2f3a)"><span>Comprar <b>'+esc(o.s.replace('.MC',''))+'</b> si baja a '+nf(o.limit)+' '+esc(o.cur)+' · '+eur(o.amt)+'<br><small class="hint">stop '+nf(o.stop)+' · objetivo '+nf(o.target)+'</small></span><button class="btn ghost small" data-cancel="'+o.id+'" type="button">Cancelar</button></div>').join(''):'')+row2('Efectivo disponible',eur(S.cash));
   drawOpenPos();
   $('clBox').innerHTML=S.closed.length?S.closed.slice(0,30).map(t=>
     '<div class="pos-row"><div><b>'+esc(t.s.replace('.MC',''))+'</b><br><small>'+({objetivo:'Objetivo',stop:'Stop',tiempo:'Por tiempo',manual:'A mano'}[t.why])+' · '+t.days+' días'+(t.pred&&t.pred.dm?' (preveía ~'+expDays(t.pred.dm)+')':'')+' · '+new Date((t.cd||dayKey(t.close))+'T12:00:00').toLocaleDateString('es-ES')+'</small></div>'+
@@ -2058,6 +2077,12 @@ function drawOpenPos(){
 $('posBox').onclick=e=>{
     const sb=e.target.closest('[data-sell]');
     if(sb){sellManual(sb.dataset.sell,sb);return;}
+    const ob=e.target.closest('[data-ord]');
+    if(ob){const p=S.pos.find(x=>String(x.id)===ob.dataset.ord);if(!p)return;const c=ob.closest('.det'),ns=parseFloat(c.querySelector('[data-es]').value),nt=parseFloat(c.querySelector('[data-et]').value);
+      if(!(ns>0)||!(nt>0)||ns>=p.last||nt<=p.last){ob.textContent='Stop < precio < objetivo';setTimeout(()=>{ob.textContent='Guardar';},2500);return;}
+      p.stop=ns;p.target=nt;delete p.stop0;p.ext=false;p.ord=true;p.alert=null;log('Órdenes de <b>'+esc(p.s)+'</b>: stop '+nf(ns)+' · objetivo '+nf(nt)+' '+esc(p.cur)+'.');save();ob.textContent='Guardado ✓';setTimeout(()=>{if(ob.isConnected)ob.textContent='Guardar';},2000);return;}
+    const cb=e.target.closest('[data-cancel]');
+    if(cb){S.orders=(S.orders||[]).filter(o=>String(o.id)!==cb.dataset.cancel);save();renderAll();return;}
     const fcb=e.target.closest('[data-fc]');
     if(fcb){const p=S.pos.find(x=>String(x.id)===fcb.dataset.id);if(p)fcOpen(p.s,S.rows[p.s],p);return;}
   const t=e.target.closest('[data-tgp]');if(!t)return;
@@ -2271,28 +2296,49 @@ function manualBox(r){
   if(noTrade(r.s))return '<div class="hint">Este valor es solo para mirar: la simulación no lo compra.</div>';
   if(S.pos.some(p=>p.s===r.s))return '';
   const dflt=Math.max(20,Math.round(Math.min(S.cash-S.com-1,equity()*S.maxPos/100)/10)*10);
-  return '<div class="card" style="margin:12px 0 0"><b>Comprar tú a mano (simulación)</b><div class="hint">Importe en €. Usa el mismo stop y objetivo que la app, y se anota aparte para compararte con ella.</div><div style="display:flex;gap:8px;margin-top:8px"><input id="mbAmt" type="number" inputmode="decimal" value="'+dflt+'" min="20" style="flex:1"><button class="btn small" id="mbGo" data-sym="'+esc(r.s)+'" type="button">Comprar</button></div><div id="mbMsg"></div></div>';
+  const st=r.p-2*r.atr,tg=r.p+4*r.atr,dp=r.p>=100?2:r.p>=1?3:4,q=v=>(+v).toFixed(dp);
+  return '<div class="card" style="margin:12px 0 0"><b>Comprar tú a mano (simulación)</b><div class="hint">Importe en €. Elige cómo comprar y, si quieres, tu propio stop y objetivo (en '+esc(r.cur)+'). Si no los tocas, usa los de la app.</div>'+
+  '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">'+
+  '<label class="hint" style="margin:0">Tipo<select id="mbT"><option value="m">A mercado (ahora, '+q(r.p)+')</option><option value="l">A precio límite</option></select></label>'+
+  '<label class="hint" style="margin:0">Importe €<input id="mbAmt" type="number" inputmode="decimal" value="'+dflt+'" min="20"></label>'+
+  '<label class="hint" style="margin:0;display:none" id="mbLw">Comprar si baja a<input id="mbLim" type="number" inputmode="decimal" step="any" value="'+q(r.p*0.98)+'"></label>'+
+  '<label class="hint" style="margin:0">Stop (vende si baja a)<input id="mbSt" type="number" inputmode="decimal" step="any" value="'+q(st)+'"></label>'+
+  '<label class="hint" style="margin:0">Objetivo (vende si sube a)<input id="mbTg" type="number" inputmode="decimal" step="any" value="'+q(tg)+'"></label></div>'+
+  '<button class="btn small" id="mbGo" data-sym="'+esc(r.s)+'" type="button" style="margin-top:10px;width:100%">Comprar</button><div id="mbMsg"></div></div>';
 }
-async function buyManual(sym,amt){
+async function buyManual(sym,amt,o){
+  o=o||{};
   if(srvOn()&&!S.mainManual){$('mbMsg').innerHTML='<div class="msg bad">Con el piloto de GitHub activo la cartera la lleva el servidor y no admite compras a mano. Puedes desactivarlo en Más.</div>';return;}
   const r=QROW[sym]||S.rows[sym],m=$('mbMsg');
   if(!r){m.innerHTML='<div class="msg bad">Primero estudia la acción.</div>';return;}
   if(S.pos.some(p=>p.s===sym)){m.innerHTML='<div class="msg bad">Ya la tienes.</div>';return;}
   if(S.pos.length>=12){m.innerHTML='<div class="msg bad">Demasiadas posiciones abiertas.</div>';return;}
   if(!(amt>=20)||amt+S.com>S.cash){m.innerHTML='<div class="msg bad">Importe entre 20 € y tu efectivo ('+eur(S.cash)+').</div>';return;}
+  const stU=isFinite(o.stop)&&o.stop>0?o.stop:r.p-2*r.atr,tgU=isFinite(o.target)&&o.target>0?o.target:r.p+4*r.atr,usr=isFinite(o.stop)||isFinite(o.target);
+  if(stU>=r.p){m.innerHTML='<div class="msg bad">El stop debe estar por debajo del precio.</div>';return;}
+  if(tgU<=r.p&&!(o.type==='l')){m.innerHTML='<div class="msg bad">El objetivo debe estar por encima del precio.</div>';return;}
+  if(o.type==='l'){
+    if(!(o.limit>0)||o.limit>=r.p*1.0005){m.innerHTML='<div class="msg bad">El precio límite debe estar por debajo del actual ('+nf(r.p)+'). Si quieres comprar ya, elige "A mercado".</div>';return;}
+    if(stU>=o.limit||tgU<=o.limit){m.innerHTML='<div class="msg bad">Stop por debajo y objetivo por encima del precio límite.</div>';return;}
+    S.orders=S.orders||[];
+    S.orders.push({id:Date.now()+Math.random(),k:'buy',s:r.s,nm:r.nm,cur:r.cur,limit:o.limit,amt,stop:stU,target:tgU,ts:Date.now(),pred:{pT:r.pT,pS:r.pS,ev:r.ev,dm:r.dm,dl:r.dl,dh:r.dh,cone:null},f:r.f.slice()});
+    log('Orden límite: comprar <b>'+esc(sym.replace('.MC',''))+'</b> a '+nf(o.limit)+' '+esc(r.cur)+' por '+eur(amt)+'.');save();renderAll();
+    m.innerHTML='<div class="msg ok">Orden puesta: se comprará si el precio baja a '+nf(o.limit)+' '+esc(r.cur)+'. Caduca a los 30 días. La ves en Cartera.</div>';return;
+  }
   const fx=await getFx(r.cur),pxIn=r.p*(1+S.slip/100),entryE=pxIn/fx,sh=Math.floor(amt/entryE*1000)/1000;
   if(!(sh>0)){m.innerHTML='<div class="msg bad">Importe demasiado pequeño.</div>';return;}
   const cost=sh*entryE,pred={pT:r.pT,pS:r.pS,ev:r.ev,dm:r.dm,dl:r.dl,dh:r.dh,cone:null};
   S.cash-=cost+S.com;
-  S.pos.push({pred,manual:true,id:Date.now()+Math.random(),s:r.s,nm:r.nm,cur:r.cur,shares:sh,entry:pxIn,stop:r.p-2*r.atr,target:r.p+4*r.atr,last:r.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:r.f.slice(),cx:(()=>{try{return cxSnap(r,score10(r));}catch(e){return null;}})()});
+  S.pos.push({pred,manual:true,id:Date.now()+Math.random(),s:r.s,nm:r.nm,cur:r.cur,shares:sh,entry:pxIn,stop:stU,target:tgU,ord:usr,last:r.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:r.f.slice(),cx:(()=>{try{return cxSnap(r,score10(r));}catch(e){return null;}})()});
   log('Compra a mano: <b>'+esc(sym.replace('.MC',''))+'</b> por '+eur(cost)+'.');save();renderAll();
   m.innerHTML='<div class="msg ok">Comprada por '+eur(cost)+'. La verás en Cartera con la etiqueta A MANO.</div>';
 }
 let sellArm=null;
 function sellManual(id,btn){
+  if(btn&&btn.textContent==='Vender a mercado'){}
   if(srvOn()&&!S.mainManual){btn.textContent='Con el piloto de GitHub no se vende a mano';return;}
   const p=S.pos.find(x=>String(x.id)===String(id));if(!p)return;
-  if(sellArm!==id){sellArm=id;btn.textContent='Toca otra vez para confirmar';setTimeout(()=>{if(sellArm===id){sellArm=null;if(btn.isConnected)btn.textContent='Vender ahora (simulación)';}},4000);return;}
+  if(sellArm!==id){sellArm=id;btn.textContent='Toca otra vez para confirmar';setTimeout(()=>{if(sellArm===id){sellArm=null;if(btn.isConnected)btn.textContent='Vender a mercado';}},4000);return;}
   sellArm=null;
   closePos(p,{px:p.last,why:'manual',days:p.days});
   S.pos=S.pos.filter(x=>x!==p);save();renderAll();
@@ -2309,7 +2355,7 @@ function fcStudyHTML(r){
     '<div class="msg '+(why.length?'':'ok')+'">'+(held?'Ya la tienes en cartera. ':'')+(why.length?'Ahora mismo la app no la compraría: '+why.join(', ')+'.':'La app la compraría hoy si hay hueco en la cartera.')+'</div>';
 }
 async function fcStudy(){
-  const sym=FC.sym,b=$('fcE');b.disabled=true;if(!$('fcA').dataset.b){$('fcA').dataset.b=1;$('fcA').addEventListener('click',e=>{const g=e.target.closest('#mbGo');if(g)buyManual(g.dataset.sym,parseFloat($('mbAmt').value));});}$('fcA').innerHTML='<div class="empty"><span class="spin"></span>Estudiando '+esc(sym)+'…</div>';
+  const sym=FC.sym,b=$('fcE');b.disabled=true;if(!$('fcA').dataset.b){$('fcA').dataset.b=1;$('fcA').addEventListener('click',e=>{const g=e.target.closest('#mbGo');if(g){const t=$('mbT').value;buyManual(g.dataset.sym,parseFloat($('mbAmt').value),{type:t,limit:parseFloat($('mbLim').value),stop:parseFloat($('mbSt').value),target:parseFloat($('mbTg').value)});}});$('fcA').addEventListener('change',e=>{if(e.target.id==='mbT')$('mbLw').style.display=e.target.value==='l'?'':'none';});}$('fcA').innerHTML='<div class="empty"><span class="spin"></span>Estudiando '+esc(sym)+'…</div>';
   try{
     const r=await analyzeRow(sym,0);if(sym!==FC.sym)return;
     if(!r)throw new Error('sin datos suficientes (hace falta al menos 60 días de histórico)');
@@ -2683,7 +2729,7 @@ document.addEventListener('visibilitychange',()=>{
   if(S.watchMode&&!wl)keepAwake(true);
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
-window.__trader={fxOf,renderDV,DV,divCredit,divDue,shCode,shParse,renderLV,bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={buyManual,fillOrders,sellManual,fxOf,renderDV,DV,divCredit,divDue,shCode,shParse,renderLV,bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
