@@ -26,6 +26,23 @@ for(let i=0;i<=45;i++){
   for(const r of rows){const s=String(r.symbol||'').trim().toUpperCase();if(!s||out.earn[s])continue;out.earn[s]=ds+(/pre/.test(r.time||'')?'a':/after/.test(r.time||'')?'d':'');}
   await sleep(300);
 }
-console.log('VIX',out.vix&&out.vix.p,'indices',Object.keys(out.idx).join(','),'dias calendario',nd,'empresas con resultados',Object.keys(out.earn).length);
+// Calendario de dividendos y splits (Nasdaq): próximos 45 días
+out.div={};out.spl={};
+for(let i=0;i<=45;i++){
+  const d=new Date(Date.now()+i*864e5);if([0,6].includes(d.getUTCDay()))continue;
+  const ds=d.toISOString().slice(0,10),H={Origin:'https://www.nasdaq.com',Referer:'https://www.nasdaq.com/'};
+  const iso=x=>{const m=/^(\d\d)\/(\d\d)\/(\d{4})$/.exec(x||'');return m?m[3]+'-'+m[1]+'-'+m[2]:'';};
+  const j=await gj('https://api.nasdaq.com/api/calendar/dividends?date='+ds,H);
+  const rows=j&&j.data&&j.data.calendar&&j.data.calendar.rows;
+  if(rows)for(const r of rows){const s=String(r.symbol||'').trim().toUpperCase();if(!s||out.div[s])continue;out.div[s]={x:iso(r.dividend_Ex_Date),p:iso(r.payment_Date),a:+r.dividend_Rate||0,y:+r.indicated_Annual_Dividend||0};}
+  await sleep(250);
+  const k=await gj('https://api.nasdaq.com/api/calendar/splits?date='+ds,H);
+  const sr=k&&k.data&&k.data.rows;
+  if(sr)for(const r of sr){const s=String(r.symbol||'').trim().toUpperCase();if(!s||out.spl[s])continue;out.spl[s]={d:iso(r.executionDate),r:String(r.ratio||'')};}
+  await sleep(250);
+}
+// Reuniones de la Fed (decisión): calendario oficial 2026
+out.macro=[{d:'2026-12-09',t:'Reunión de la Fed: decisión de tipos (14:00 hora de Nueva York)'}];
+console.log('dividendos',Object.keys(out.div).length,'splits',Object.keys(out.spl).length);console.log('VIX',out.vix&&out.vix.p,'indices',Object.keys(out.idx).join(','),'dias calendario',nd,'empresas con resultados',Object.keys(out.earn).length);
 if(!out.vix&&!Object.keys(out.idx).length){console.error('sin datos');process.exit(1);}
 mkdirSync(OUT,{recursive:true});writeFileSync(OUT+'/x.json',JSON.stringify(out));

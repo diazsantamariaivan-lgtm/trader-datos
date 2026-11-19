@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 19:15";</script>
+<script>window.BUILD="19/11/2026 19:27";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -206,6 +206,8 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <div class="card" id="posBox"><div class="empty">Sin posiciones abiertas.</div></div>
   <h2>Operaciones cerradas</h2>
   <div class="card" id="clBox"><div class="empty">Aún no hay operaciones cerradas.</div></div>
+  <h2>Próximos eventos</h2>
+  <div class="card" id="evBox"></div>
   <h2>Últimos movimientos</h2>
   <div class="card" id="movBox"><div class="empty">Aún no hay movimientos.</div></div>
 </section>
@@ -311,6 +313,8 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <label for="sMf">Cada cuánto se revisa la cartera de momentum</label><select id="sMf"><option value="w">Cada semana</option><option value="q">Cada 2 semanas</option><option value="m">Cada mes (recomendado)</option><option value="t">Cada trimestre</option></select>
     <div class="hint">La primera revisión se hace en cuanto activas la estrategia o cambias la frecuencia. En las pruebas con 20 años ninguna frecuencia superó claramente a la mensual.</div>
     <div class="hint" id="sMhint"></div>
+    <label for="sTok">Token de GitHub (opcional)</label><input id="sTok" type="password" autocomplete="off" placeholder="github_pat_…">
+    <div class="hint">Con un token que solo tenga permiso de <b>Contenidos: lectura y escritura</b> en este repositorio, la app puede cambiar la configuración del piloto (estrategia, frecuencia, carteras del laboratorio) sin que entres en GitHub. Se guarda solo en este móvil.</div>
     <label for="sMn">Acciones en la cartera de momentum</label><select id="sMn"><option value="10">10 (más concentrada)</option><option value="20">20 (recomendada)</option><option value="30">30</option><option value="40">40 (más repartida)</option></select>
     <label for="sFs">F-Score mínimo para comprar</label><select id="sFs"><option value="0">Sin mínimo</option><option value="3">3 de 9</option><option value="4">4 de 9</option><option value="5">5 de 9</option><option value="6">6 de 9</option><option value="7">7 de 9 (solo empresas sólidas)</option><option value="8">8 de 9</option></select>
     <label for="sRc">ROCE mínimo para comprar</label><select id="sRc"><option value="0">Sin mínimo</option><option value="5">5 %</option><option value="8">8 %</option><option value="10">10 %</option><option value="12">12 %</option><option value="15">15 % (negocios muy buenos)</option><option value="20">20 %</option></select>
@@ -584,9 +588,22 @@ const SH_DEF=[
   {id:'m30',n:'Mensual · 30 acciones',f:'m',N:30,filt:true},
   {id:'m20nf',n:'Mensual · 20 · SIN filtro de mercado',f:'m',N:20,filt:false}
 ];
-function momRankPure(){
+const shDefs=()=>SH_DEF.concat((Array.isArray(S.labCustom)?S.labCustom:[]).filter(c=>c&&c.id&&FREQ[c.f]).slice(0,10));
+const _rkc={};
+function momRankPure(win){
   if(!MO.d||!MO.d.s)return [];
-  return Object.entries(MO.d.s).filter(([x,v])=>v&&isFinite(v.m)&&v.p>0&&inUni(x)&&!noTrade(x)).sort((a,b)=>b[1].m-a[1].m).map(([x,v])=>({s:x,p:v.p}));
+  const k=(win===6?'m6':'m'),key=k+'|'+MO.d.t+'|'+S.uni.on.join(',');
+  if(_rkc[k]&&_rkc[k].key===key)return _rkc[k].v;
+  const v=Object.entries(MO.d.s).filter(([x,q])=>q&&isFinite(q[k])&&q.p>0&&inUni(x)&&!noTrade(x)).sort((a,b)=>b[1][k]-a[1][k]).map(([x,q])=>({s:x,p:q.p}));
+  _rkc[k]={key,v};return v;
+}
+function nextDue(f,at){
+  if(!at)return 'en la próxima pasada';
+  const d=new Date(at);
+  if(f==='w')return fmtD(new Date(at+7*864e5));
+  if(f==='q')return fmtD(new Date(at+14*864e5));
+  if(f==='t')return fmtD(new Date(Date.UTC(d.getUTCFullYear(),(Math.floor(d.getUTCMonth()/3)+1)*3,1)));
+  return fmtD(new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)));
 }
 function shDue(sh,f){
   if(!sh.at)return true;const d=(Date.now()-sh.at)/864e5;
@@ -602,8 +619,10 @@ function shadowStep(){
     const fx=fxOf('USD')||1,today=dayKey(Date.now());
     S.shadow=S.shadow||{};
     if(!S.shBench)S.shBench={d:today,x:m.p};
-    const rk=momRankPure();if(rk.length<40)return;
-    for(const d of SH_DEF){
+    const rk6=momRankPure(12),rk12=momRankPure(6);if(rk6.length<40)return;
+    const ids=new Set(shDefs().map(d=>d.id));for(const k of Object.keys(S.shadow))if(!ids.has(k))delete S.shadow[k];
+    for(const d of shDefs()){
+      const rk=d.w===6?rk12:rk6;
       const sh=S.shadow[d.id]||(S.shadow[d.id]={c:S.cap0,p:{},at:0,h:[],nt:0,d0:today});
       if(shDue(sh,d.f)){
         const on=d.filt?m.on:true,top=on?rk.slice(0,d.N):[],keep=new Set(top.map(x=>x.s));
@@ -617,7 +636,7 @@ function shadowStep(){
             if(sh.p[x.s])continue;
             const pxIn=x.p*(1+S.slip/100),per=eq/d.N;let n=Math.min(per,sh.c-S.com)*fx/pxIn;n=Math.floor(n*1000)/1000;
             if(!(n>0)||n*pxIn/fx<20)continue;
-            sh.c-=n*pxIn/fx+S.com;sh.p[x.s]=[n,x.p];sh.nt++;
+            sh.c-=n*pxIn/fx+S.com;sh.p[x.s]=[n,x.p,pxIn];sh.nt++;
           }
         }
         sh.at=Date.now();
@@ -628,20 +647,69 @@ function shadowStep(){
     }
   }catch(e){}
 }
+async function ghCfgPatch(patch){
+  const tok=localStorage.getItem('tm.tok');if(!tok)throw new Error('sin token');
+  const api='https://api.github.com/repos/'+S.gh+'/contents/bot.json',h={Authorization:'Bearer '+tok,Accept:'application/vnd.github+json'};
+  const r=await fetch(api,{headers:h});if(!r.ok)throw new Error('GitHub '+r.status+(r.status===401?' (token no válido)':''));
+  const j=await r.json(),cur=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,'')))));
+  Object.assign(cur,patch);
+  const w=await fetch(api,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},h),body:JSON.stringify({message:'Configuración cambiada desde la app',content:btoa(unescape(encodeURIComponent(JSON.stringify(cur,null,2)))),sha:j.sha})});
+  if(!w.ok)throw new Error('GitHub '+w.status+(w.status===403||w.status===404?' (el token necesita permiso de escritura en Contenidos)':''));
+}
+const labOpen=new Set();
 function renderLab(){
   const el=$('labBox');if(!el)return;
   const SHd=S.shadow;
-  if(!SHd||!Object.keys(SHd).length){el.innerHTML='<div class="empty">El laboratorio empieza a registrar en cuanto el piloto (o la app) haga su primera pasada con los datos de momentum. Aquí verás varias carteras en paralelo con la misma señal y reglas distintas.</div>';return;}
-  const m=momMarket(),b=S.shBench,bret=b&&m?(m.p/b.x-1)*100:null;
+  if(!SHd||!Object.keys(SHd).length){el.innerHTML='<div class="empty">El laboratorio empieza a registrar en cuanto el piloto (o la app) haga su primera pasada con los datos de momentum. Aquí verás varias carteras en paralelo con la misma señal y reglas distintas.</div>'+labForm();return;}
+  const m=momMarket(),b=S.shBench,bret=b&&m?(m.p/b.x-1)*100:null,fx=fxOf('USD')||1;
   const dd=h=>{let pk=0,mx=0;for(const [,e] of h){pk=Math.max(pk,e);mx=Math.max(mx,(pk-e)/pk*100);}return mx;};
-  const rows=SH_DEF.map(d=>{
+  const rows=shDefs().map(d=>{
     const sh=SHd[d.id];if(!sh||!sh.h.length)return '';
-    const e=sh.h[sh.h.length-1][1],ret=(e/S.cap0-1)*100;
-    return '<div class="fac"><div class="t"><span>'+d.n+'</span><b class="'+(ret>=0?'pos':'neg')+'">'+sg(ret,1)+' %</b></div><div class="hint" style="margin:3px 0 0">'+(bret!=null?'Frente al S&P 500: '+sg(ret-bret,1)+' puntos · ':'')+'caída máxima '+nf(dd(sh.h),1)+' % · '+Object.keys(sh.p).length+' acciones · '+sh.nt+' operaciones</div></div>';
+    const e=sh.h[sh.h.length-1][1],ret=(e/S.cap0-1)*100,open=labOpen.has(d.id);
+    let det='';
+    if(open){
+      const hold=Object.entries(sh.p).map(([x,v])=>({s:x,val:v[0]*v[1]/fx,pl:v[2]?(v[1]/v[2]-1)*100:null})).sort((a,b)=>b.val-a.val);
+      det='<div class="hint" style="margin:6px 0">Configuración: revisión <b>'+FREQ[d.f]+'</b> · <b>'+d.N+'</b> acciones · filtro de mercado <b>'+(d.filt?'sí':'no')+'</b> · señal <b>'+(d.w===6?'6-1 meses':'12-1 meses')+'</b>.<br>Última revisión: '+(sh.at?fmtD(new Date(sh.at)):'–')+' · próxima: '+nextDue(d.f,sh.at)+' · efectivo: '+eur(sh.c)+'</div>'+
+        (hold.length?hold.map(x=>'<div class="row" style="margin-top:4px"><span>'+esc(x.s)+'</span><b>'+eur(x.val)+' · '+nf(x.val/e*100,0)+' %'+(x.pl!=null?' · <span class="'+(x.pl>=0?'pos':'neg')+'">'+sg(x.pl,1)+' %</span>':'')+'</b></div>').join(''):'<div class="hint">Ahora mismo en efectivo (el mercado está en contra o aún no ha entrado).</div>')+
+        (d.id.startsWith('c')?'<div style="margin-top:8px"><button class="btn ghost small" data-labdel="'+esc(d.id)+'" type="button">Eliminar esta cartera</button></div>':'');
+    }
+    return '<div class="fac" data-labrow="'+esc(d.id)+'" style="cursor:pointer"><div class="t"><span>'+esc(d.n)+' '+(open?'▾':'▸')+'</span><b class="'+(ret>=0?'pos':'neg')+'">'+sg(ret,1)+' %</b></div><div class="hint" style="margin:3px 0 0">'+(bret!=null?'Frente al S&P 500: '+sg(ret-bret,1)+' puntos · ':'')+'caída máxima '+nf(dd(sh.h),1)+' % · '+Object.keys(sh.p).length+' acciones · '+sh.nt+' operaciones</div>'+det+'</div>';
   }).join('');
   const d0=(SHd.m20&&SHd.m20.d0)||(b&&b.d);
-  el.innerHTML='<div class="hint" style="margin:0 0 8px">Desde el '+fmtD(new Date(d0+'T12:00:00'))+', con el mismo dinero ficticio y las mismas comisiones. '+(bret!=null?'<b>S&amp;P 500: '+sg(bret,1)+' %</b>.':'')+'</div>'+rows+
-    '<div class="msg">Esto es para aprender sin riesgo: todas usan la misma señal y solo cambian las reglas. Con pocas semanas la diferencia entre ellas es pura casualidad. No cambies la estrategia por lo que veas aquí hasta tener al menos 6 meses, y mejor un año.</div>';
+  el.innerHTML='<div class="hint" style="margin:0 0 8px">Desde el '+fmtD(new Date(d0+'T12:00:00'))+', con el mismo dinero ficticio y las mismas comisiones. '+(bret!=null?'<b>S&amp;P 500: '+sg(bret,1)+' %</b>. ':'')+'Pulsa una cartera para ver su configuración y sus acciones.</div>'+rows+
+    '<div class="msg">Esto es para aprender sin riesgo: todas usan la misma señal y solo cambian las reglas. Con pocas semanas la diferencia entre ellas es pura casualidad. No cambies la estrategia por lo que veas aquí hasta tener al menos 6 meses, y mejor un año.</div>'+labForm();
+}
+function labForm(){
+  const n=(Array.isArray(S.labCustom)?S.labCustom:[]).length,tok=!!localStorage.getItem('tm.tok');
+  return '<h3 style="margin:14px 0 6px;font-size:15px">Crear otra cartera de prueba</h3>'+
+    '<div class="hint" style="margin:0 0 6px">Tienes '+n+' de 10 propias. '+(srvOn()&&!tok?'Con el piloto activo, para que la cartera exista también en el piloto hace falta el token de GitHub (Más → Ajustes del piloto) o pegar el texto que te daré en bot.json.':'')+'</div>'+
+    '<label for="lbF">Cada cuánto se revisa</label><select id="lbF"><option value="w">Cada semana</option><option value="q">Cada 2 semanas</option><option value="m" selected>Cada mes</option><option value="t">Cada trimestre</option></select>'+
+    '<label for="lbN">Número de acciones</label><select id="lbN"><option>5</option><option>10</option><option selected>20</option><option>30</option><option>40</option></select>'+
+    '<label for="lbW">Señal de momentum</label><select id="lbW"><option value="12" selected>12-1 meses (la estándar)</option><option value="6">6-1 meses (más rápida)</option></select>'+
+    '<label class="sw"><input id="lbM" type="checkbox" checked><span>Usar el filtro de mercado (S&amp;P 500 sobre su media de 200 días)</span></label>'+
+    '<div style="margin-top:8px"><button class="btn small" id="lbAdd" type="button">Añadir cartera</button></div><div class="hint" id="lbMsg"></div>';
+}
+/* ---- calendario de eventos ---- */
+const dDiff=ds=>{const t=Date.parse(ds+'T12:00:00Z');return isNaN(t)?null:Math.round((t-Date.now())/864e5);};
+function divNext(sym){const v=CX.d&&CX.d.div&&CX.d.div[sym];if(!v||!v.x)return null;const d=dDiff(v.x);return d==null||d<-0.5?null:Object.assign({d},v);}
+function evList(){
+  const set=new Set(S.pos.map(p=>p.s).concat(S.fav||[]));
+  momRankPure(12).slice(0,momN()).forEach(x=>set.add(x.s));
+  const sh=S.shadow&&S.shadow.m20;if(sh)Object.keys(sh.p).forEach(x=>set.add(x));
+  const L=[];
+  for(const x of set){
+    const e=earnDays(x);if(e&&e.d<=30)L.push({d:e.d,date:e.date,s:x,t:'Resultados'+(e.when?' ('+e.when+')':''),k:'r'});
+    const v=divNext(x);if(v&&v.d<=30)L.push({d:v.d,date:v.x,s:x,t:'Dividendo (ex): '+nf(v.a,2)+' $/acción'+(v.p?' · se paga el '+fmtD(new Date(v.p+'T12:00:00Z')):''),k:'d'});
+    const sp=CX.d&&CX.d.spl&&CX.d.spl[x];if(sp&&sp.d){const d=dDiff(sp.d);if(d!=null&&d>=0&&d<=30)L.push({d,date:sp.d,s:x,t:'Split '+sp.r,k:'s'});}
+  }
+  for(const m of (CX.d&&CX.d.macro)||[]){const d=dDiff(m.d);if(d!=null&&d>=0&&d<=45)L.push({d,date:m.d,s:'',t:m.t,k:'m'});}
+  return L.sort((a,b)=>a.d-b.d||a.s.localeCompare(b.s)).slice(0,30);
+}
+function renderEv(){
+  const el=$('evBox');if(!el)return;
+  if(!CX.d){el.innerHTML='<div class="empty">Cargando el calendario…</div>';return;}
+  const L=evList();
+  el.innerHTML=L.length?'<div class="hint" style="margin:0 0 6px">De tus posiciones, favoritas y de las acciones del ranking de momentum (solo EE. UU.; las fechas pueden cambiar):</div>'+L.map(x=>'<div class="row" style="margin-top:6px"><span><b>'+fmtD(new Date(x.date+'T12:00:00Z'))+'</b> · '+(x.s?esc(x.s)+' · ':'')+x.t+'</span><b>'+(x.d<=0?'hoy':x.d===1?'mañana':'en '+x.d+' d')+'</b></div>').join(''):'<div class="empty">No hay eventos en los próximos 30 días.</div>';
 }
 /* ---- opinión de analistas (EE. UU.) ---- */
 const AN={d:null,chk:0};
@@ -705,6 +773,7 @@ function fundHTML(sym,price,rr){
   else L.push('<li><b>ROCE:</b> no aplicable (bancos y aseguradoras no lo calculan así).</li>');
   if(f.fs!=null)L.push('<li><b>F-Score de Piotroski:</b> '+f.fs+' de '+f.fn+' ('+fsLbl(f.fs,f.fn)+'). Cuenta cuántas señales de salud financiera cumple (beneficios, caja, deuda, márgenes, rentabilidad) comparando los dos últimos balances anuales.</li>');
   if(di){
+    {const dn=divNext(sym);if(dn)L.push('<li><b>Próximo dividendo:</b> fecha ex '+fmtD(new Date(dn.x+'T12:00:00Z'))+(dn.p?', pago el '+fmtD(new Date(dn.p+'T12:00:00Z')):'')+', '+nf(dn.a,2)+' $ por acción ('+(dn.d<=0?'hoy':dn.d===1?'mañana':'en '+dn.d+' días')+'). Para cobrarlo hay que tener la acción antes de la fecha ex.</li>');}
     if(!di.paga)L.push('<li><b>Dividendo:</b> no paga dividendo.</li>');
     else L.push('<li><b>Dividendo:</b> '+(di.y!=null?'rentabilidad '+nf(di.y,2)+' % · ':'')+'se paga '+di.n+' '+(di.n===1?'vez':'veces')+' al año · '+di.rec+' · '+di.grow+(di.cut?' · <span class="neg">recortó el último año</span>':'')+(di.y>8?' · <span class="neg">rentabilidad muy alta: a veces avisa de problemas</span>':'')+'.</li>');
   }
@@ -1096,7 +1165,7 @@ async function srvSync(){
     if(j.at>S.srvAt){
       SRV_K.forEach(k=>{if(j.S[k]!==undefined)S[k]=j.S[k];});
       const c=j.config||{};
-      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;if(c.estrategia!=null)S.modo=c.estrategia;if(c.revision_momentum!=null)S.momFreq=c.revision_momentum;if(c.momentum_n!=null)S.momN=+c.momentum_n;if(c.analistas!=null)S.anOn=!!c.analistas;if(c.mercado_vigilar!=null)S.regOn=!!c.mercado_vigilar;if(c.resultados_dias!=null)S.earnD=+c.resultados_dias;if(c.fscore_minimo!=null)S.minFs=+c.fscore_minimo;if(c.roce_minimo_pct!=null)S.minRoc=+c.roce_minimo_pct;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
+      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;if(c.estrategia!=null)S.modo=c.estrategia;if(Array.isArray(c.laboratorio))S.labCustom=c.laboratorio;if(c.revision_momentum!=null)S.momFreq=c.revision_momentum;if(c.momentum_n!=null)S.momN=+c.momentum_n;if(c.analistas!=null)S.anOn=!!c.analistas;if(c.mercado_vigilar!=null)S.regOn=!!c.mercado_vigilar;if(c.resultados_dias!=null)S.earnD=+c.resultados_dias;if(c.fscore_minimo!=null)S.minFs=+c.fscore_minimo;if(c.roce_minimo_pct!=null)S.minRoc=+c.roce_minimo_pct;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
       S.srvAt=j.at;
     }
     return true;
@@ -1786,6 +1855,32 @@ function renderCx(){
   h+=C.length<30?'<div class="msg">Con '+C.length+' operaciones los porcentajes saltan mucho por azar. No cambies filtros por lo que veas aquí hasta tener al menos 30.</div>':'';
   $('cxBox').innerHTML=h;
 }
+function labClick(e){
+  const del=e.target.closest('[data-labdel]');
+  if(del){labDelete(del.dataset.labdel);return;}
+  if(e.target.closest('#lbAdd')){labAdd();return;}
+  if(e.target.closest('select,input,label,button'))return;
+  const r=e.target.closest('[data-labrow]');if(!r)return;
+  const id=r.dataset.labrow;if(labOpen.has(id))labOpen.delete(id);else labOpen.add(id);renderLab();
+}
+async function labSave(list){
+  S.labCustom=list;save();
+  if(srvOn()){
+    try{await ghCfgPatch({laboratorio:list});$('lbMsg')&&($('lbMsg').textContent='Guardado en el piloto: aparecerá en su próxima pasada (unos minutos).');}
+    catch(e){const m=$('lbMsg');if(m)m.innerHTML='No se pudo guardar en el piloto ('+esc(e.message||e)+'). Para que exista en el piloto, pega esto en <code>"laboratorio"</code> de bot.json:<br><code style="word-break:break-all">'+esc(JSON.stringify(list))+'</code>';}
+  }
+  renderLab();
+}
+function labAdd(){
+  const list=(Array.isArray(S.labCustom)?S.labCustom.slice():[]);
+  if(list.length>=10){$('lbMsg').textContent='Máximo 10 carteras propias.';return;}
+  const f=$('lbF').value,N=+$('lbN').value,w=+$('lbW').value,filt=$('lbM').checked;
+  if(list.some(c=>c.f===f&&c.N===N&&c.w===w&&c.filt===filt)||SH_DEF.some(c=>c.f===f&&c.N===N&&c.filt===filt&&w===12)){$('lbMsg').textContent='Ya existe una cartera con esa configuración.';return;}
+  const id='c'+Date.now().toString(36);
+  list.push({id,n:'Propia · '+FREQ[f]+' · '+N+' acc. · '+(w===6?'6-1':'12-1')+(filt?'':' · sin filtro'),f,N,w,filt});
+  labSave(list);
+}
+function labDelete(id){labSave((Array.isArray(S.labCustom)?S.labCustom:[]).filter(c=>c.id!==id));}
 function renderPred(){
   const P=S.closed.filter(t=>!t.manual&&t.why!=='manual'&&t.pred&&isFinite(t.pred.pT)&&isFinite(t.gross));
   if(!P.length){$('predBox').innerHTML='<div class="empty">Cuando la app cierre operaciones, aquí comparará lo que previó con lo que pasó de verdad y corregirá sus previsiones.</div>';return;}
@@ -1799,7 +1894,7 @@ function renderPred(){
   h+='<div style="margin-top:12px">'+P.slice(0,8).map(t=>'<div class="log"><b>'+esc(t.s.replace('.MC',''))+'</b> · preveía '+sg(t.pred.ev,1)+' % · salió <b class="'+(t.gross>=0?'pos':'neg')+'">'+sg(t.gross,1)+' %</b> · '+(t.gross>=t.pred.ev?'mejor':'peor')+' de lo previsto</div>').join('')+'</div>';
   $('predBox').innerHTML=h;
 }
-function renderAll(){renderHero();renderStatus();renderLog();renderCar();renderApr();renderLab();renderCx();renderPred();renderTop();renderMer();renderNews();}
+function renderAll(){renderHero();renderStatus();renderLog();renderCar();renderApr();renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();}
 
 /* ====================== gráfico completo (estilo broker) ====================== */
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
@@ -2189,9 +2284,10 @@ $('sDays').oninput=()=>{
 };
 $('sNv').checked=S.vetoNews!==false;$('sNv').onchange=e=>{S.vetoNews=e.target.checked;save();renderAll();};
 $('sComb').checked=S.comb!==false;$('sComb').onchange=e=>{S.comb=e.target.checked;S.rows&&save();renderAll();};
-$('sMd').value=modoMom()?'mom':'rap';$('sMd').onchange=()=>{S.modo=$('sMd').value;S.momMonth='';S.momAt=0;save();renderAll();};
-$('sMf').value=momFreq();$('sMf').onchange=()=>{S.momFreq=$('sMf').value;S.momAt=0;save();renderAll();};
-$('sMn').value=String(momN());$('sMn').onchange=()=>{S.momN=+$('sMn').value;save();renderAll();};
+const cfgW=async(patch,loc)=>{try{await ghCfgPatch(patch);toast('Guardado en el piloto: se aplica en su próxima pasada');}catch(e){toast('No se pudo guardar: '+(e.message||e));}};
+$('sMd').value=modoMom()?'mom':'rap';$('sMd').onchange=()=>{if(srvOn()){cfgW({estrategia:$('sMd').value});return;}S.modo=$('sMd').value;S.momMonth='';S.momAt=0;save();renderAll();};
+$('sMf').value=momFreq();$('sMf').onchange=()=>{if(srvOn()){cfgW({revision_momentum:$('sMf').value});return;}S.momFreq=$('sMf').value;S.momAt=0;save();renderAll();};
+$('sMn').value=String(momN());$('sMn').onchange=()=>{if(srvOn()){cfgW({momentum_n:+$('sMn').value});return;}S.momN=+$('sMn').value;save();renderAll();};
 $('sFs').value=String(S.minFs||0);$('sFs').onchange=()=>{S.minFs=+$('sFs').value;save();renderAll();};
 $('sRc').value=String(S.minRoc||0);$('sRc').onchange=()=>{S.minRoc=+$('sRc').value;save();renderAll();};
 $('sReg').checked=S.regOn!==false;$('sReg').onchange=e=>{S.regOn=e.target.checked;save();renderAll();};
@@ -2218,7 +2314,7 @@ function renderSrv(){
   const a=srvAgo(),m=$('sSrvMsg');
   m.innerHTML=!S.srv?'<div class="hint">Desactivado.</div>':!S.srvKey?'<div class="msg bad">Falta la clave. Escríbela arriba (la misma frase del secreto CARTERA_CLAVE en GitHub) y aparecerá tu cartera. Mientras tanto la app opera sola, en este móvil.</div>':a!=null?'<div class="msg '+(a<=45?'ok':'')+'">Cartera del servidor: última pasada hace '+(a<90?a+' min':nf(a/60,1)+' h')+(a>60?' (fuera del horario de bolsa no opera)':'')+'.</div>':'<div class="msg">'+esc(S.srvErr||'Esperando la primera pasada del piloto.')+'</div>';
   $('sSrvEd').href='https://github.com/'+S.gh+'/edit/main/bot.json';
-  try{const on=srvOn();['sMd','sMf','sMn'].forEach(i=>{$(i).disabled=on;});$('sMhint').innerHTML=on?'<b>Con el piloto activo, estos tres ajustes los manda el piloto</b> (aquí ves su valor actual). Para cambiarlos edita <code>estrategia</code>, <code>revision_momentum</code> y <code>momentum_n</code> en bot.json con el enlace de «Cambiar la configuración del piloto». Se aplican en su siguiente pasada.':'';$('sMd').value=modoMom()?'mom':'rap';$('sMf').value=momFreq();$('sMn').value=String(momN());}catch(e){}
+  try{const on=srvOn()&&!localStorage.getItem('tm.tok');['sMd','sMf','sMn'].forEach(i=>{$(i).disabled=on;});$('sMhint').innerHTML=on?'<b>Con el piloto activo, estos tres ajustes los manda el piloto</b> (aquí ves su valor actual). Para cambiarlos edita <code>estrategia</code>, <code>revision_momentum</code> y <code>momentum_n</code> en bot.json con el enlace de «Cambiar la configuración del piloto». Se aplican en su siguiente pasada.':'';$('sMd').value=modoMom()?'mom':'rap';$('sMf').value=momFreq();$('sMn').value=String(momN());}catch(e){}
 }
 function renderApr2(){
   $('sApr').checked=S.apr;$('sAprT').value=S.aprT;
@@ -2228,6 +2324,9 @@ function renderApr2(){
 $('sApr').onchange=async()=>{S.apr=$('sApr').checked;save();if(S.apr){await aprSync();aprFlush();}learn();save();renderApr2();renderAll();};
 $('sAprT').onchange=()=>{S.aprT=$('sAprT').value.trim().replace(/[^A-Za-z0-9_-]/g,'');save();aprFlush();renderApr2();};
 $('sKey').value=S.srvKey;
+try{$('sTok').value=localStorage.getItem('tm.tok')||'';}catch(e){}
+$('labBox').addEventListener('click',labClick);
+$('sTok').onchange=()=>{try{const v=$('sTok').value.trim();if(v)localStorage.setItem('tm.tok',v);else localStorage.removeItem('tm.tok');}catch(e){}renderSrv();renderAll();};
 $('sKey').onchange=async()=>{S.srvKey=$('sKey').value.trim();try{localStorage.setItem('tm.key',S.srvKey);}catch(e){}S.srvAt=0;S.srvErr='';save();await srvSync();save();renderSrv();renderAll();};
 $('sSrv').onchange=async e=>{S.srv=e.target.checked;if(!S.srv)S.srvAt=0;save();if(S.srv){await srvSync();save();}renderSrv();renderAll();};
 $('sWatch').checked=S.watchMode;

@@ -22,5 +22,6 @@
   "activo": true,
   "estrategia": "mom",
   "momentum_n": 20,
-  "revision_momentum": "m"
+  "revision_momentum": "m",
+  "laboratorio": []
 }
