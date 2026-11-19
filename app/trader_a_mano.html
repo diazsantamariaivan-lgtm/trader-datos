@@ -338,6 +338,17 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <a class="btn ghost small" id="sSrvEd" target="_blank" rel="noopener" style="margin-top:8px;display:inline-block">Cambiar la configuración del piloto (en GitHub)</a>
   </div>
 
+  <h2>Compartir con un amigo</h2>
+  <div class="card">
+    <div class="hint" style="margin:0 0 8px">Tu amigo abre el mismo enlace y tiene <b>su propia cartera y sus propias 100 carteras de laboratorio</b> en su móvil: no ve nada tuyo ni tú de él. Los datos de mercado, análisis y noticias los recibe del mismo sitio que tú.</div>
+    <button class="btn small" id="shLink" type="button">Compartir la app</button>
+    <div class="hint" style="margin:10px 0 6px">Las 100 reglas de base darán a los dos los mismos resultados (el mercado es el mismo). Lo que aporta información nueva son las <b>carteras distintas que crea cada uno</b>: intercambiad vuestros códigos.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="shExp" type="button">Copiar mis carteras propias</button><button class="btn ghost small" id="shSet" type="button">Copiar mis ajustes</button></div>
+    <label for="shIn" style="margin-top:10px">Pegar el código de un amigo</label><textarea id="shIn" rows="2" placeholder="TM1:…" style="width:100%"></textarea>
+    <div style="margin-top:6px"><button class="btn small" id="shImp" type="button">Añadir sus carteras al laboratorio</button></div>
+    <div id="shMsg" class="hint"></div>
+  </div>
+
   <h2>Aprender en común</h2>
   <div class="card">
     <label class="sw" style="padding-top:0"><input id="sApr" type="checkbox"><span>Aprender también de las operaciones de otros<br><small class="mut">Cuando una operación tuya se cierra, se comparte solo qué señales cumplía y si salió bien o mal (nada de nombres de acciones, importes ni fechas). Y esta app aprende también de las de los demás. Hace falta el mismo «tema compartido» en todas las apps.</small></span></label>
@@ -811,6 +822,33 @@ function renderLV(){
 }
 $('lvBox').addEventListener('click',e=>{const r=e.target.closest('[data-lvrow]');if(!r||e.target.closest('[data-study]'))return;const id=r.dataset.lvrow;LV.open.has(id)?LV.open.delete(id):LV.open.add(id);renderLV();});
 $('lvBox').addEventListener('change',e=>{if(e.target.id==='lvS')LV.sort=e.target.value;else if(e.target.id==='lvF')LV.flt=e.target.value;else return;renderLV();});
+/* ---- compartir con un amigo ---- */
+function shMsg(h){const m=$('shMsg');if(m)m.innerHTML=h;}
+async function shCopy(t){try{await navigator.clipboard.writeText(t);return true;}catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();let ok=false;try{ok=document.execCommand('copy');}catch(x){}a.remove();return ok;}}
+function shCode(){return 'TM1:'+btoa(unescape(encodeURIComponent(JSON.stringify((Array.isArray(S.labCustom)?S.labCustom:[]).map(c=>({f:c.f,N:c.N,w:c.w===6?6:12,filt:!!c.filt}))))));}
+function shParse(t){
+  t=String(t||'').trim();if(!t.startsWith('TM1:'))throw new Error('El código tiene que empezar por TM1:');
+  const j=JSON.parse(decodeURIComponent(escape(atob(t.slice(4).replace(/\s/g,'')))));
+  if(!Array.isArray(j)||j.length>20)throw new Error('Código no válido');
+  return j.filter(c=>c&&FREQ[c.f]&&Number.isInteger(c.N)&&c.N>=5&&c.N<=50&&(c.w===6||c.w===12)&&typeof c.filt==='boolean').map(c=>({f:c.f,N:c.N,w:c.w,filt:c.filt}));
+}
+$('shLink').onclick=async()=>{const url=location.origin+location.pathname,txt='Trader a mano: app para estudiar trading con dinero ficticio. Ábrela en el móvil y añádela a la pantalla de inicio: '+url;
+  try{if(navigator.share){await navigator.share({title:'Trader a mano',text:txt,url});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+  shMsg(await shCopy(txt)?'Enlace copiado: pégalo en WhatsApp.':'Copia este enlace: <code>'+esc(url)+'</code>');};
+$('shExp').onclick=async()=>{if(!(S.labCustom||[]).length){shMsg('Aún no has creado carteras propias (Aprende → Laboratorio).');return;}shMsg(await shCopy(shCode())?'Código copiado: envíaselo a tu amigo.':'No se pudo copiar.');};
+$('shSet').onclick=async()=>{const t='Ajustes de Trader a mano: revisión '+FREQ[momFreq()]+', '+momN()+' acciones, filtro de mercado '+(S.momFilt===false?'no':'sí')+', señal '+(S.momW===6?'6-1':'12-1')+', F-Score mínimo '+(S.minFs||0)+', ROCE mínimo '+(S.minRoc||0)+' %, evitar resultados a '+(S.earnD==null?5:S.earnD)+' días, vigilar mercado '+(S.regOn!==false?'sí':'no')+', analistas '+(S.anOn!==false?'sí':'no')+', vetar noticias negativas '+(S.vetoNews!==false?'sí':'no')+'.';shMsg(await shCopy(t)?'Ajustes copiados como texto.':'<code>'+esc(t)+'</code>');};
+$('shImp').onclick=()=>{
+  try{
+    const inc=shParse($('shIn').value),list=(Array.isArray(S.labCustom)?S.labCustom.slice():[]);let n=0,dup=0;
+    for(const c of inc){
+      if(list.length>=10)break;
+      if(list.some(x=>x.f===c.f&&x.N===c.N&&x.w===c.w&&x.filt===c.filt)||SH_DEF.some(x=>x.f===c.f&&x.N===c.N&&x.filt===c.filt&&c.w===12)||GRID.some(x=>x.f===c.f&&x.N===c.N&&x.filt===c.filt&&x.w===c.w)){dup++;continue;}
+      list.push({id:'c'+Date.now().toString(36)+n,n:'Amigo · '+FREQ[c.f]+' · '+c.N+' acc. · '+(c.w===6?'6-1':'12-1')+(c.filt?'':' · sin filtro'),f:c.f,N:c.N,w:c.w,filt:c.filt});n++;
+    }
+    labSave(list);$('shIn').value='';
+    shMsg(n?'Añadidas '+n+' carteras al laboratorio'+(dup?' ('+dup+' ya existían entre las 100 o las tuyas)':'')+'.':'No se añadió ninguna: '+(dup?'ya existían todas.':'el código no traía carteras válidas, o ya tienes 10 propias.'));
+  }catch(e){shMsg('No se pudo leer el código: '+esc(e.message||e));}
+};
 /* ---- calendario de eventos ---- */
 const dDiff=ds=>{const t=Date.parse(ds+'T12:00:00Z');return isNaN(t)?null:Math.round((t-Date.now())/864e5);};
 function divNext(sym){const v=CX.d&&CX.d.div&&CX.d.div[sym];if(!v||!v.x)return null;const d=dDiff(v.x);return d==null||d<-0.5?null:Object.assign({d},v);}
@@ -2567,7 +2605,7 @@ document.addEventListener('visibilitychange',()=>{
   if(S.watchMode&&!wl)keepAwake(true);
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
-window.__trader={renderLV,bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={shCode,shParse,renderLV,bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
