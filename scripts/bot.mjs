@@ -140,7 +140,7 @@ if (hh >= 21 && S.sumDay !== today && NTFY) {
 await until(() => !S.outbox.length, 20000);
 w.localStorage.setItem(KEY, JSON.stringify(S));
 
-const KEEP = ['ext', 'cap0', 'cash', 'pos', 'closed', 'eq', 'log', 'W', 'cal', 'buyDay', 'buysToday', 'brakeDay', 'startedAt', 'favAl', 'sumDay', 'trk', 'fx', 'momAt', 'momMonth', 'shadow', 'shBench', 'labGrid', 'lrn', 'lrnLog', 'momFilt', 'momW', 'lrnDay'];
+const KEEP = ['ext', 'cap0', 'cash', 'pos', 'closed', 'eq', 'log', 'W', 'cal', 'buyDay', 'buysToday', 'brakeDay', 'startedAt', 'favAl', 'sumDay', 'trk', 'fx', 'momAt', 'momMonth', 'shadow', 'shBench', 'labGrid', 'lrn', 'lrnLog', 'momFilt', 'momW', 'lrnDay', 'divDone'];
 const outS = {}; KEEP.forEach(k => { if (S[k] !== undefined) outS[k] = S[k]; });
 const eq = T.equity();
 const state = { at: Date.now(), resetId: cfg.reinicio, equity: eq, config: cfg, S: outS };
@@ -151,5 +151,6 @@ writeFileSync(OUT + '/aprendizaje.json', JSON.stringify({ at: Date.now(), t: poo
 writeFileSync(OUT + '/state.enc.json', JSON.stringify(enc(state)));
 // los avisos se mandan después de guardar la cartera (paso siguiente del workflow)
 writeFileSync('ntfy-queue.json', JSON.stringify(NTFYQ));
+console.log('Laboratorio:', Object.keys(S.shadow || {}).length, 'carteras · aprendido:', JSON.stringify(S.lrn || null));
 console.log('Cartera', eq.toFixed(2), '€ · efectivo', S.cash.toFixed(2), '· abiertas', S.pos.length, '· cerradas', S.closed.length, '· errores', errs.slice(0, 2));
 process.exit(0);
