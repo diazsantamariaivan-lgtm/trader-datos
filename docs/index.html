@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 20:17";</script>
+<script>window.BUILD="19/11/2026 20:24";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -2097,7 +2097,8 @@ function renderAll(){try{renderLV();}catch(e){}renderHero();renderStatus();rende
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
 const QROW={};
 const FC_R=[['1mo','1M'],['3mo','3M'],['6mo','6M'],['1y','1A'],['5y','5A']];
-const fp=v=>nf(v,v<1?4:2);
+const fcCur=()=>{const c=FC.d&&FC.d.meta&&FC.d.meta.currency;return(dispEur()&&c&&c!=='EUR'&&S.fx[c]&&S.fx[c].v>0)?c:null;};
+const fp=v=>{const c=fcCur();if(c)v=v/S.fx[c].v;return nf(v,v<1?4:2);};
 function fcSma(c,n){const o=new Array(c.length).fill(null);let s=0;for(let i=0;i<c.length;i++){s+=c[i];if(i>=n)s-=c[i-n];if(i>=n-1)o[i]=s/n;}return o;}
 function fcPivots(d,a,b){
   const w=Math.max(2,Math.round((b-a+1)/25)),H=[],L=[];
@@ -2190,8 +2191,9 @@ function fcInfo(){
 }
 function fcHead(){
   const d=FC.d,sym=FC.sym;$('fcS').textContent=sym.replace('.MC','').replace('IDX:','Índice ');$('fcN').textContent=FC.nm||(d&&d.meta&&d.meta.shortName)||'';
-  if(!d)return;const n=d.c.length,p=d.meta.regularMarketPrice||d.c[n-1],prev=n>1?d.c[n-2]:p,ch=(p/prev-1)*100;
-  $('fcP').textContent=fp(p)+(d.meta.currency?' '+d.meta.currency:'');$('fcC').className=ch>=0?'pos':'neg';$('fcC').textContent=sg(ch,2)+' % último día';
+  if(!d)return;const cu0=d.meta&&d.meta.currency;if(dispEur()&&cu0&&cu0!=='EUR'&&!(S.fx[cu0]&&S.fx[cu0].v>0)&&!FC._fx){FC._fx=1;getFx(cu0).then(()=>{FC._fx=0;if(FC.d===d){fcHead();fcDraw();fcInfo();}}).catch(()=>{FC._fx=0;});}
+  const n=d.c.length,p=d.meta.regularMarketPrice||d.c[n-1],prev=n>1?d.c[n-2]:p,ch=(p/prev-1)*100;
+  $('fcP').textContent=fp(p)+' '+(fcCur()?'€':(d.meta.currency||''))+(d.meta.currency&&d.meta.currency!=='EUR'?' ⇄':'');$('fcC').className=ch>=0?'pos':'neg';$('fcC').textContent=sg(ch,2)+' % último día';
 }
 function fcRecent(){if(!FC.d)return;const n=FC.d.c.length;if(n>60){FC.a=n-45;FC.b=n-1;}}
 function fcOpts(){
@@ -2366,6 +2368,8 @@ $('mHead').onchange=e=>{
 };
 $('mS').onclick=e=>{const b=e.target.closest('[data-s]');if(!b)return;M.s=b.dataset.s;M.n=60;renderMer();};
 $('mMore').onclick=()=>{M.n+=60;renderMer();};
+$('fcP').style.cursor='pointer';
+$('fcP').addEventListener('click',()=>{try{localStorage.setItem('tm.disp',dispEur()?'nat':'eur');}catch(e){}try{$('sDisp').value=dispEur()?'eur':'nat';}catch(e){}fcHead();fcDraw();fcInfo();try{renderAll();}catch(e){}});
 document.addEventListener('click',e=>{const o=e.target.closest('[data-study]');if(!o)return;e.stopPropagation();const x=o.dataset.study;fcOpen(x,S.rows[x]||QROW[x]);},true);
 $('mList').onclick=e=>{
   const st=e.target.closest('[data-star]');
