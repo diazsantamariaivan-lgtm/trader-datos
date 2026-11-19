@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="19/11/2026 20:02";</script>
+<script>window.BUILD="19/11/2026 20:08";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -54,7 +54,7 @@ body{background:var(--bg);color:var(--tx);font:15px/1.45 var(--sans);display:fle
 main{flex:1;overflow-y:auto;padding:16px 16px 28px;-webkit-overflow-scrolling:touch}
 section{display:none;max-width:560px;margin:0 auto}
 section.on{display:block}
-nav{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);background:var(--nav)}
+nav{display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--line);background:var(--nav)}
 nav button{background:none;border:0;color:var(--mut);padding:9px 2px 11px;font:600 11.5px var(--sans);cursor:pointer;border-top:2px solid transparent}
 nav button.on{color:var(--tx);border-top-color:var(--blue)}
 nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block;margin:0 auto 3px}
@@ -237,6 +237,11 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <div id="eList"></div>
 </section>
 
+<section id="t-lab">
+  <h2 style="margin-top:0">Laboratorio en vivo</h2>
+  <div id="lvBox"></div>
+</section>
+
 <section id="t-apr">
   <div class="card" id="aprSum"></div>
   <h2>Previsión contra realidad</h2>
@@ -277,7 +282,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <h2>Cómo trabaja</h2>
   <div class="card" style="font-size:14px;color:var(--mut)">
     <p style="margin-top:0"><b class="mut" style="color:var(--tx)">1. Estudia</b> cada vez que la abres todas las empresas del S&amp;P 500 y del IBEX 35: tendencia, fuerza (RSI), cercanía a máximos e impulso.</p>
-    <p><b style="color:var(--tx)">2. Simula</b> 10.000 veces cómo podría moverse cada una en los próximos días, repitiendo sus movimientos recientes, y calcula la probabilidad de llegar al objetivo antes que al stop y cuántos días tardaría.</p>
+    <p><b style="color:var(--tx)">2. Simula</b> 10.000 veces (100.000 cuando abres su estudio) cómo podría moverse cada una en los próximos días, repitiendo sus movimientos recientes, y calcula la probabilidad de llegar al objetivo antes que al stop y cuántos días tardaría.</p>
     <p><b style="color:var(--tx)">3. Opera</b> en su cartera ficticia con las mejores, con riesgo limitado y comisiones de 1 € por orden.</p>
     <p style="margin-bottom:0"><b style="color:var(--tx)">4. Aprende</b>: cuando cierra una operación, anota qué señales tenía y si ganó. Con el tiempo da más peso a las que mejor funcionan.</p>
   </div>
@@ -371,6 +376,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <button data-t="car" type="button"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Cartera</button>
   <button data-t="mer" type="button"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>Mercado</button>
   <button data-t="apr" type="button"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>Aprende</button>
+  <button data-t="lab" type="button"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 001.8 3h10.4a2 2 0 001.8-3l-5-9V3"/><path d="M7.5 15h9"/></svg>Lab</button>
   <button data-t="mas" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>Más</button>
 </nav>
 
@@ -625,7 +631,7 @@ function shDue(sh,f){
   if(f==='t')return qKey(sh.at)!==qKey();
   return monthKey(sh.at)!==monthKey();
 }
-function shEq(sh,fx){let e=sh.c;for(const [x,v] of Object.entries(sh.p)){const q=MO.d.s[x],px=q&&q.p?q.p:v[1];const k=splitRatio(v[1],px,x);if(k!==1){v[0]=Math.round(v[0]*k*1000)/1000;if(v[2])v[2]/=k;}v[1]=px;e+=v[0]*px/fx;}return e;}
+function shEq(sh,fx){let e=sh.c;for(const [x,v] of Object.entries(sh.p)){const q=MO.d.s[x],rw=S.rows&&S.rows[x],mp=q&&q.p?q.p:v[1],px=(rw&&rw.p>0&&Math.abs(rw.p/mp-1)<0.25)?rw.p:mp;const k=splitRatio(v[1],px,x);if(k!==1){v[0]=Math.round(v[0]*k*1000)/1000;if(v[2])v[2]/=k;}v[1]=px;e+=v[0]*px/fx;}return e;}
 function shadowStep(){
   try{
     if(!modoMom()||!MO.d||!CX.d||Date.now()/1000-MO.d.t>4*86400)return;
@@ -767,6 +773,49 @@ function labForm(){
     '<label class="sw"><input id="lbM" type="checkbox" checked><span>Usar el filtro de mercado (S&amp;P 500 sobre su media de 200 días)</span></label>'+
     '<div style="margin-top:8px"><button class="btn small" id="lbAdd" type="button">Añadir cartera</button></div><div class="hint" id="lbMsg"></div>';
 }
+/* ---- pestaña Lab: todas las carteras en vivo ---- */
+const LV={sort:'ret',flt:'all',open:new Set()};
+function renderLV(){
+  const el=$('lvBox');if(!el||!$('t-lab').classList.contains('on'))return;
+  const SHd=S.shadow;
+  if(!SHd||!Object.keys(SHd).length){el.innerHTML='<div class="empty">El laboratorio empieza a registrar en cuanto el piloto (o la app) haga su primera pasada con los datos de momentum.</div>';return;}
+  const m=momMarket(),b=S.shBench,fx=fxOf('USD')||1;
+  const dd=h=>{let pk=0,mx=0;for(const [,e] of h){pk=Math.max(pk,e);mx=Math.max(mx,(pk-e)/pk*100);}return mx;};
+  const L=[];
+  for(const d of shDefs()){
+    const sh=SHd[d.id];if(!sh||!sh.h.length)continue;
+    const e=sh.h[sh.h.length-1][1],ret=(e/S.cap0-1)*100,bb=sh.bx||(b&&b.x),br=bb&&m?(m.p/bb-1)*100:null;
+    const hold=Object.entries(sh.p).map(([x,v])=>({s:x,val:v[0]*v[1]/fx,pl:v[2]?(v[1]/v[2]-1)*100:null,eur:v[2]?v[0]*(v[1]-v[2])/fx:null})).sort((a,b)=>b.val-a.val);
+    L.push({d,sh,e,ret,rel:br!=null?ret-br:null,dd:dd(sh.h),hold});
+  }
+  const f=LV.flt,F=x=>f==='all'||(f==='on'&&x.d.filt)||(f==='off'&&!x.d.filt)||(f==='w'&&x.d.f==='w')||(f==='q'&&x.d.f==='q')||(f==='m'&&x.d.f==='m')||(f==='t'&&x.d.f==='t')||(f==='s6'&&x.d.w===6)||(f==='s12'&&x.d.w!==6);
+  const V=L.filter(F),key={ret:x=>-x.ret,rel:x=>-(x.rel==null?-1e9:x.rel),dd:x=>x.dd,n:x=>-Object.keys(x.sh.p).length};
+  V.sort((a,b)=>key[LV.sort](a)-key[LV.sort](b));
+  const beat=L.filter(x=>x.rel!=null&&x.rel>0).length,bret=b&&m?(m.p/b.x-1)*100:null;
+  /* acciones: en cuántas carteras están y cuánto llevan */
+  const A={};
+  L.forEach(x=>x.hold.forEach(h=>{const a=A[h.s]||(A[h.s]={s:h.s,n:0,pl:[]});a.n++;if(h.pl!=null)a.pl.push(h.pl);}));
+  const AL=Object.values(A).map(a=>({s:a.s,n:a.n,pl:a.pl.length?a.pl.reduce((x,y)=>x+y,0)/a.pl.length:null}));
+  const arow=a=>'<div class="row" data-study="'+esc(a.s)+'" style="margin-top:4px;cursor:pointer"><span>'+esc(a.s)+' ›</span><b>'+a.n+' carteras'+(a.pl!=null?' · <span class="'+(a.pl>=0?'pos':'neg')+'">'+sg(a.pl,1)+' %</span>':'')+'</b></div>';
+  const top=AL.slice().sort((a,b)=>b.n-a.n).slice(0,8),gan=AL.filter(a=>a.pl!=null).sort((a,b)=>b.pl-a.pl).slice(0,5),per=AL.filter(a=>a.pl!=null).sort((a,b)=>a.pl-b.pl).slice(0,5);
+  const sel=(id,v,o)=>'<select id="'+id+'" style="margin:0">'+o.map(x=>'<option value="'+x[0]+'"'+(x[0]===v?' selected':'')+'>'+x[1]+'</option>').join('')+'</select>';
+  const rows=V.map(x=>{
+    const d=x.d,open=LV.open.has(d.id);let det='';
+    if(open){
+      const hs=x.hold.slice().sort((a,b)=>(b.pl==null?-1e9:b.pl)-(a.pl==null?-1e9:a.pl));
+      det='<div class="hint" style="margin:6px 0">Revisión <b>'+FREQ[d.f]+'</b> · <b>'+d.N+'</b> acciones · filtro de mercado <b>'+(d.filt?'sí':'no')+'</b> · señal <b>'+(d.w===6?'6-1':'12-1')+'</b><br>Última revisión: '+(x.sh.at?fmtD(new Date(x.sh.at)):'–')+' · próxima: '+nextDue(d.f,x.sh.at)+' · efectivo: '+eur(x.sh.c)+' · valor: '+eur(x.e)+'</div>'+
+        (hs.length?hs.map(h=>'<div class="row" data-study="'+esc(h.s)+'" style="margin-top:4px;cursor:pointer"><span>'+esc(h.s)+' ›</span><b>'+(h.pl!=null?'<span class="'+(h.pl>=0?'pos':'neg')+'">'+sg(h.pl,1)+' % ('+(h.eur>=0?'+':'−')+nf(Math.abs(h.eur),0)+' €)</span> · ':'')+nf(h.val/x.e*100,0)+' %</b></div>').join(''):'<div class="hint">Ahora mismo en efectivo (mercado en contra o aún sin entrar).</div>');
+    }
+    return '<div class="fac" data-lvrow="'+esc(d.id)+'" style="cursor:pointer"><div class="t"><span>'+esc(d.n)+' '+(open?'▾':'▸')+'</span><b class="'+(x.ret>=0?'pos':'neg')+'">'+sg(x.ret,1)+' %</b></div><div class="hint" style="margin:3px 0 0">'+(x.rel!=null?'vs S&amp;P: '+sg(x.rel,1)+' pts · ':'')+'caída máx. '+nf(x.dd,1)+' % · '+Object.keys(x.sh.p).length+' acciones · '+x.sh.nt+' op.</div>'+det+'</div>';
+  }).join('');
+  const t=GH.q?new Date(GH.q.at*1000).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
+  el.innerHTML='<div class="card"><b>'+L.length+' carteras</b> con '+eur(S.cap0)+' ficticios cada una'+(t?' · precios de las '+t:'')+'<div class="hint" style="margin:4px 0 0">'+(bret!=null?'S&amp;P 500 en el mismo periodo: <b>'+sg(bret,1)+' %</b>. ':'')+'Le ganan al S&amp;P <b>'+beat+'</b> de '+L.length+'. Mejor: <b>'+esc(L.slice().sort((a,b)=>b.ret-a.ret)[0].d.n)+'</b> ('+sg(L.slice().sort((a,b)=>b.ret-a.ret)[0].ret,1)+' %).</div></div>'+
+    '<div class="card"><b>Acciones más repetidas</b>'+top.map(arow).join('')+'<div class="hint" style="margin:8px 0 2px"><b>Con las que más ganan</b> (media de las carteras que las tienen)</div>'+gan.map(arow).join('')+'<div class="hint" style="margin:8px 0 2px"><b>Con las que más pierden</b></div>'+per.map(arow).join('')+'</div>'+
+    '<div style="display:flex;gap:8px;margin:10px 0 6px">'+sel('lvS',LV.sort,[['ret','Ordenar: rentabilidad'],['rel','Ordenar: vs S&P'],['dd','Ordenar: menor caída'],['n','Ordenar: nº acciones']])+sel('lvF',LV.flt,[['all','Todas'],['w','Semanales'],['q','Cada 2 semanas'],['m','Mensuales'],['t','Trimestrales'],['on','Con filtro de mercado'],['off','Sin filtro de mercado'],['s12','Señal 12-1'],['s6','Señal 6-1']])+'</div>'+
+    '<div class="hint" style="margin:0 0 6px">'+V.length+' mostradas. Pulsa una cartera para ver sus acciones y cuánto gana o pierde con cada una; pulsa una acción para estudiarla.</div>'+rows;
+}
+$('lvBox').addEventListener('click',e=>{const r=e.target.closest('[data-lvrow]');if(!r||e.target.closest('[data-study]'))return;const id=r.dataset.lvrow;LV.open.has(id)?LV.open.delete(id):LV.open.add(id);renderLV();});
+$('lvBox').addEventListener('change',e=>{if(e.target.id==='lvS')LV.sort=e.target.value;else if(e.target.id==='lvF')LV.flt=e.target.value;else return;renderLV();});
 /* ---- calendario de eventos ---- */
 const dDiff=ds=>{const t=Date.parse(ds+'T12:00:00Z');return isNaN(t)?null:Math.round((t-Date.now())/864e5);};
 function divNext(sym){const v=CX.d&&CX.d.div&&CX.d.div[sym];if(!v||!v.x)return null;const d=dDiff(v.x);return d==null||d<-0.5?null:Object.assign({d},v);}
@@ -1056,7 +1105,7 @@ async function analyzeRow(sym,prio){
       const s20=sma(d.c,20),s50=sma(d.c,50),r=rsi(d.c),hi20=Math.max(...d.h.slice(-20)),a=atr(d),mom=(p/d.c[n-21]-1)*100;
       if(!(a>0&&p>0))return null;
       const rets=[];for(let i=Math.max(1,n-120);i<n;i++)rets.push(Math.log(d.c[i]/d.c[i-1]));
-      const sp=2*a/p,tp=4*a/p,sim=bootSim(rets,sp,tp,S.maxDays,10000);
+      const sp=2*a/p,tp=4*a/p,sim=bootSim(rets,sp,tp,S.maxDays,prio===0?100000:10000);
       return{s:sym,nm:String(d.meta.shortName||d.meta.longName||'').slice(0,30),p,cur:d.meta.currency||'',ch:(p/prev-1)*100,
         rsi:r,dist:(hi20/p-1)*100,mom,atr:a,
         f:[p>s20&&s20>s50?1:0,p>s50?1:0,r>=50&&r<=68?1:0,(hi20/p-1)*100<=3?1:0,mom>5?1:0],
@@ -1756,7 +1805,7 @@ function candHTML(r,sc,i,open){
     fundHTML(r.s,r.p,r)+newsHTML(r.s)+
     '<div class="plan"><div><small>Compra</small><b>'+nf(r.p)+'</b></div><div><small>Stop −'+nf(sp,1)+' %</small><b class="neg">'+nf(stop)+'</b></div><div><small>Objetivo +'+nf(tp,1)+' %</small><b class="pos">'+nf(tgt)+'</b></div></div>'+
     '<div class="stack"><i style="width:'+pT*100+'%;background:var(--blue)"></i><i style="width:'+pS*100+'%;background:var(--pink)"></i><i style="width:'+pO*100+'%;background:var(--line)"></i></div>'+
-    '<div class="hint" style="margin:0">En 10.000 simulaciones de '+S.maxDays+' días: <b class="blu">'+nf(pT*100,0)+' %</b> llega al objetivo, <b class="neg">'+nf(pS*100,0)+' %</b> toca el stop y '+nf(pO*100,0)+' % sigue abierta. Resultado medio simulado: <b class="'+(ev>=0?'pos':'neg')+'">'+sg(ev,1)+' %</b>.'+(S.cal.n>=8&&Math.abs(S.cal.p-1)>0.03?' Corregido con lo que la app ha aprendido de sus aciertos y fallos (×'+nf(S.cal.p,2)+').':'')+'</div>'+
+    '<div class="hint" style="margin:0">En decenas de miles de simulaciones de '+S.maxDays+' días: <b class="blu">'+nf(pT*100,0)+' %</b> llega al objetivo, <b class="neg">'+nf(pS*100,0)+' %</b> toca el stop y '+nf(pO*100,0)+' % sigue abierta. Resultado medio simulado: <b class="'+(ev>=0?'pos':'neg')+'">'+sg(ev,1)+' %</b>.'+(S.cal.n>=8&&Math.abs(S.cal.p-1)>0.03?' Corregido con lo que la app ha aprendido de sus aciertos y fallos (×'+nf(S.cal.p,2)+').':'')+'</div>'+
     '<div style="display:flex;gap:8px;margin-top:12px"><button class="btn small" data-fc="'+esc(r.s)+'" type="button">Gráfico completo</button><button class="btn ghost small" data-news="'+esc(r.s)+'" type="button">Ver noticias</button></div>'+
     '<div class="news" data-nbox="'+esc(r.s)+'" style="margin-top:6px"></div></div></div>';
 }
@@ -1993,7 +2042,7 @@ function renderPred(){
   h+='<div style="margin-top:12px">'+P.slice(0,8).map(t=>'<div class="log"><b>'+esc(t.s.replace('.MC',''))+'</b> · preveía '+sg(t.pred.ev,1)+' % · salió <b class="'+(t.gross>=0?'pos':'neg')+'">'+sg(t.gross,1)+' %</b> · '+(t.gross>=t.pred.ev?'mejor':'peor')+' de lo previsto</div>').join('')+'</div>';
   $('predBox').innerHTML=h;
 }
-function renderAll(){renderHero();renderStatus();renderLog();renderCar();renderApr();renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();}
+function renderAll(){try{renderLV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();}
 
 /* ====================== gráfico completo (estilo broker) ====================== */
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
@@ -2304,14 +2353,14 @@ function explainRow(r){
   const buy=!why.length;
   return{r,sc,pT,ev,sp,tp,sig,pen,tend,buy,why,
     nota:'Nota '+nf(sc,1)+' de 10. Se suman las señales cumplidas, cada una con el peso que la app ha ido aprendiendo ('+FK.map(k=>nf(W[k],1)).join(' / ')+' sobre '+nf(tot,1)+') y se restan las penalizaciones.',
-    prob:'Probabilidad de éxito '+nf(pT*100,0)+' %: en 10.000 recorridos simulados con los movimientos reales de esta acción en los últimos 6 meses (mezclados al azar), en un '+nf(r.pT*100,0)+' % toca el objetivo (+'+nf(tp,1)+' %) antes que el stop (−'+nf(sp,1)+' %) en un máximo de '+S.maxDays+' días'+(Math.abs(S.cal.p-1)>0.02?'; corregido con un factor de '+nf(S.cal.p,2)+' según cómo han salido las operaciones reales de la app':'')+'.',
+    prob:'Probabilidad de éxito '+nf(pT*100,0)+' %: en decenas de miles de recorridos simulados con los movimientos reales de esta acción en los últimos 6 meses (mezclados al azar), en un '+nf(r.pT*100,0)+' % toca el objetivo (+'+nf(tp,1)+' %) antes que el stop (−'+nf(sp,1)+' %) en un máximo de '+S.maxDays+' días'+(Math.abs(S.cal.p-1)>0.02?'; corregido con un factor de '+nf(S.cal.p,2)+' según cómo han salido las operaciones reales de la app':'')+'.',
     pot:'Potencial +'+nf(tp,1)+' %: 4 veces su oscilación diaria típica (ATR). El stop está a 2 veces esa oscilación (−'+nf(sp,1)+' %), así que se arriesga la mitad de lo que se espera ganar.',
     res:'Resultado medio simulado '+sg(ev,2)+' % por operación'+(S.cal.bias?' (ya restado el sesgo de optimismo que la app ha medido: '+nf(S.cal.bias,2)+' %)':'')+'.',
     plazo:durText(r).replace(/<\/?b>/g,'')};
 }
 function reportText(L){
   const d=new Date(GH.q&&GH.q.at?GH.q.at*1000:Date.now());
-  let t='INFORME DEL ESTUDIO · Trader a mano\nDatos de '+d.toLocaleString('es-ES')+' · Universo: '+uniNames()+'\n\nCómo estudia la app: para cada acción mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo y impulso), simula 10.000 futuros posibles con sus propios movimientos recientes y calcula probabilidad, potencial y plazo. Solo compra si nota ≥ 6, resultado medio simulado positivo y precio sobre su media de 50 días. Es un filtro técnico: no mira resultados de la empresa ni noticias.\n';
+  let t='INFORME DEL ESTUDIO · Trader a mano\nDatos de '+d.toLocaleString('es-ES')+' · Universo: '+uniNames()+'\n\nCómo estudia la app: para cada acción mira 5 señales técnicas (tendencia, media de 50 días, RSI, cercanía al máximo y impulso), simula 10.000 futuros (100.000 al abrir el estudio) posibles con sus propios movimientos recientes y calcula probabilidad, potencial y plazo. Solo compra si nota ≥ 6, resultado medio simulado positivo y precio sobre su media de 50 días. Es un filtro técnico: no mira resultados de la empresa ni noticias.\n';
   L.forEach((r,i)=>{const e=explainRow(r);t+='\n'+(i+1)+'. '+r.s.replace('.MC','')+' · '+r.nm+' · '+pxD(r.p,r.cur)+'\n   '+e.nota+'\n'+e.sig.map(x=>'   '+(x.ok?'[sí] ':'[no] ')+x.t).join('\n')+(e.pen.length?'\n   '+e.pen.join(' '):'')+'\n   Tendencia: '+e.tend+'.\n   '+e.prob+'\n   '+e.pot+'\n   '+e.res+'\n   '+e.plazo+'\n   Conclusión: '+(e.buy?'la app la compraría hoy si hay hueco y efectivo.':'la app no la compraría ahora: '+e.why.join(', ')+'.')+'\n';});
   return t;
 }
@@ -2490,6 +2539,7 @@ function go(t){
   if(t==='car'){drawEq();drawOpenPos();}
   if(t==='apr')drawBt();
   if(t==='mer')renderMer();
+  if(t==='lab')renderLV();
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
 $('stBtn').onclick=()=>autopilot(true);
@@ -2523,7 +2573,7 @@ document.addEventListener('visibilitychange',()=>{
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
 try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
-window.__trader={bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={renderLV,bootSim,labLearn,labEvidence,renderLab,splitRatio,adjSplit,livePx,pxD,fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,SH_DEF,shadowStep,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
