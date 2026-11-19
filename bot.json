@@ -11,7 +11,15 @@
   "deslizamiento_pct": 0.15,
   "freno_perdida_dia_pct": 2,
   "freno_perdida_semana_pct": 5,
-  "indices": ["SP500", "IBEX35", "EUROSTOXX50", "DAX40", "EXTRA"],
+  "indices": [
+    "SP500",
+    "IBEX35",
+    "EUROSTOXX50",
+    "DAX40",
+    "EXTRA"
+  ],
   "favoritas": [],
-  "activo": true
+  "activo": true,
+  "estrategia": "mom",
+  "momentum_n": 20
 }

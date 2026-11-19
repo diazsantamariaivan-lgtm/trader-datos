@@ -66,7 +66,8 @@ const seed = Object.assign({}, S0, {
   riesgo: cfg.riesgo_por_operacion_pct, maxPos: cfg.max_por_valor_pct, maxOpen: cfg.max_posiciones,
   maxDays: cfg.dias_maximos, com: cfg.comision_eur, slip: cfg.deslizamiento_pct,
   limD: cfg.freno_perdida_dia_pct, limS: cfg.freno_perdida_semana_pct,
-  uni: { on: cfg.indices }, fav: cfg.favoritas || [], srv: false, srvAt: 0
+  uni: { on: cfg.indices }, fav: cfg.favoritas || [], srv: false, srvAt: 0,
+  modo: cfg.estrategia || 'mom', momN: cfg.momentum_n || 20
 });
 // operaciones compartidas por otras apps (solo señales y resultado) llegadas al tema común
 function aprOk(e) { return e && typeof e.u === 'string' && e.u.length <= 40 && Array.isArray(e.f) && e.f.length === 5 && e.f.every(x => x === 0 || x === 1) && Number.isFinite(e.pnl) && Math.abs(e.pnl) < 100 && ['objetivo', 'stop', 'tiempo'].includes(e.why) && Number.isFinite(e.days) && e.days >= 0 && e.days <= 60 && (e.gross == null || (Number.isFinite(e.gross) && Math.abs(e.gross) < 100)) && (e.pred == null || (Number.isFinite(e.pred.pT) && Number.isFinite(e.pred.ev))); }

@@ -236,6 +236,12 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <div class="card" id="predBox"></div>
   <h2>Tú contra la app</h2>
   <div class="card" id="vsBox"></div>
+  <h2>Por qué la estrategia lenta</h2>
+  <div class="card"><div class="hint" style="margin:0">Probada mes a mes de 2007 a 2026 con 495 acciones de EE. UU., contando comisiones y deslizamiento:</div>
+    <div class="row" style="margin-top:8px"><span>Momentum + filtro de mercado</span><b>22,3 % anual · caída máx. −28 %</b></div>
+    <div class="row" style="margin-top:6px"><span>Todas las acciones a partes iguales</span><b>15,0 % anual · −45 %</b></div>
+    <div class="row" style="margin-top:6px"><span>S&amp;P 500 comprar y mantener</span><b>10,6 % anual · −51 %</b></div>
+    <div class="hint">Gana más que las alternativas en los tres tramos (2007-12, 2013-18, 2019-26) y aguanta con comisiones el doble de altas. Cautelas: la prueba usa las empresas que hoy están en el índice, lo que infla todos los resultados (las que quebraron no salen); y la ventaja frente a la media del mercado es modesta (el recorte de caídas es lo más sólido). El pasado no garantiza el futuro. La estrategia rápida de 10 días perdió dinero en la misma clase de prueba.</div></div>
   <h2>Qué filtros funcionan de verdad</h2>
   <div class="card" id="cxBox"></div>
   <h2>Qué señales funcionan</h2>
@@ -293,6 +299,8 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <label class="sw"><input id="sNv" type="checkbox"><span>No comprar si hay noticias negativas<br><small class="mut">Si en 48 h hay 2 o más titulares negativos (y más que positivos) en la prensa económica, la app no compra esa acción. El tono sale de palabras clave: es orientativo.</small></span></label>
     <label class="sw"><input id="sComb" type="checkbox"><span>Combinar análisis técnico y de empresa<br><small class="mut">La nota mezcla el gráfico con la calidad de la empresa (F-Score, ROCE, dividendo, tamaño). Afecta a la lista, a los filtros y a lo que compra la app. Si una empresa no tiene datos, se usa solo el gráfico.</small></span></label>
     <label for="sWf">Peso de la empresa en la nota</label><select id="sWf"><option value="0.2">20 % (manda el gráfico)</option><option value="0.35">35 % (equilibrado)</option><option value="0.5">50 % (mitad y mitad)</option></select>
+    <label for="sMd">Estrategia</label><select id="sMd"><option value="mom">Lenta: momentum mensual con filtro de mercado (probada)</option><option value="rap">Rápida: swing a 10 días (sin ventaja demostrada)</option></select>
+    <label for="sMn">Acciones en la cartera de momentum</label><select id="sMn"><option value="10">10 (más concentrada)</option><option value="20">20 (recomendada)</option><option value="30">30</option><option value="40">40 (más repartida)</option></select>
     <label for="sFs">F-Score mínimo para comprar</label><select id="sFs"><option value="0">Sin mínimo</option><option value="3">3 de 9</option><option value="4">4 de 9</option><option value="5">5 de 9</option><option value="6">6 de 9</option><option value="7">7 de 9 (solo empresas sólidas)</option><option value="8">8 de 9</option></select>
     <label for="sRc">ROCE mínimo para comprar</label><select id="sRc"><option value="0">Sin mínimo</option><option value="5">5 %</option><option value="8">8 %</option><option value="10">10 %</option><option value="12">12 %</option><option value="15">15 % (negocios muy buenos)</option><option value="20">20 %</option></select>
     <div class="hint">Las acciones que no cumplan estos mínimos no entran en la lista de Hoy ni las compra la app (ni el piloto). Si de una empresa no hay datos, no se descarta.</div>
@@ -491,6 +499,59 @@ function earnBlock(sym){const n=S.earnD==null?5:+S.earnD;if(!n)return false;cons
 function earnTxt(sym){const e=earnDays(sym);if(!e||e.d>14)return '';return 'resultados '+(e.d===0?'hoy':e.d===1?'mañana':'en '+e.d+' días')+(e.when?' ('+e.when+')':'');}
 function rs20(r){const i=idxOf(r.s);return i&&r.mom!=null?r.mom-i.mom20:null;}
 const rsAdj=r=>{if(S.regOn===false)return 0;const x=rs20(r);return x==null?0:Math.max(-0.5,Math.min(0.5,x/20));};
+/* ---- estrategia lenta: momentum 12-1 mensual con filtro de mercado ---- */
+const MO={d:null,chk:0};
+async function loadMom(){
+  try{if(!ghBase()||Date.now()-MO.chk<3600e3)return;MO.chk=Date.now();
+    const j=await ghJson(ghBase()+'/mom/m.json?t='+Math.floor(Date.now()/3600000));
+    if(j&&j.s){MO.d=j;try{renderAll();}catch(e){}}
+  }catch(e){}
+}
+const modoMom=()=>S.modo!=='rap';
+const momN=()=>Math.max(5,Math.min(40,+S.momN||20));
+function momMarket(){const i=CX.d&&CX.d.idx&&CX.d.idx.SPX;if(!i||!i.s200)return null;return {on:i.p>i.s200,p:i.p,s200:i.s200};}
+function momRank(){
+  if(!MO.d||!MO.d.s)return [];
+  return Object.entries(MO.d.s).filter(([x,v])=>v&&isFinite(v.m)&&inUni(x)&&!noTrade(x)).sort((a,b)=>b[1].m-a[1].m).map(([x,v],i)=>({s:x,m:v.m,p:v.p,rk:i+1}));
+}
+const monthKey=()=>dayKey(Date.now()).slice(0,7);
+async function momRebalance(){
+  if(!S.auto||!modoMom())return;
+  const mk=monthKey();if(S.momMonth===mk)return;
+  if(!MO.d||Date.now()/1000-MO.d.t>6*86400||!CX.d)return;
+  const mk0=momMarket();if(!mk0)return;
+  const N=momN(),R=momRank(),top=new Set(mk0.on?R.slice(0,N).map(x=>x.s):[]);
+  if(mk0.on&&R.length<N)return;
+  const mine=S.pos.filter(p=>p.mom);let sold=0,bought=0;
+  for(const p of mine){
+    if(top.has(p.s))continue;
+    const v=MO.d.s[p.s],px=(v&&v.p)||p.last||p.entry;
+    closePos(p,{px,why:'rebalanceo',days:Math.max(1,Math.round((Date.now()-p.openTs)/864e5)),dk:dayKey(Date.now())});sold++;
+  }
+  if(mk0.on){
+    for(const x of R.slice(0,N)){
+      if(S.pos.some(p=>p.s===x.s))continue;
+      const fx=await getFx('USD'),eq=equity(),pxIn=x.p*(1+S.slip/100),entryE=pxIn/fx;
+      let sh=Math.min(eq/N/entryE,(S.cash-S.com)/entryE);sh=Math.floor(sh*1000)/1000;const cost=sh*entryE;
+      if(!(sh>0)||cost<20)continue;
+      S.cash-=cost+S.com;
+      S.pos.push({mom:true,id:Date.now()+Math.random(),s:x.s,nm:(S.rows[x.s]&&S.rows[x.s].nm)||x.s,cur:'USD',shares:sh,entry:pxIn,stop:pxIn*0.6,target:pxIn*1.8,last:x.p,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:[0,0,0,0,0]});
+      bought++;
+    }
+  }
+  S.momMonth=mk;
+  log('<b>Revisión mensual (momentum)</b>: '+(mk0.on?'mercado a favor (S&P 500 sobre su media de 200 días). Vendió '+sold+' y compró '+bought+'; cartera objetivo: las '+N+' de mayor momentum.':'mercado en contra (S&P 500 bajo su media de 200 días). Vendió '+sold+' y se queda en efectivo hasta la próxima revisión.'),true);
+}
+function momHTML(){
+  if(!modoMom())return '';
+  const m=momMarket(),N=momN(),R=momRank(),held=new Set(S.pos.filter(p=>p.mom).map(p=>p.s));
+  const head='<div class="hint" style="margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px"><b>Estrategia activa: momentum mensual</b><br>'+
+    (m?'<b style="color:'+(m.on?'var(--pos,#3fb68b)':'var(--neg,#e5566b)')+'">● Mercado '+(m.on?'a favor':'en contra')+'</b> (S&P 500 '+nf(m.p,0)+' '+(m.on?'sobre':'bajo')+' su media de 200 días, '+nf(m.s200,0)+'). '+(m.on?'Se invierte a partes iguales en las '+N+' acciones que más han subido en 12 meses (sin contar el último).':'No se compra: se queda en efectivo.'):'Cargando el estado del mercado…')+
+    '<br><small>Se revisa una vez al mes. Probada con 20 años de datos de EE. UU.: ver Aprende.</small></div>';
+  if(!R.length)return head+'<div class="empty">Cargando el ranking de momentum…</div>';
+  const rows=R.slice(0,N).map(x=>'<div class="row"><span><b>'+x.rk+'</b> · '+esc(x.s)+(held.has(x.s)?' <span class="tag held">EN CARTERA</span>':'')+'</span><b class="'+(x.m>=0?'pos':'neg')+'">'+sg(x.m*100,0)+' %</b></div>').join('');
+  return head+'<div class="card"><div class="hint" style="margin:0 0 6px">Ranking de momentum (subida de hace 12 meses a hace 1 mes). Objetivo de la próxima revisión:</div>'+rows+'</div>';
+}
 /* ---- opinión de analistas (EE. UU.) ---- */
 const AN={d:null,chk:0};
 async function loadAna(){
@@ -874,10 +935,10 @@ function closePos(pos,res){
   const fx=fxOf(pos.cur),proceeds=pos.shares*res.px/fx;
   S.cash+=proceeds-S.com;
   const pnl=proceeds-pos.costEur-2*S.com;
-  S.closed.unshift({s:pos.s,nm:pos.nm,entry:pos.entry,exit:res.px,shares:pos.shares,cur:pos.cur,pnl,pct:pnl/pos.costEur*100,why:res.why,days:res.days,open:pos.openTs,close:Date.now(),manual:!!pos.manual,u:Math.random().toString(36).slice(2,10)+Date.now().toString(36),cd:res.dk||dayKey(Date.now()),f:pos.f,gross:(res.px/pos.entry-1)*100,pred:pos.pred?{pT:pos.pred.pT,ev:pos.pred.ev,dm:pos.pred.dm}:null,cx:pos.cx||null});
+  S.closed.unshift({s:pos.s,nm:pos.nm,entry:pos.entry,exit:res.px,shares:pos.shares,cur:pos.cur,pnl,pct:pnl/pos.costEur*100,why:res.why,days:res.days,open:pos.openTs,close:Date.now(),manual:!!pos.manual,mom:!!pos.mom,u:Math.random().toString(36).slice(2,10)+Date.now().toString(36),cd:res.dk||dayKey(Date.now()),f:pos.f,gross:(res.px/pos.entry-1)*100,pred:pos.pred?{pT:pos.pred.pT,ev:pos.pred.ev,dm:pos.pred.dm}:null,cx:pos.cx||null});
   S.closed=S.closed.slice(0,300);
   S.pos=S.pos.filter(p=>p.id!==pos.id);
-  const w={objetivo:'llegó al objetivo',stop:'saltó el stop',tiempo:'se cerró por tiempo',manual:'se vendió a mano'}[res.why];
+  const w={objetivo:'llegó al objetivo',stop:'saltó el stop',tiempo:'se cerró por tiempo',manual:'se vendió a mano',rebalanceo:'salió en la revisión mensual'}[res.why];
   const when=res.dk&&res.dk<dayKey(Date.now())?' el '+fmtD(new Date(res.dk+'T12:00:00'))+' (mientras no estabas mirando)':'';
   log('<b>'+esc(pos.s.replace('.MC',''))+'</b> '+w+when+': '+(pnl>=0?'ganó ':'perdió ')+eur(Math.abs(pnl))+' en '+res.days+(res.days===1?' día':' días'),true);
   toast(pos.s.replace('.MC','')+' '+w+': '+sg(pnl,2)+' €');
@@ -931,7 +992,7 @@ function decState(env,pass){
 }
 /* ---- piloto en GitHub: la cartera la lleva el servidor y el móvil la lee ---- */
 const srvOn=()=>S.srv&&!!S.srvKey&&S.srvAt>0;
-const SRV_K=['cap0','cash','pos','closed','eq','log','W','cal','buyDay','buysToday','brakeDay','startedAt','sumDay'];
+const SRV_K=['cap0','cash','pos','closed','eq','log','W','cal','buyDay','buysToday','brakeDay','startedAt','sumDay','momMonth'];
 async function srvSync(){
   if(!S.srv||!ghBase())return false;
   if(!S.srvKey){S.srvErr='Falta la clave: escribe la misma frase que pusiste en GitHub (CARTERA_CLAVE).';return false;}
@@ -944,7 +1005,7 @@ async function srvSync(){
     if(j.at>S.srvAt){
       SRV_K.forEach(k=>{if(j.S[k]!==undefined)S[k]=j.S[k];});
       const c=j.config||{};
-      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;if(c.analistas!=null)S.anOn=!!c.analistas;if(c.mercado_vigilar!=null)S.regOn=!!c.mercado_vigilar;if(c.resultados_dias!=null)S.earnD=+c.resultados_dias;if(c.fscore_minimo!=null)S.minFs=+c.fscore_minimo;if(c.roce_minimo_pct!=null)S.minRoc=+c.roce_minimo_pct;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
+      if(c.riesgo_por_operacion_pct!=null){S.riesgo=c.riesgo_por_operacion_pct;S.maxPos=c.max_por_valor_pct;S.maxOpen=c.max_posiciones;S.maxDays=c.dias_maximos;if(c.prorroga!=null)S.prorroga=!!c.prorroga;if(c.analisis_empresa!=null)S.comb=!!c.analisis_empresa;if(c.vetar_noticias_negativas!=null)S.vetoNews=!!c.vetar_noticias_negativas;if(c.peso_empresa_pct!=null)S.wFu=c.peso_empresa_pct/100;if(c.estrategia!=null)S.modo=c.estrategia;if(c.momentum_n!=null)S.momN=+c.momentum_n;if(c.analistas!=null)S.anOn=!!c.analistas;if(c.mercado_vigilar!=null)S.regOn=!!c.mercado_vigilar;if(c.resultados_dias!=null)S.earnD=+c.resultados_dias;if(c.fscore_minimo!=null)S.minFs=+c.fscore_minimo;if(c.roce_minimo_pct!=null)S.minRoc=+c.roce_minimo_pct;S.com=c.comision_eur;S.slip=c.deslizamiento_pct;S.limD=c.freno_perdida_dia_pct;S.limS=c.freno_perdida_semana_pct;if(Array.isArray(c.indices))S.uni={on:c.indices.slice()};if(Array.isArray(c.favoritas))S.fav=Array.from(new Set(S.fav.concat(c.favoritas)));}
       S.srvAt=j.at;
     }
     return true;
@@ -956,6 +1017,7 @@ async function updatePositions(){
   for(const pos of S.pos.slice()){
     try{
       await getFx(pos.cur);
+      if(pos.mom){const dm=await chart(pos.s,'1d','1mo',0);if(dm&&dm.c.length)pos.last=dm.meta.regularMarketPrice||dm.c[dm.c.length-1];pos.days=Math.max(0,Math.round((Date.now()-pos.openTs)/864e5));continue;}
       const d=await chart(pos.s,'1d','3mo',0),res=evalPos(pos,d);
       pos.days=res.days;
       if(res.done)closePos(pos,res);else pos.last=res.last;
@@ -965,7 +1027,7 @@ async function updatePositions(){
 const aprRec=t=>({u:t.u,f:t.f,pnl:t.pct,gross:t.gross,why:t.why,days:t.days,pred:t.pred});
 function aprOk(e){return e&&typeof e.u==='string'&&e.u.length<=40&&Array.isArray(e.f)&&e.f.length===5&&e.f.every(x=>x===0||x===1)&&isFinite(e.pnl)&&Math.abs(e.pnl)<100&&['objetivo','stop','tiempo'].includes(e.why)&&isFinite(e.days)&&e.days>=0&&e.days<=60&&(e.gross==null||(isFinite(e.gross)&&Math.abs(e.gross)<100))&&(e.pred==null||(isFinite(e.pred.pT)&&isFinite(e.pred.ev)));}
 function learn(){
-  const mine=S.closed.filter(t=>!t.manual&&t.why!=='manual');
+  const mine=S.closed.filter(t=>!t.manual&&t.why!=='manual'&&!t.mom);
   const own=new Set(mine.map(t=>t.u).filter(Boolean));
   const C=mine.concat(S.apr||S.srvMode?(S.ext||[]).filter(e=>!own.has(e.u)):[]);
   if(C.length<8)S.W=Object.assign({},BASE_W);
@@ -1011,6 +1073,7 @@ function favAlerts(){
 }
 async function openTrades(){
   if(!S.auto)return;
+  if(modoMom()){await momRebalance();return;}
   const today=dayKey(Date.now());
   const br=lossBrake();
   if(br){if(S.brakeDay!==today){S.brakeDay=today;log('<b>Compras en pausa</b>: '+br+'.',true);}return;}
@@ -1498,7 +1561,7 @@ function mktBanner(){
 function renderTop0(){
   const T=topList();
   if(!T.length){$('top').innerHTML='<div class="empty">'+(running?'Estudiando el mercado… la primera vez tarda unos minutos. Los resultados van apareciendo según avanza.':'Todavía no hay resultados. Pulsa «Actualizar».')+'</div>';return;}
-  $('top').innerHTML=mktBanner()+T.map((x,i)=>candHTML(x.r,x.sc,i+1,openSet.has(x.r.s))).join('')+
+  $('top').innerHTML=momHTML()+(modoMom()?'<h2>Ideas a corto plazo (estrategia rápida, sin probar)</h2>':'')+mktBanner()+T.map((x,i)=>candHTML(x.r,x.sc,i+1,openSet.has(x.r.s))).join('')+
     '<div class="hint">Nota sobre 10 según las señales técnicas. Potencial: lo que ganarías si llega al objetivo. Prob. éxito: simulada, repitiendo los movimientos recientes de cada acción. Es un filtro técnico: no mira resultados de la empresa ni noticias. Estudia y compra: '+esc(uniNames())+'. Puedes cambiarlo en la pestaña Mercado.</div>';
 }
 function bindCands(box){
@@ -1550,7 +1613,7 @@ function renderCar(){
   $('eqHint').textContent=S.eq.length>1?'Valor de la cartera cada vez que la app trabaja. La línea discontinua es tu capital inicial.':'La gráfica se irá llenando con cada uso.';
   $('posBox').innerHTML=(S.pos.length?S.pos.map(p=>{
     const v=posValue(p),pnl=v-p.costEur,pct=pnl/p.costEur*100,pos=Math.max(0,Math.min(100,(p.last-p.stop)/(p.target-p.stop)*100));
-    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+nf(p.entry)+' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays)+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+(fuChips(p.s,p.last)?'<br>'+fuChips(p.s,p.last):'')+(earnTxt(p.s)?'<br><small class="neg"><b>⚠ '+earnTxt(p.s)+'</b></small>':'')+'</div>'+
+    return '<div class="pcard'+(openPos.has(p.id)?' open':'')+'" data-p="'+p.id+'"><div class="pos-row" data-tgp="1" style="cursor:pointer"><div><b>'+esc(p.s.replace('.MC',''))+'</b> <span class="tag">'+mktOf(p.s)+'</span>'+(p.manual?'<span class="tag">A MANO</span>':'')+'<br><small>'+nf(p.shares,3)+' acc. · entró a '+nf(p.entry)+(p.mom?' · momentum: se revisa a fin de mes':' · día '+p.days+(p.pred&&p.pred.dm?' de ~'+expDays(p.pred.dm):' de '+S.maxDays))+(p.ext&&p.days>=S.maxDays?' · <b class="pos">prorrogada: sigue al alza</b>':'')+'</small>'+(p.pred&&p.pred.dm?'<br><small>Salida prevista hacia el '+fmtD(addBiz(p.openTs,expDays(p.pred.dm)))+' · límite '+fmtD(addBiz(p.openTs,S.maxDays))+'</small>':'')+(fuChips(p.s,p.last)?'<br>'+fuChips(p.s,p.last):'')+(earnTxt(p.s)?'<br><small class="neg"><b>⚠ '+earnTxt(p.s)+'</b></small>':'')+'</div>'+
       '<div class="v">'+eur(v)+'<br><small class="'+(pnl>=0?'pos':'neg')+'">'+sg(pnl,2)+' € ('+sg(pct)+' %)</small></div>'+
       '<svg class="rng" aria-hidden="true"><defs><linearGradient id="rg'+p.id+'"><stop offset="0" stop-color="#ff1f44"/><stop offset=".5" stop-color="#ffb000"/><stop offset="1" stop-color="#00c853"/></linearGradient></defs><rect x="0" y="6" width="100%" height="10" rx="5" fill="url(#rg'+p.id+')"/><circle cx="'+pos+'%" cy="11" r="9" fill="#fff" stroke="#101828" stroke-width="3.5"/></svg>'+
       '<small>Stop '+nf(p.stop)+'</small><small style="text-align:right">Objetivo '+nf(p.target)+'</small></div>'+
@@ -2034,6 +2097,8 @@ $('sDays').oninput=()=>{
 };
 $('sNv').checked=S.vetoNews!==false;$('sNv').onchange=e=>{S.vetoNews=e.target.checked;save();renderAll();};
 $('sComb').checked=S.comb!==false;$('sComb').onchange=e=>{S.comb=e.target.checked;S.rows&&save();renderAll();};
+$('sMd').value=modoMom()?'mom':'rap';$('sMd').onchange=()=>{S.modo=$('sMd').value;S.momMonth='';save();renderAll();};
+$('sMn').value=String(momN());$('sMn').onchange=()=>{S.momN=+$('sMn').value;save();renderAll();};
 $('sFs').value=String(S.minFs||0);$('sFs').onchange=()=>{S.minFs=+$('sFs').value;save();renderAll();};
 $('sRc').value=String(S.minRoc||0);$('sRc').onchange=()=>{S.minRoc=+$('sRc').value;save();renderAll();};
 $('sReg').checked=S.regOn!==false;$('sReg').onchange=e=>{S.regOn=e.target.checked;save();renderAll();};
@@ -2147,7 +2212,7 @@ applyTheme(S.theme);
 if(S.apr&&(S.ext||[]).length)learn();
 try{$('verTxt').textContent='Versión: '+(window.BUILD||'archivo local (no se actualiza solo)');}catch(e){}
 renderAll();
-loadCtx();setInterval(loadCtx,10*60000);loadAna();setInterval(loadAna,3600e3);loadFund();setInterval(loadFund,3600e3);loadCheck();setInterval(loadCheck,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
+loadCtx();setInterval(loadCtx,10*60000);loadMom();setInterval(loadMom,3600e3);loadAna();setInterval(loadAna,3600e3);loadFund();setInterval(loadFund,3600e3);loadCheck();setInterval(loadCheck,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
 setTimeout(()=>autopilot(false),300);
 if(S.watchMode)keepAwake(true);
 function tick(){
@@ -2162,7 +2227,7 @@ document.addEventListener('visibilitychange',()=>{
   if(S.watchMode&&!wl)keepAwake(true);
   if(!running&&Date.now()-lastCheck>2*60000)Date.now()-S.scanAt>5*60000?autopilot(false):quickCheck();
 });
-window.__trader={fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
+window.__trader={fuCheck,loadNewsFeed,ghBase,NW,newsOf,newsVeto,minFund,MO,momRank,momMarket,momRebalance,momHTML,AN,anOf,anAdj,CX,regime,minNota,earnDays,earnBlock,rs20,score10,tech10,calid10,topList,getFx,btPrep0:0,renderMer,M,fcTrend,fcLevels,fcPivots,fcOpen,fcDraw,FC,btPrep,btRun,btAll,fitW,lossBrake,forecast,bootCone,drawForecast,renderPred,S,evalPos,learn,bootSim,autopilot,closePos,openTrades,equity,analyzeRow,topList,score10};
 })();
 </script>
 </body>
