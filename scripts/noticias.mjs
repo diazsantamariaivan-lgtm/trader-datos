@@ -7,11 +7,21 @@ const UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, l
 const AL={};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const MAXAGE=+process.env.MAXAGE_H||72;
+const G1=(q,es)=>'https://news.google.com/rss/search?q='+encodeURIComponent(q+' when:2d')+(es?'&hl=es&gl=ES&ceid=ES:es':'&hl=en-US&gl=US&ceid=US:en');
 const GEN=[
  ['Cinco Días','https://feeds.elpais.com/mrss-s/pages/ep/site/cincodias.elpais.com/portada'],
  ['Expansión','https://e00-expansion.uecdn.es/rss/mercados.xml'],['Expansión','https://e00-expansion.uecdn.es/rss/empresas.xml'],
  ['Investing.com','https://es.investing.com/rss/news.rss'],['Investing.com','https://es.investing.com/rss/news_25.rss'],
- ['CNBC','https://www.cnbc.com/id/10001147/device/rss/rss.html'],['MarketWatch','https://feeds.marketwatch.com/marketwatch/topstories/'],['Financial Times','https://www.ft.com/markets?format=rss']
+ ['CNBC','https://www.cnbc.com/id/10001147/device/rss/rss.html'],['MarketWatch','https://feeds.marketwatch.com/marketwatch/topstories/'],['Financial Times','https://www.ft.com/markets?format=rss'],
+ ['Bloomberg','https://feeds.bloomberg.com/markets/news.rss'],['Funds People','https://www.fundspeople.com/es/feed/'],
+ ['Investing.com','https://es.investing.com/rss/market_overview.rss'],['Investing.com','https://es.investing.com/rss/market_overview_Technical.rss'],
+ // economistas, estrategas y gestores (opinión/análisis) vía Google News
+ ['Google',G1('economista (bolsa OR mercados OR inversión) (opina OR advierte OR prevé OR analiza)',true)],
+ ['Google',G1('estratega OR "jefe de inversiones" OR gestor (bolsa OR renta variable) (prevé OR recomienda OR advierte)',true)],
+ ['Google',G1('(Bankinter OR Renta4 OR "Self Bank" OR Link Securities) análisis bolsa IBEX recomendación',true)],
+ ['Google',G1('(Banco de España OR BCE OR Fed) economistas tipos inflación bolsa',true)],
+ ['Google',G1('economist OR strategist (stocks OR "S&P 500") (says OR warns OR expects OR sees)',false)],
+ ['Google',G1('(Goldman Sachs OR "Morgan Stanley" OR "JPMorgan" OR "BlackRock") strategist stocks outlook',false)]
 ];
 const ES={ITX:'Inditex',SAN:'Santander',BBVA:'BBVA',TEF:'Telefónica',IBE:'Iberdrola',REP:'Repsol',CABK:'CaixaBank',AMS:'Amadeus',FER:'Ferrovial',ACS:'ACS',ANA:'Acciona',ANE:'Acciona Energía',AENA:'Aena',ELE:'Endesa',NTGY:'Naturgy',GRF:'Grifols',IAG:'IAG',MAP:'Mapfre',MRL:'Merlin Properties',SAB:'Sabadell',BKT:'Bankinter',CLNX:'Cellnex',COL:'Colonial',ENG:'Enagás',FDR:'Fluidra',LOG:'Logista',MTS:'ArcelorMittal',RED:'Redeia',ROVI:'Rovi',SCYR:'Sacyr',PUIG:'Puig',UNI:'Unicaja',ACX:'Acerinox',SLR:'Solaria',IDR:'Indra',SGRE:'Siemens Gamesa'};
 const SUF=/\b(incorporated|inc|corp|corporation|company|co|plc|ltd|limited|holdings?|group|the|s\.?a\.?|s\.?e\.?|a\.?g\.?|n\.?v\.?|s\.?p\.?a\.?|ag|sa|se|nv|spa|class [abc]|clase [abc]|cl [abc]|ordinary shares?|common stock|oyj|ab|a\/s|asa|llc|lp)\b\.?/gi;
@@ -75,7 +85,7 @@ async function main(){
     if(!es){try{const q2='"'+name+'" (site:expansion.com OR site:eleconomista.es OR site:cincodias.elpais.com OR site:bolsamania.com)';const x=parse(await get(gnews(q2,true)),'Google');for(const it of x)if(it.d>=since&&relev(sym,it.t))add(sym,it);}catch(e){}}
   });
   console.log('consultas',ok,'fallidas',fail);
-  const out={t:Math.floor(now),g:G.slice(0,30).map(({s,t,u,d})=>({s,t,u,d,k:tone(t)})),s:{}};
+  const out={t:Math.floor(now),g:G.slice(0,50).map(({s,t,u,d})=>({s,t,u,d,k:tone(t)})),s:{}};
   const full={};
   for(const [s,a] of Object.entries(S)){const arr=a.sort((x,y)=>y.d-x.d).slice(0,4).map(({s,t,u,d,k})=>({s,t,u,d,k}));if(arr.length){full[s]=arr;out.s[s]=arr.map(({s,t,d,k})=>({s,t,d,k}));}}
   console.log('valores con noticias',Object.keys(out.s).length);

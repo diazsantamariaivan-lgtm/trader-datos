@@ -1057,7 +1057,7 @@ const ES_SRC=/cinco d|expansi|economista|bolsaman/i;
 function renderNews(){
   const b=$('newsBox');if(!b)return;
   const g=(NW.d&&NW.d.g)||[];
-  b.innerHTML=g.length?'<ul style="margin:0;padding:0;list-style:none;font-size:14px">'+g.slice().sort((a,b)=>(ES_SRC.test(b.s)?1:0)-(ES_SRC.test(a.s)?1:0)||b.d-a.d).slice(0,6).map(x=>'<li style="margin:6px 0">'+toneIc(x.k)+' <a href="'+esc(x.u)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a> <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span></li>').join('')+'</ul>':'<div class="empty">Cargando noticias…</div>';
+  b.innerHTML=g.length?'<ul style="margin:0;padding:0;list-style:none;font-size:14px">'+g.slice().sort((a,b)=>(ES_SRC.test(b.s)?1:0)-(ES_SRC.test(a.s)?1:0)||b.d-a.d).slice(0,10).map(x=>'<li style="margin:6px 0">'+toneIc(x.k)+' <a href="'+esc(x.u)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a> <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span></li>').join('')+'</ul>':'<div class="empty">Cargando noticias…</div>';
 }
 async function ghJson(u){
   const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),25000);
