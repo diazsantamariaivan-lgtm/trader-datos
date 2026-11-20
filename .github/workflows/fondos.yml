@@ -6,6 +6,7 @@ on:
   push:
     paths:
       - scripts/fondos.mjs
+      - scripts/fondoslab.mjs
       - fondos_busquedas.txt
       - fondos_isin.txt
 permissions:
@@ -16,14 +17,16 @@ concurrency:
 jobs:
   datos:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - name: Descargar fondos
-        run: node scripts/fondos.mjs
+        run: |
+          node scripts/fondos.mjs
+          node scripts/fondoslab.mjs || echo "laboratorio de fondos falló (se publica el resto)"
       - name: Publicar en la rama fondos
         run: |
           cd out

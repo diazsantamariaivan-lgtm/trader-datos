@@ -75,3 +75,90 @@ Pimco
 Bluebay
 Eurizon
 Generali
+Allianz Global Investors
+Amundi Funds
+Aberdeen
+AXA IM
+BNY Mellon
+Ninety One
+Legg Mason
+Natixis
+Threadneedle
+UBS
+Invesco
+Wellington
+Baillie Gifford
+Polar Capital
+Lazard
+Vontobel
+DNB
+Danske Invest
+Swisscanto
+Evli
+Ostrum
+La Francaise
+Tikehau
+Oddo
+Mirova
+Echiquier
+Hermes
+Artemis
+Liontrust
+Man GLG
+Heptagon
+Ruffer
+Troy Trojan
+Orbis
+Lindsell Train
+Brown Advisory
+Guinness
+T. Rowe Price
+Fidelity Funds
+Fidelity Sustainable
+Schroder ISF
+JPMorgan Funds
+Goldman Sachs
+Morgan Stanley Investment Funds
+Blackrock Strategic
+BGF
+Ibercaja Bolsa
+Bankia
+Caja Ingenieros
+Mapfre
+Plus Ultra
+Sabadell Rendimiento
+Santander Acciones
+Santander Select
+BBVA Bolsa
+BBVA Mi Fondo
+CaixaBank Bolsa
+CaixaBank Selección
+Fonditel
+Dunas
+Tressis
+Alantra
+Santalucia
+Ahorro Corporación
+Bestinver Renta
+Mediolanum
+Kutxabank Bolsa
+Cajamar
+Rural
+Arquia
+Triodos
+Pictet Water
+Pictet Digital
+Pictet Biotech
+Pictet Premium Brands
+Robeco BP Global Premium
+Robeco QI
+Nordea Stable
+MFS Global Equity
+Franklin Technology
+Templeton Growth
+Threadneedle Global
+Jupiter Dynamic
+Carmignac Patrimoine
+Carmignac Portfolio
+Magellan
+Sextant PEA
