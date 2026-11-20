@@ -1,0 +1,30 @@
+name: acierto de analistas
+on:
+  schedule:
+    - cron: '50 5-23/2 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: acierto
+  cancel-in-progress: false
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Registrar y medir recomendaciones
+        run: node scripts/acierto.mjs
+      - name: Publicar en la rama acierto
+        run: |
+          cd out
+          git init -q -b acierto
+          git config user.name "datos"
+          git config user.email "datos@users.noreply.github.com"
+          git add -A
+          git commit -q -m "acierto $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" acierto
