@@ -1,0 +1,6 @@
+# Un ISIN por línea (opcional: nombre después). Se añaden a la lista de fondos estudiados.
+LU0996182563
+ES0165142003
+ES0112611001
+IE00B03HCZ61
+IE00BYX5NX33

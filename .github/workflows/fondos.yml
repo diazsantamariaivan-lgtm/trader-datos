@@ -1,0 +1,35 @@
+name: fondos de inversion
+on:
+  schedule:
+    - cron: '40 7,19 * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/fondos.mjs
+      - fondos_busquedas.txt
+      - fondos_isin.txt
+permissions:
+  contents: write
+concurrency:
+  group: fondos
+  cancel-in-progress: false
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Descargar fondos
+        run: node scripts/fondos.mjs
+      - name: Publicar en la rama fondos
+        run: |
+          cd out
+          git init -q -b fondos
+          git config user.name "datos"
+          git config user.email "datos@users.noreply.github.com"
+          git add -A
+          git commit -q -m "fondos $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" fondos

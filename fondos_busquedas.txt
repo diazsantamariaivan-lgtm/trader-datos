@@ -1,0 +1,77 @@
+# Una búsqueda por línea (texto que se busca en Yahoo). Se quedan los fondos de inversión con ≥3 años de histórico.
+# Para añadir un fondo concreto, pon su ISIN en fondos_isin.txt
+Vanguard Global Stock Index
+Vanguard U.S. 500 Stock Index
+Vanguard Emerging Markets Stock Index
+Vanguard European Stock Index
+Vanguard Global Bond Index
+Vanguard Euro Government Bond
+Vanguard Japan Stock Index
+Fidelity MSCI World Index
+Fidelity Index Emerging Markets
+Fidelity Index US
+Amundi Index MSCI World
+Amundi Index MSCI Europe
+Amundi Index S&P 500
+Amundi Index MSCI Emerging
+iShares World Equity Index
+iShares Emerging Markets Equity Index
+iShares Developed World Index
+iShares Euro Government Bond Index
+Indexa
+Azvalor
+Cobas
+Magallanes
+Bestinver
+Metavalor
+Fundsmith
+Robeco
+Carmignac
+Pictet
+Seilern
+Morgan Stanley Global Brands
+JPMorgan Global
+BlackRock Global Allocation
+BlackRock World Technology
+Fidelity Global Technology
+Allianz Technology
+Candriam
+Nordea
+Schroder
+Templeton
+Franklin
+MFS Meridian
+Mutuafondo
+Renta 4
+Bankinter
+Santander
+BBVA
+CaixaBank
+Abante
+Gesconsult
+Numantia
+Groupama
+Imantia
+Ibercaja
+Kutxabank
+Sabadell
+Unicaja
+Cartesio
+Horos
+True Value
+Okavango
+Alken
+DWS Concept Kaldemorgen
+Flossbach von Storch
+M&G Optimal Income
+Capital Group
+Lyxor
+Sextant
+Comgest
+Janus Henderson
+Jupiter
+Muzinich
+Pimco
+Bluebay
+Eurizon
+Generali
