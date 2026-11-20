@@ -7,10 +7,10 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function gj(u){for(let i=0;i<3;i++){try{const r=await fetch(u,{headers:{'User-Agent':UA},signal:AbortSignal.timeout(25000)});if(r.ok)return await r.json();if(r.status===404)return null;}catch(e){}await sleep(800*(i+1));}return null;}
 async function main(){
   const q=await (await fetch('https://raw.githubusercontent.com/'+REPO+'/quotes/q.json',{signal:AbortSignal.timeout(30000)})).json();
-  let syms=Object.keys(q.s||{}).filter(s=>!/[\^=.]|-USD$/.test(s));
+  let syms=Object.keys(q.s||{}).filter(s=>!/[\^=]|-USD$/.test(s));
   if(LIMIT)syms=syms.slice(0,LIMIT);
   console.log('valores EE. UU.',syms.length);
-  const out={t:Math.floor(Date.now()/1000),s:{}};let ok=0,i=0;
+  const out={t:Math.floor(Date.now()/1000),s:{},x:{}};let ok=0,i=0;
   async function w(){while(i<syms.length){const sym=syms[i++];
     const j=await gj('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?range=2y&interval=1d');
     const r=j&&j.chart&&j.chart.result&&j.chart.result[0];
@@ -20,7 +20,8 @@ async function main(){
       if(n>=260){
         const lr=[];for(let k=n-60;k<n;k++)lr.push(Math.log(c[k]/c[k-1]));
         const mu=lr.reduce((x,y)=>x+y,0)/lr.length,v=Math.sqrt(lr.reduce((x,y)=>x+(y-mu)*(y-mu),0)/(lr.length-1))*Math.sqrt(252);
-        out.s[sym]={m:+(c[n-22]/c[n-253]-1).toFixed(4),m6:+(c[n-22]/c[n-127]-1).toFixed(4),v:+v.toFixed(3),p:+c[n-1].toFixed(2)};ok++;}
+        const o={m:+(c[n-22]/c[n-253]-1).toFixed(4),m6:+(c[n-22]/c[n-127]-1).toFixed(4),v:+v.toFixed(3),p:+c[n-1].toFixed(2)};
+        if(sym.includes('.')){o.cu=r.meta.currency||'';out.x[sym]=o;}else out.s[sym]=o;ok++;}
     }
     await sleep(120+Math.random()*150);}}
   await Promise.all(Array.from({length:4},w));

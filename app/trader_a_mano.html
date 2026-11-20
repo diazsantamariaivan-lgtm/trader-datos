@@ -615,6 +615,13 @@ async function momRebalance(){
   S.momMonth=monthKey();S.momAt=Date.now();
   log('<b>Revisión de momentum</b>: '+(on?'mercado a favor (S&P 500 sobre su media de 200 días). Vendió '+sold+' y compró '+bought+'; cartera objetivo: las '+N+' de mayor momentum.':'mercado en contra (S&P 500 bajo su media de 200 días). Vendió '+sold+' y se queda en efectivo hasta la próxima revisión.'),true);
 }
+function momOtros(){
+  const X=MO.d&&MO.d.x;if(!X)return '';
+  const R=Object.entries(X).filter(([x,v])=>v&&isFinite(v.m)&&inUni(x)&&!noTrade(x)).sort((a,b)=>b[1].m-a[1].m).slice(0,10);
+  if(!R.length)return '';
+  return '<div class="card"><b>Impulso en otros mercados (Europa, Asia…)</b><div class="hint" style="margin:4px 0 6px">Mismo cálculo, solo para mirar: los laboratorios y la estrategia mensual solo usan EE. UU. En las pruebas con 5 años el impulso también superó a la media en Europa, pero con datos sesgados a favor (solo valores que siguen en los índices).</div>'+
+    R.map(([x,v],i)=>'<div class="row" data-study="'+esc(x)+'" style="cursor:pointer"><span><b>'+(i+1)+'</b> · '+esc(x)+'</span><b class="'+(v.m>=0?'pos':'neg')+'">'+sg(v.m*100,0)+' %</b></div>').join('')+'</div>';
+}
 function momHTML(){
   if(!modoMom())return '';
   const m=momMarket(),N=momN(),R=momRank(),held=new Set(S.pos.filter(p=>p.mom).map(p=>p.s));
@@ -623,7 +630,7 @@ function momHTML(){
     '<br><small>Se revisa '+FREQ[momFreq()]+'. Probada con 20 años de datos de EE. UU.: ver Aprende. Se saltan las acciones con noticias muy negativas y las que no cumplan tus mínimos de F-Score y ROCE (Ajustes).</small></div>';
   if(!R.length)return head+'<div class="empty">Cargando el ranking de momentum…</div>';
   const rows=R.slice(0,N).map(x=>'<div class="row" data-study="'+esc(x.s)+'" style="cursor:pointer"><span><b>'+x.rk+'</b> · '+esc(x.s)+(held.has(x.s)?' <span class="tag held">EN CARTERA</span>':'')+'</span><b class="'+(x.m>=0?'pos':'neg')+'">'+sg(x.m*100,0)+' %</b></div>').join('');
-  return head+'<div class="card"><div class="hint" style="margin:0 0 6px">Ranking de momentum (subida de hace 12 meses a hace 1 mes). Objetivo de la próxima revisión:</div>'+rows+'</div>';
+  return head+'<div class="card"><div class="hint" style="margin:0 0 6px">Ranking de momentum (subida de hace 12 meses a hace 1 mes). Objetivo de la próxima revisión:</div>'+rows+'</div>'+momOtros();
 }
 /* ---- laboratorio: carteras en paralelo (misma señal, distintas reglas) para aprender qué funciona, sin riesgo ---- */
 const SH_DEF=[

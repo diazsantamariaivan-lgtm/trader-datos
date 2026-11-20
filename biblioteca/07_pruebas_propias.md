@@ -9,6 +9,12 @@ Probado con 160.000 señales de 823 valores entre 2022 y 2026. Cada señal se ca
 - **Por años:** el impulso ganó mucho en 2024 y 2025, quedó plano en 2023 y 2026 y perdió en 2022. Por eso el filtro de mercado de la estrategia lenta (S&P 500 sobre su media de 200 días) es lo importante.
 - **La salida estrecha (parada 2 ATR, objetivo 4 ATR, 10 días) fue la peor**: +0,39 % de media por operación frente a +1,0 % con parada de 3 ATR y 20 días. Mejor ratio rentabilidad/riesgo también (0,11 frente a 0,07).
 
+## Momentum mensual con y sin filtro de mercado (5 años, 20 valores, rebalanceo cada 21 sesiones)
+- EE. UU.: +52 % anual sin filtro y +36 % con filtro (universo: +16 %). Europa: +26 % y +16 % (universo: +14 %). Caída máxima -28 % sin filtro y -25 % con filtro.
+- Esas cifras son demasiado buenas para ser reales: solo están los valores que siguen en los índices hoy (sesgo de supervivencia). Sirven para comparar entre variantes, no para esperar esos números.
+- En estos 5 años el filtro (valores sobre su media de 200 sesiones) costó rentabilidad y apenas redujo la caída, porque solo hubo un mercado bajista suave (2022). No se puede confirmar ni desmentir con estos datos que proteja en una crisis. Se mantiene la prueba de 20 años de EE. UU. como referencia.
+- El impulso también superó a la media en Europa. En la app se muestra solo como información.
+
 ## Qué cambió en la app
 - Propuesta de compra manual: parada a 3 ATR y objetivo lejano, pensada para aguantar 3-4 semanas.
 - La lista "Ideas a corto plazo" lleva el aviso de que la nota no supera al azar.
