@@ -1036,6 +1036,7 @@ function acBadge(t){const f=anCall(t);if(!f)return '';const F=AC.d&&AC.d.firms&&
   else{const a=[];if(F.n28)a.push(Math.round(F.h28/F.n28*100)+' % a 4 sem. ('+F.h28+' de '+F.n28+')'+(F.n28>=5?'':' · pocas'));if(F.n7)a.push(Math.round(F.h7/F.n7*100)+' % a 1 sem. ('+F.h7+' de '+F.n7+')');x=a.join(' · ');}
   return '<div class="mut" style="font-size:12px;margin-top:1px">📊 '+esc(f)+': acierto '+x+'</div>';}
 async function loadNewsFeed(){
+  acLoad();
   try{if(!ghBase()||Date.now()-NW.chk<10*60000)return;NW.chk=Date.now();
     const j=await ghJson(ghBase()+'/news/n.json?t='+Math.floor(Date.now()/600000));
     if(j&&j.s){NW.d=j;NW.f={};try{renderAll();}catch(e){}}
@@ -1064,7 +1065,7 @@ const ES_SRC=/cinco d|expansi|economista|bolsaman/i;
 function renderNews(){
   const b=$('newsBox');if(!b)return;
   const g=(NW.d&&NW.d.g)||[];
-  b.innerHTML=g.length?'<ul style="margin:0;padding:0;list-style:none;font-size:14px">'+g.slice().sort((a,b)=>(ES_SRC.test(b.s)?1:0)-(ES_SRC.test(a.s)?1:0)||b.d-a.d).slice(0,10).map(x=>'<li style="margin:6px 0">'+toneIc(x.k)+' <a href="'+esc(x.u)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a> <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span></li>').join('')+'</ul>':'<div class="empty">Cargando noticias…</div>';
+  b.innerHTML=g.length?'<ul style="margin:0;padding:0;list-style:none;font-size:14px">'+g.slice().sort((a,b)=>(ES_SRC.test(b.s)?1:0)-(ES_SRC.test(a.s)?1:0)||b.d-a.d).slice(0,10).map(x=>'<li style="margin:6px 0">'+toneIc(x.k)+' <a href="'+esc(x.u)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a> <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span>'+acBadge(x.t)+'</li>').join('')+'</ul>':'<div class="empty">Cargando noticias…</div>';
 }
 async function ghJson(u){
   const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),25000);

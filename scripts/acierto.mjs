@@ -20,15 +20,25 @@ export function parseCall(t){
   if(!dir)return null;
   return {f:firm,dir};
 }
+const nz=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const SUFX=/\b(incorporated|inc|corp|corporation|company|companies|co|plc|ltd|limited|holdings?|group|the|sa|se|ag|nv|spa|class [abc]|common stock|ordinary shares?)\b/g;
+// el titular debe nombrar de verdad a la empresa (evita confundir Williams-Sonoma con Williams Cos)
+function nombraEmpresa(t,nm){
+  const n=nz(nm).replace(/[.,()]/g,' ').replace(SUFX,' ').replace(/\s+/g,' ').trim();if(!n||/\.\.\./.test(nm||''))return false;
+  const w=n.split(' '),tt=' '+nz(t).replace(/[^a-z0-9ñ&\- ]/g,' ').replace(/\s+/g,' ')+' ';
+  const k=w.length>=2?w.slice(0,2).join(' '):w[0];if(k.length<4)return false;
+  const i=tt.indexOf(' '+k);if(i<0)return false;const nx=tt[i+1+k.length];return nx===' '||nx==='s';
+}
 const day=d=>Math.floor(d/86400);
 async function main(){
   const now=Math.floor(Date.now()/1000);
   const prev=(await J(B+'acierto/ac.json'))||{calls:[]};
-  const calls=prev.calls||[];const have=new Set(calls.map(c=>c.f+'|'+c.s+'|'+day(c.d)));
-  const q=await loadQ(REPO);const bm=(q.s['SPY']||q.s['^GSPC']||{}).p||null;
+  const calls=prev.calls||[];const q=await loadQ(REPO);
+  for(let i=calls.length-1;i>=0;i--){const c=calls[i];if(q.s[c.s]&&!nombraEmpresa(c.t,q.s[c.s].nm))calls.splice(i,1);}
+  const have=new Set(calls.map(c=>c.f+'|'+c.s+'|'+day(c.d)));const bm=(q.s['SPY']||q.s['^GSPC']||{}).p||null;
   const n=await J(B+'news/n.json');let nuevas=0;
   if(n&&n.s)for(const [sym,arr] of Object.entries(n.s))for(const it of arr){
-    const c=parseCall(it.t);if(!c)continue;const k=c.f+'|'+sym+'|'+day(it.d);if(have.has(k))continue;
+    const c=parseCall(it.t);if(!c||!nombraEmpresa(it.t,(q.s[sym]||{}).nm))continue;const k=c.f+'|'+sym+'|'+day(it.d);if(have.has(k))continue;
     const p=q.s[sym]&&q.s[sym].p;if(!p)continue;have.add(k);nuevas++;
     calls.push({f:c.f,s:sym,dir:c.dir,d:it.d,seen:now,p0:p,b0:bm,t:it.t.slice(0,110)});
   }
