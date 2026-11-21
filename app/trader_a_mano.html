@@ -172,6 +172,7 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 <!-- ================= HOY ================= -->
 <section id="t-hoy" class="on">
   <div class="msg bad" id="offBar" style="display:none;margin:0 0 12px">Sin conexión. La app seguirá cuando vuelva y revisará todo lo ocurrido mientras tanto.</div>
+  <button class="btn ghost full" id="pilGo" type="button" style="margin:0 0 10px">Panel del piloto: qué ha hecho y por qué</button>
   <div class="card hero">
     <div class="lbl">Cartera virtual · dinero ficticio</div>
     <div class="val" id="hVal">500,00 €</div>
@@ -230,6 +231,17 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 </section>
 
 <!-- ================= APRENDE ================= -->
+<section id="t-pil">
+  <button class="btn ghost small" id="pilBack" type="button" style="margin-bottom:8px">← Volver a Hoy</button>
+  <h2 style="margin-top:0">Panel del piloto</h2>
+  <div class="card" id="pilHead"></div>
+  <h2>Cómo decide</h2>
+  <div class="card" id="pilFun"></div>
+  <h2>Operaciones abiertas</h2>
+  <div id="pilOpen"></div>
+  <h2>Registro de decisiones</h2>
+  <div class="card" id="pilLog"></div>
+</section>
 <section id="t-est">
   <button class="btn ghost small" id="eBack" type="button" style="margin-bottom:8px">← Volver a Mercado</button>
   <h2 style="margin-top:0">Informe del estudio</h2>
@@ -2900,6 +2912,31 @@ $('connTest').onclick=async()=>{
     (ghRow.indexOf('class="pos"')>=0?'<div class="msg ok">Tu repositorio funciona: la app lo usa primero y no depende de los servicios gratuitos.</div>':n?'<div class="msg ok">'+n+' de '+res.length+' servicios gratuitos funcionando.</div>':'<div class="msg bad">Ningún servicio responde. Comprueba tus datos o wifi, o publica los datos con tu repositorio de GitHub.</div>');
 };
 
+/* ====================== panel del piloto ====================== */
+function renderPil(){
+  const C=S.closed.filter(t=>!t.mom),w=C.filter(t=>t.pnl>0).length,l=C.length-w,e=equity();
+  const ag=srvAgo(),on=S.srv&&S.srvAt;
+  const st=(a,b)=>'<div style="flex:1;text-align:center;padding:8px 2px;border-radius:8px;background:var(--card2,rgba(128,128,128,.12))"><b style="display:block;font-size:16px">'+a+'</b><small>'+b+'</small></div>';
+  $('pilHead').innerHTML='<div class="row"><span>Estado</span><b class="'+(on?'pos':'')+'">'+(on?'Piloto activo':'Solo esta app')+'</b></div>'+
+    (on?'<div class="row"><span>Última ejecución del piloto</span><b>'+(ag==null?'–':ag<1?'ahora':ag<90?'hace '+ag+' min':'hace '+nf(ag/60,0)+' h')+'</b></div>':'<div class="hint">El piloto de GitHub no está conectado: se muestra lo que hace esta app.</div>')+
+    '<div style="display:flex;gap:8px;margin-top:8px">'+st(eur(e),'valor total')+st((e/S.cap0-1>=0?'+':'')+nf((e/S.cap0-1)*100,1)+' %','desde el inicio')+'</div>'+
+    '<div style="display:flex;gap:8px;margin-top:8px">'+st(S.pos.length,'abiertas')+st(w,'ganadas')+st(l,'perdidas')+'</div>';
+  const all=Object.values(S.rows).filter(r=>inUni(r.s)),a=all.length,
+    t1=all.filter(r=>!r.pen[1]&&r.rsi<=78&&r.ev-S.cal.bias>0),
+    t2=t1.filter(r=>!newsVeto(r.s)&&!minFund(r.s)&&!earnBlock(r.s)),
+    cnt=(n,t)=>'<div style="flex:1;text-align:center;padding:8px 2px;border-radius:8px;background:var(--card2,rgba(128,128,128,.12));font-size:12px"><b style="display:block;font-size:16px">'+n+'</b>'+t+'</div>';
+  $('pilFun').innerHTML=a?'<div style="display:flex;gap:6px">'+cnt(a,'mira')+cnt(t1.length,'con ventaja')+cnt(t2.length,'pasan filtros')+cnt(Math.min(10,t2.length),'ranking')+'</div>'+
+    '<div class="hint" style="margin-top:8px">Ahora mismo: de '+a+' acciones estudiadas, '+(a-t1.length)+' se descartan por tendencia, sobrecompra o ventaja esperada negativa, y '+(t1.length-t2.length)+' por noticias, empresa o resultados cercanos.</div>':'<div class="empty">Todavía no hay datos del mercado. Pulsa Actualizar en Hoy.</div>';
+  $('pilOpen').innerHTML=S.pos.length?S.pos.map(p=>{
+    const px=p.last||p.entry,pc=(px/p.entry-1)*100,pr=p.pred;
+    return '<div class="card"><div class="row"><b>'+esc(p.s.replace('.MC',''))+(p.mom?' · momentum':p.manual?' · a mano':'')+'</b><b class="'+(pc>=0?'pos':'neg')+'">'+(pc>=0?'+':'')+nf(pc,1)+' %</b></div>'+
+      '<div class="row"><span>Entrada · ahora</span><b>'+nf(p.entry)+' · '+nf(px)+' '+esc(p.cur||'')+'</b></div>'+
+      (p.stop?'<div class="row"><span>Stop · objetivo</span><b>'+nf(p.stop)+' · '+(p.target?nf(p.target):'–')+'</b></div>':'')+
+      '<div class="row"><span>Día</span><b>'+(p.days||0)+' de '+S.maxDays+'</b></div>'+
+      (pr&&isFinite(pr.pT)?'<div class="hint">Al comprar: '+nf(adjP(pr)*100,0)+' % de probabilidad de llegar al objetivo, ventaja esperada '+nf(pr.ev,1)+' %.</div>':'')+'</div>';
+  }).join(''):'<div class="card"><div class="empty">No hay operaciones abiertas.</div></div>';
+  $('pilLog').innerHTML=S.log.length?S.log.slice(0,25).map(x=>'<div class="log">'+x.x+'<br><small>'+new Date(x.t).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</small></div>').join(''):'<div class="empty">Todavía no ha hecho nada.</div>';
+}
 /* ====================== navegación e inicio ====================== */
 function go(t){
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
@@ -2910,8 +2947,10 @@ function go(t){
   if(t==='mer')renderMer();
   if(t==='lab')renderLV();
   if(t==='div')renderDV();
+  if(t==='pil')renderPil();
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
+$('pilGo').onclick=()=>go('pil');$('pilBack').onclick=()=>go('hoy');
 $('stBtn').onclick=()=>autopilot(true);
 window.addEventListener('resize',()=>{if($('t-car').classList.contains('on'))drawEq();});
 $('btGo').onclick=btStart;$('btStop').onclick=()=>{btCancel=true;};
