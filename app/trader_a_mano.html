@@ -2169,10 +2169,14 @@ function row2(a,b){return '<div class="row" style="margin-top:6px"><span>'+a+'</
 function renderApr(){
   const C=S.closed.filter(t=>!t.manual&&t.why!=='manual'),n=C.length,w=C.filter(t=>t.pnl>0).length;
   const avgW=w?C.filter(t=>t.pnl>0).reduce((a,t)=>a+t.pnl,0)/w:0,l=n-w,avgL=l?C.filter(t=>t.pnl<=0).reduce((a,t)=>a+t.pnl,0)/l:0;
-  $('aprSum').innerHTML=n?
+  const prog=(function(){
+    const m=n<8?8:n<20?20:30,txt=n<8?'Faltan '+(8-n)+' operaciones cerradas para que empiece a ajustar sus señales.':n<20?'Ya ajusta, pero con poco peso. Faltan '+(20-n)+' para que sus conclusiones empiecen a ser fiables.':n<30?'Ajustando con cautela. Faltan '+(30-n)+' para que el aprendizaje pese del todo.':'Aprendizaje a pleno rendimiento ('+n+' operaciones).';
+    return '<div class="hint" style="margin:0 0 4px"><b>Progreso del aprendizaje</b> · '+Math.min(n,30)+' de 30</div><div class="bar"><i style="width:'+Math.min(100,n/30*100)+'%;background:var(--ok)"></i></div><div class="hint" style="margin:4px 0 8px">'+txt+'</div>';
+  })();
+  $('aprSum').innerHTML=prog+(n?
     row2('Operaciones cerradas',n).replace('margin-top:6px','')+row2('Acertadas',w+' de '+n+' ('+nf(w/n*100,0)+' %)')+row2('Ganancia media',eur(avgW))+row2('Pérdida media',eur(avgL))+row2('Resultado total',eur(C.reduce((a,t)=>a+t.pnl,0)))+
     (n<20?'<div class="msg">Con '+n+' operaciones todavía hay mucho azar. Hacen falta al menos 20 para sacar conclusiones y '+(n<8?'8 para que empiece a ajustar sus señales.':'ya está empezando a ajustarlas.')+'</div>':'<div class="msg ok">Ya tiene una muestra razonable. Las señales de abajo están ajustadas con lo vivido.</div>')
-    :'<div class="empty">Todavía no ha cerrado ninguna operación. Cuando cierre las primeras, aquí verás qué ha aprendido.</div>';
+    :'<div class="empty">Todavía no ha cerrado ninguna operación. Cuando cierre las primeras, aquí verás qué ha aprendido.</div>');
   (function(){
     const man=S.closed.filter(t=>t.manual),au=S.closed.filter(t=>!t.manual&&t.why!=='manual');
     if(!man.length){$('vsBox').innerHTML='<div class="empty">Cuando compres a mano desde el gráfico completo de una acción y se cierren operaciones, aquí verás quién acierta más, tú o la app.</div>';return;}
