@@ -443,6 +443,7 @@ const $=id=>document.getElementById(id);
 const nf=(v,d=2)=>Number(v).toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d});
 const eur=v=>(v<0?'−':'')+nf(Math.abs(v))+' €';
 const sg=(v,d=1)=>(v>=0?'+':'−')+nf(Math.abs(v),d);
+const safeUrl=u=>/^https?:\/\//i.test(String(u||''))?String(u):'#';
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rd=x=>+(+x).toFixed(x<1?4:2);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -555,7 +556,7 @@ function regimeK(key){
 const minNota=sym=>regime(sym).min;
 function earnDays(sym){const e=CX.d&&CX.d.earn&&CX.d.earn[sym];if(!e)return null;const t=Date.parse(e.slice(0,10)+'T12:00:00Z');if(isNaN(t))return null;const d=Math.round((t-Date.now())/864e5);return d<0?null:{d,when:e.slice(10)==='a'?'antes de abrir':e.slice(10)==='d'?'al cierre':'',date:e.slice(0,10)};}
 function earnBlock(sym){const n=S.earnD==null?5:+S.earnD;if(!n)return false;const e=earnDays(sym);return !!e&&e.d<=n;}
-function earnTxt(sym){const e=earnDays(sym);if(!e||e.d>14)return '';return 'resultados '+(e.d===0?'hoy':e.d===1?'mañana':'en '+e.d+' días')+(e.when?' ('+e.when+')':'');}
+function earnTxt(sym){const e=earnDays(sym);if(!e||e.d>14)return '';return 'resultados '+(e.d===0?'hoy':e.d===1?'mañana':'en '+e.d+' días')+(e.when?' ('+esc(e.when)+')':'');}
 function rs20(r){const i=idxOf(r.s);return i&&r.mom!=null?r.mom-i.mom20:null;}
 const rsAdj=r=>{if(S.regOn===false)return 0;const x=rs20(r);return x==null?0:Math.max(-0.5,Math.min(0.5,x/20));};
 /* ---- estrategia lenta: momentum 12-1 mensual con filtro de mercado ---- */
@@ -950,7 +951,7 @@ function evList(){
   const sh=S.shadow&&S.shadow.m20;if(sh)Object.keys(sh.p).forEach(x=>set.add(x));
   const L=[];
   for(const x of set){
-    const e=earnDays(x);if(e&&e.d<=30)L.push({d:e.d,date:e.date,s:x,t:'Resultados'+(e.when?' ('+e.when+')':''),k:'r'});
+    const e=earnDays(x);if(e&&e.d<=30)L.push({d:e.d,date:e.date,s:x,t:'Resultados'+(e.when?' ('+esc(e.when)+')':''),k:'r'});
     const v=divNext(x);if(v&&v.d<=30)L.push({d:v.d,date:v.x,s:x,t:'Dividendo (ex): '+nf(v.a,2)+' $/acción'+(v.p?' · se paga el '+fmtD(new Date(v.p+'T12:00:00Z')):''),k:'d'});
     const sp=CX.d&&CX.d.spl&&CX.d.spl[x];if(sp&&sp.d){const d=dDiff(sp.d);if(d!=null&&d>=0&&d<=30)L.push({d,date:sp.d,s:x,t:'Split '+sp.r,k:'s'});}
   }
@@ -1067,7 +1068,7 @@ function minFund(sym){const f=fuOf(sym);if(!f)return false;const a=+S.minFs||0,b
 function newsVeto(sym){if(S.vetoNews===false)return false;const c=newsCnt(sym);return c.n>=2&&c.n>c.p;}
 const ago=d=>{const h=Math.max(0,(Date.now()/1000-d)/3600);return h<1?'hace '+Math.max(1,Math.round(h*60))+' min':h<48?'hace '+Math.round(h)+' h':'hace '+Math.round(h/24)+' d';};
 const toneIc=k=>k>0?'🟢':k<0?'🔴':'⚪';
-function newsItemsHTML(a){return a.map(x=>'<li style="margin:3px 0">'+toneIc(x.k)+' '+(x.u?'<a href="'+esc(x.u)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a>':esc(x.t))+' <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span>'+acBadge(x.t)+'</li>').join('');}
+function newsItemsHTML(a){return a.map(x=>'<li style="margin:3px 0">'+toneIc(x.k)+' '+(x.u?'<a href="'+esc(safeUrl(x.u))+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a>':esc(x.t))+' <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span>'+acBadge(x.t)+'</li>').join('');}
 function newsHTML(sym){
   const a=NW.f[sym]||newsOf(sym);
   if(!NW.d)return '';
@@ -1083,7 +1084,7 @@ const ES_SRC=/cinco d|expansi|economista|bolsaman/i;
 function renderNews(){
   const b=$('newsBox');if(!b)return;
   const g=(NW.d&&NW.d.g)||[];
-  b.innerHTML=g.length?'<ul style="margin:0;padding:0;list-style:none;font-size:14px">'+g.slice().sort((a,b)=>(ES_SRC.test(b.s)?1:0)-(ES_SRC.test(a.s)?1:0)||b.d-a.d).slice(0,10).map(x=>'<li style="margin:6px 0">'+toneIc(x.k)+' <a href="'+esc(x.u)+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a> <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span>'+acBadge(x.t)+'</li>').join('')+'</ul>':'<div class="empty">Cargando noticias…</div>';
+  b.innerHTML=g.length?'<ul style="margin:0;padding:0;list-style:none;font-size:14px">'+g.slice().sort((a,b)=>(ES_SRC.test(b.s)?1:0)-(ES_SRC.test(a.s)?1:0)||b.d-a.d).slice(0,10).map(x=>'<li style="margin:6px 0">'+toneIc(x.k)+' <a href="'+esc(safeUrl(x.u))+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a> <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span>'+acBadge(x.t)+'</li>').join('')+'</ul>':'<div class="empty">Cargando noticias…</div>';
 }
 async function ghJson(u){
   const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),25000);
@@ -1299,7 +1300,7 @@ async function getFx(cur){
     const d=await chart('EUR'+cur+'=X','1d','5d',0),v=d.meta.regularMarketPrice||d.c[d.c.length-1];
     if(v>0){S.fx[cur]={v,at:Date.now()};return v;}
   }catch(e){}
-  return c?c.v:1;
+  return c?c.v:(fxv(cur)||1);
 }
 /* tipo de cambio: el guardado, y si falta el de las cotizaciones publicadas (EUR/USD, EUR/GBP, EUR/CHF) */
 function fxv(cur){const c=S.fx[cur];if(c&&c.v>0)return c.v;if(cur==='GBp'||cur==='GBX'){const g=fxv('GBP');return g?g*100:0;}const q=GH.q&&GH.q.s&&GH.q.s['EUR'+cur+'=X'];return q&&q.p>0?q.p:0;}
@@ -1311,6 +1312,7 @@ function pxD(v,cur,d){if(d===undefined)d=2;if(dispEur()&&cur&&cur!=='EUR'&&fxv(c
 const posValue=p=>p.shares*(p.last||p.entry)/fxOf(p.cur);
 /* dividendos: se abonan en efectivo el día ex (retención de EE. UU. 15 %); solo si la posición ya se tenía antes de esa fecha */
 const DIV_NET=0.85;
+const divNet=sym=>/\.MC$/.test(sym)?0.81:/\.DE$/.test(sym)?0.735:/\.PA$/.test(sym)?0.70:/\./.test(sym)?0.75:DIV_NET;
 function divDue(sym){const v=CX.d&&CX.d.div&&CX.d.div[sym];if(!v||!v.x||!(v.a>0))return null;const t=dayKey(Date.now());if(v.x>t)return null;if((Date.parse(t+'T12:00:00Z')-Date.parse(v.x+'T12:00:00Z'))/864e5>6)return null;return v;}
 function divCredit(){
   if(!portLocal())return;
@@ -1319,9 +1321,22 @@ function divCredit(){
     const v=divDue(p.s);if(!v)continue;
     if(dayKey(p.openTs)>=v.x)continue;
     const key=p.s+'|'+v.x;if(S.divDone[key])continue;
-    const amt=p.shares*v.a*DIV_NET/fxOf(p.cur);
+    const amt=p.shares*v.a*divNet(p.s)/fxOf(p.cur);
     S.cash+=amt;p.dv=(p.dv||0)+amt;S.divDone[key]=1;
     log('Cobró un dividendo de <b>'+esc(p.s)+'</b>: '+eur(amt)+' ('+nf(v.a,2)+' $ por acción, ya sin la retención del 15 %).');
+  }
+  /* valores sin calendario de dividendos (Europa, Asia…): se abona una estimación (dividendo anual ÷ pagos al año) el día de pago que detectan los fundamentales */
+  const today=dayKey(Date.now());
+  for(const p of S.pos){
+    if(/\.L$/.test(p.s))continue;                           // Londres cotiza en peniques: sin estimar
+    const f=(typeof fuOf==='function')?fuOf(p.s):null;if(!f||!(f.dl>0)||!(f.dv>0)||!(f.dn>0))continue;
+    if(f.cu&&f.cu!==p.cur)continue;
+    const ex=dayKey(f.dl*1000);if(ex>today||dayKey(p.openTs)>=ex)continue;
+    if((Date.parse(today+'T12:00:00Z')-Date.parse(ex+'T12:00:00Z'))/864e5>25)continue;
+    if(Object.keys(S.divDone).some(k=>k.startsWith(p.s+'|')&&Math.abs(Date.parse(k.split('|')[1]+'T12:00:00Z')-Date.parse(ex+'T12:00:00Z'))<8*864e5))continue;
+    const per=f.dv/f.dn,amt=p.shares*per*divNet(p.s)/fxOf(p.cur);if(!(amt>0))continue;
+    S.cash+=amt;p.dv=(p.dv||0)+amt;S.divDone[p.s+'|'+ex]=1;
+    log('Cobró un dividendo (estimado) de <b>'+esc(p.s.replace('.MC',''))+'</b>: '+eur(amt)+' (≈ '+nf(per,2)+' por acción, con la retención aproximada del país).');
   }
   const ks=Object.keys(S.divDone);if(ks.length>150)ks.sort((a,b)=>a.split('|')[1]<b.split('|')[1]?-1:1).slice(0,ks.length-100).forEach(k=>delete S.divDone[k]);
 }
@@ -2486,7 +2501,7 @@ function renderDia(){
 function bkData(){const o={};for(const k of Object.keys(S)){if(['rows','shadow','shBench','sp','fx','mk','ext','idxC'].includes(k))continue;o[k]=S[k];}return JSON.stringify({tm:'backup-v1',at:Date.now(),S:o});}
 $('bkCp').onclick=async()=>{const t=bkData();try{await navigator.clipboard.writeText(t);$('bkMsg').innerHTML='<div class="msg ok">Copia guardada en el portapapeles ('+Math.round(t.length/1024)+' KB). Pégala en una nota o en un mensaje a ti mismo.</div>';}catch(e){$('bkTx').value=t;$('bkTx').select();$('bkMsg').innerHTML='<div class="msg">No pude copiarla sola: está en el cuadro de abajo, selecciónala y cópiala.</div>';}};
 $('bkDl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bkData()],{type:'application/json'}));a.download='trader_copia_'+dayKey(Date.now())+'.json';document.body.appendChild(a);a.click();a.remove();};
-$('bkRs').onclick=()=>{try{const j=JSON.parse($('bkTx').value.trim());if(!j||j.tm!=='backup-v1'||!j.S)throw new Error('formato');if(!confirm('Esto sustituye tu cartera, órdenes, diario y ajustes por los de la copia. ¿Seguir?'))return;Object.assign(S,j.S);save();$('bkMsg').innerHTML='<div class="msg ok">Copia restaurada. Recargando…</div>';setTimeout(()=>location.reload(),800);}catch(e){$('bkMsg').innerHTML='<div class="msg bad">Esa copia no es válida. Pega el texto completo tal como se copió.</div>';}};
+$('bkRs').onclick=()=>{try{const j=JSON.parse($('bkTx').value.trim());if(!j||j.tm!=='backup-v1'||!j.S)throw new Error('formato');if(!confirm('Esto sustituye tu cartera, órdenes, diario y ajustes por los de la copia. ¿Seguir?'))return;for(const k of Object.keys(j.S))if(k!=='__proto__'&&k!=='constructor'&&k!=='prototype')S[k]=j.S[k];save();$('bkMsg').innerHTML='<div class="msg ok">Copia restaurada. Recargando…</div>';setTimeout(()=>location.reload(),800);}catch(e){$('bkMsg').innerHTML='<div class="msg bad">Esa copia no es válida. Pega el texto completo tal como se copió.</div>';}};
 let sellArm=null;
 function sellManual(id,btn){
   if(btn&&btn.textContent==='Vender a mercado'){}
@@ -2747,7 +2762,7 @@ async function loadNews(sym,box){
     [...doc.querySelectorAll('item')].slice(0,8).forEach(it=>{const g=t=>{const e=it.querySelector(t);return e?e.textContent:'';};A.push({t:g('title'),l:g('link'),src:g('source')||'Google Noticias',d:Date.parse(g('pubDate'))||0});});}).catch(()=>{});
   await Promise.all([p1,p2]);
   A.sort((a,b)=>b.d-a.d);
-  box.innerHTML=A.length?A.slice(0,8).map(n=>'<a href="'+esc(n.l)+'" target="_blank" rel="noopener">'+esc(n.t)+'<small>'+esc(n.src)+' · '+(n.d?new Date(n.d).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'')+'</small></a>').join(''):'<div class="empty">No se pudieron cargar noticias ahora mismo.</div>';
+  box.innerHTML=A.length?A.slice(0,8).map(n=>'<a href="'+esc(safeUrl(n.l))+'" target="_blank" rel="noopener">'+esc(n.t)+'<small>'+esc(n.src)+' · '+(n.d?new Date(n.d).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'')+'</small></a>').join(''):'<div class="empty">No se pudieron cargar noticias ahora mismo.</div>';
 }
 
 /* ====================== Más: analizar, ajustes, conexión ====================== */

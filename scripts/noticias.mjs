@@ -49,7 +49,7 @@ function parse(xml,srcName){
     if(isNaN(d)||!title)continue;
     let src=srcName;const sm=b.match(/<source[^>]*>([\s\S]*?)<\/source>/i);if(sm&&dec(sm[1]))src=dec(sm[1]);
     if(srcName==='Google'&&src&&title.endsWith(' - '+src))title=title.slice(0,-(src.length+3));
-    items.push({s:src,t:title.slice(0,130),u:link,d:Math.floor(d/1000)});
+    items.push({s:src,t:title.slice(0,130),u:/^https?:\/\//i.test(link)?link:'',d:Math.floor(d/1000)});
   }
   return items;
 }
