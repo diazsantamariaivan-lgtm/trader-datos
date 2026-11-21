@@ -2328,7 +2328,7 @@ function fcDraw(){
   if(pl){
     [[pl.target,TH.ok,'OBJETIVO'],[pl.p,TH.ink,pl.pos?'COMPRA (entrada)':'COMPRA (ahora)'],[pl.stop,TH.neg,'STOP']].forEach(([p,col,l])=>{
       const y=Y(p);g.setLineDash([5,4]);g.strokeStyle=col;g.lineWidth=1.2;g.beginPath();g.moveTo(Lm,y);g.lineTo(W-Rm,y);g.stroke();g.setLineDash([]);
-      g.fillStyle=TH.tagbg;const t=l+' '+fp(p),tw=g.measureText(t).width+8;g.fillRect(W-Rm-tw-2,y-13,tw,12);g.fillStyle=col;g.fillText(t,W-Rm-tw+2,y-4);
+      g.fillStyle=TH.tagbg;const t=l+' '+fp(p),tw=g.measureText(t).width+8;g.fillRect(Lm+2,y-13,tw,12);g.fillStyle=col;g.textAlign='left';g.fillText(t,Lm+6,y-4);
     });
   }
   const last=d.c[n-1],yl=Y(last);g.fillStyle=TH.ink;g.fillRect(W-Rm,yl-7,Rm-2,14);g.fillStyle=TH.cvbg;g.fillText(fp(last),W-Rm+3,yl+3);
