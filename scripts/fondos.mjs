@@ -37,6 +37,10 @@ async function main(){
   for(const l of lines('fondos_isin.txt')){const q=(await find(l.split(/\s+/)[0]))[0];if(q)U.set(q.symbol,{s:q.symbol,n:q.longname||q.shortname||q.symbol});await sleep(250);}
   const Q=lines('fondos_busquedas.txt');
   for(const q of Q){for(const x of await find(q)){if(!U.has(x.symbol))U.set(x.symbol,{s:x.symbol,n:x.longname||x.shortname||x.symbol});}await sleep(250);}
+  // conservar los fondos de la ejecución anterior y los que tienen las carteras del laboratorio (si no, algunos desaparecen y las carteras se quedan sin su ficha)
+  const REPO=process.env.GITHUB_REPOSITORY||'diazsantamariaivan-lgtm/trader-datos';
+  try{const r=await fetch('https://raw.githubusercontent.com/'+REPO+'/fondos/fd.json?t='+Date.now(),{signal:AbortSignal.timeout(30000)});if(r.ok){const pj=await r.json();for(const f of pj.f||[])if(f&&f.s&&!U.has(f.s))U.set(f.s,{s:f.s,n:f.n||f.s});}}catch(e){}
+  try{const r=await fetch('https://raw.githubusercontent.com/'+REPO+'/fondos/lab.json?t='+Date.now(),{signal:AbortSignal.timeout(30000)});if(r.ok){const pj=await r.json();for(const pf of Object.values(pj.live||{}))for(const x of pf.pos||[])if(x&&x.s&&!U.has(x.s))U.set(x.s,{s:x.s,n:x.n||x.s});}}catch(e){}
   console.log('candidatos',U.size);
   let L=[...U.values()];if(LIMIT)L=L.slice(0,LIMIT);
   mkdirSync(OUT+'/fh',{recursive:true});

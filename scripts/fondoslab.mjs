@@ -60,13 +60,14 @@ async function main(){
     if(a.hi.length>=4&&a.lo.length>=4)V2[k]={hi:+(a.hi.reduce((x,y)=>x+y,0)/a.hi.length*100).toFixed(2),nh:a.hi.length,lo:+(a.lo.reduce((x,y)=>x+y,0)/a.lo.length*100).toFixed(2),nl:a.lo.length};}
   // ----- en vivo -----
   let prev=null;try{const r=await fetch('https://raw.githubusercontent.com/'+REPO+'/fondos/lab.json?t='+Date.now());if(r.ok)prev=await r.json();}catch(e){}
-  const live=(prev&&prev.live)||{};const PX=Object.fromEntries(fd.f.map(f=>[f.s,f.p]));const today=now;
-  const val=pf=>pf.pos.reduce((a,x)=>a+x.u*(PX[x.s]||x.p0),0);
+  const live=(prev&&prev.live)||{};const PX=Object.fromEntries(fd.f.map(f=>[f.s,f.p]));const NM=Object.fromEntries(fd.f.map(f=>[f.s,f.n]));const today=now;
+  const val=pf=>pf.pos.reduce((a,x)=>a+x.u*(PX[x.s]||x.pl||x.p0),0);
   for(const rule of RULES.map(r=>r[0]))for(const n of NS)for(const hm of HS){
     const id=rule+'-'+n+'-'+hm;let pf=live[id];
-    const open=(cash)=>{seed=today*13+n+hm;const L=pick(rule,n,today);if(!L)return [];return L.map(s=>({s,p0:PX[s]||H[s].c[H[s].c.length-1],u:cash/L.length/(PX[s]||H[s].c[H[s].c.length-1])}));};
+    const open=(cash)=>{seed=today*13+n+hm;const L=pick(rule,n,today);if(!L)return [];return L.map(s=>({s,n:NM[s]||s,p0:PX[s]||H[s].c[H[s].c.length-1],u:cash/L.length/(PX[s]||H[s].c[H[s].c.length-1])}));};
     if(!pf){pf=live[id]={id,rule,n,hm,t0:today,cash:0,next:today+Math.round(hm*30.4),pos:open(10000),cl:[],eq:[]};}
     else if(today>=pf.next){const v=val(pf),c0=pf.cost||10000;pf.cl.push({d:today,ret:+((v/c0-1)*100).toFixed(2)});pf.pos=open(v);pf.cost=v;pf.next=today+Math.round(hm*30.4);}
+    for(const x of pf.pos){if(!x.n&&NM[x.s])x.n=NM[x.s];if(PX[x.s])x.pl=PX[x.s];}
     if(!pf.cost)pf.cost=10000;
     const v=val(pf);if(!pf.eq.length||pf.eq[pf.eq.length-1][0]!==today)pf.eq.push([today,Math.round(v)]);else pf.eq[pf.eq.length-1][1]=Math.round(v);pf.eq=pf.eq.slice(-800);pf.v=Math.round(v);
   }
