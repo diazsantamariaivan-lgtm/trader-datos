@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="22/11/2026 20:15";</script>
+<script>window.BUILD="22/11/2026 20:25";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -2956,6 +2956,15 @@ function renderCal(){
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#calBox [data-cv],#calBox [data-ca]');if(!b)return;
   if(b.dataset.cv)CAL.v=b.dataset.cv;else CAL.all=b.dataset.ca==='1';renderCal();});
 /* ====================== panel del piloto ====================== */
+function pilVsIdx(e){
+  const m=momMarket(),b=S.shBench;
+  if(!m||!b||!b.x||!b.d)return '<div class="hint" style="margin-top:8px">Comparación con el índice: todavía no hay referencia. Aparecerá cuando el piloto guarde el precio del S&amp;P 500 de partida.</div>';
+  const bd=new Date(b.d+'T00:00:00').getTime(),f=S.eq.find(x=>x.t>=bd),e0=f?f.e:S.cap0,rp=(e/e0-1)*100,ri=(m.p/b.x-1)*100,dif=rp-ri;
+  return '<div class="hint" style="margin:10px 0 2px"><b>Frente al índice</b> desde el '+new Date(bd).toLocaleDateString('es-ES')+'</div>'+
+    '<div class="row"><span>Tu cartera</span><b class="'+(rp>=0?'pos':'neg')+'">'+(rp>=0?'+':'')+nf(rp,1)+' %</b></div>'+
+    '<div class="row"><span>S&amp;P 500 (sin dividendos)</span><b class="'+(ri>=0?'pos':'neg')+'">'+(ri>=0?'+':'')+nf(ri,1)+' %</b></div>'+
+    '<div class="msg '+(dif>=0?'ok':'')+'">'+(dif>=0?'Por ahora vas '+nf(dif,1)+' puntos por encima del índice.':'Por ahora el índice rinde '+nf(-dif,1)+' puntos más que tu cartera.')+' Con pocas semanas es casi todo azar; lo que cuenta es lo que ocurra durante meses.</div>';
+}
 function renderPil(){
   const C=S.closed.filter(t=>!t.mom),w=C.filter(t=>t.pnl>0).length,l=C.length-w,e=equity();
   const ag=srvAgo(),on=S.srv&&S.srvAt;
@@ -2963,7 +2972,7 @@ function renderPil(){
   $('pilHead').innerHTML='<div class="row"><span>Estado</span><b class="'+(on?'pos':'')+'">'+(on?'Piloto activo':'Solo esta app')+'</b></div>'+
     (on?'<div class="row"><span>Última ejecución del piloto</span><b>'+(ag==null?'–':ag<1?'ahora':ag<90?'hace '+ag+' min':'hace '+nf(ag/60,0)+' h')+'</b></div>':'<div class="hint">El piloto de GitHub no está conectado: se muestra lo que hace esta app.</div>')+
     '<div style="display:flex;gap:8px;margin-top:8px">'+st(eur(e),'valor total')+st((e/S.cap0-1>=0?'+':'')+nf((e/S.cap0-1)*100,1)+' %','desde el inicio')+'</div>'+
-    '<div style="display:flex;gap:8px;margin-top:8px">'+st(S.pos.length,'abiertas')+st(w,'ganadas')+st(l,'perdidas')+'</div>';
+    '<div style="display:flex;gap:8px;margin-top:8px">'+st(S.pos.length,'abiertas')+st(w,'ganadas')+st(l,'perdidas')+'</div>'+pilVsIdx(e);
   const all=Object.values(S.rows).filter(r=>inUni(r.s)),a=all.length,
     t1=all.filter(r=>!r.pen[1]&&r.rsi<=78&&r.ev-S.cal.bias>0),
     t2=t1.filter(r=>!newsVeto(r.s)&&!minFund(r.s)&&!earnBlock(r.s)),

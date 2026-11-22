@@ -472,7 +472,7 @@ const KEY='traderamano.v4';
 const BASE_W={tr:2,s50:1,rs:2,hi:1,mo:1};
 const FK=['tr','s50','rs','hi','mo'];
 const FNAME={tr:'Tendencia alcista (precio sobre sus medias de 20 y 50 días)',s50:'Precio sobre su media de 50 días',rs:'Fuerza sana (RSI entre 50 y 68)',hi:'Cerca de su máximo de 20 días',mo:'Impulso de las últimas 4 semanas'};
-const DEF={cap0:500,cash:500,riesgo:1,maxPos:10,maxOpen:5,maxDays:10,prorroga:true,com:1,gh:'diazsantamariaivan-lgtm/trader-datos',theme:'claro',comb:true,wFu:0.35,fav:[],trk:[],favAl:{},srv:true,srvKey:'',apr:false,aprT:'',ext:[],aprOut:[],aprAt:0,aprErr:'',srvAt:0,srvChk:0,srvErr:'',uni:{on:['SP500','IBEX35','EXTRA']},btMode:'all',btSel:[],btCacheAt:0,slip:0.15,limD:3,limS:6,bt:null,auto:true,
+const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,prorroga:true,com:1,gh:'diazsantamariaivan-lgtm/trader-datos',theme:'claro',comb:true,wFu:0.35,fav:[],trk:[],favAl:{},srv:true,srvKey:'',apr:false,aprT:'',ext:[],aprOut:[],aprAt:0,aprErr:'',srvAt:0,srvChk:0,srvErr:'',uni:{on:['SP500','IBEX35','EXTRA']},btMode:'all',btSel:[],btCacheAt:0,slip:0.15,limD:3,limS:6,bt:null,auto:true,
   pos:[],closed:[],eq:[],log:[],W:Object.assign({},BASE_W),rows:{},cal:{p:1,bias:0,n:0,dur:1},ntfy:'',outbox:[],watchMode:false,scanAt:0,sp:{list:[],at:0},fx:{},buyDay:'',buysToday:0,startedAt:Date.now()};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const j=localStorage.getItem(KEY);if(j)Object.assign(S,JSON.parse(j));}catch(e){}
