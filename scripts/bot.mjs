@@ -127,6 +127,7 @@ const dom = new JSDOM(html, {
       if (u.startsWith('https://ntfy.sh/')) { NTFYQ.push({ u, o: { method: (o && o.method) || 'POST', headers: o && o.headers, body: o && o.body } }); return ok({}); }
       if (u.includes('wikipedia')) return ok({ parse: { text: { '*': '<table class="wikitable"><tbody><tr><th>x</th></tr>' + spList.map(t => '<tr><td>' + t + '</td></tr>').join('') + '</tbody></table>' } } });
       if (u.includes('/quotes/q.json')) return ok(Q);
+      { const m = u.match(/\/quotes\/qi\/([^/?]+)\.json/); if (m) { try { return ok(JSON.parse(readFileSync('qi/' + decodeURIComponent(m[1]) + '.json', 'utf8'))); } catch (e) { return Promise.reject(new TypeError('sin red')); } } }
       if (u.includes('/fund/f.json') && FJ) return ok(FJ);
       if (u.includes('/news/n.json') && NJ) return ok(NJ);
       if (u.includes('/check/c.json') && CJ) return ok(CJ);

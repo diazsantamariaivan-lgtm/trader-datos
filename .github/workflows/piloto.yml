@@ -32,6 +32,7 @@ jobs:
         run: |
           git clone -q --depth 1 -b quotes "https://github.com/${{ github.repository }}.git" qdata
           cp qdata/q.json q.json
+          [ -d qdata/qi ] && cp -r qdata/qi qi || echo "sin ficheros por índice"
           git clone -q --depth 1 -b fund "https://github.com/${{ github.repository }}.git" fdata && cp fdata/f.json f.json || echo "sin fundamentales"
           git clone -q --depth 1 -b news "https://github.com/${{ github.repository }}.git" ndata && cp ndata/n.json n.json || echo "sin noticias"
           git clone -q --depth 1 -b ctx "https://github.com/${{ github.repository }}.git" xdata && cp xdata/x.json x.json || echo "sin contexto"
