@@ -7,7 +7,7 @@ const URLS=['https://nfs.faireconomy.media/ff_calendar_thisweek.json','https://n
 const PAIS={USD:'EE. UU.',EUR:'Eurozona',GBP:'Reino Unido',JPY:'Japón',CNY:'China',CHF:'Suiza',CAD:'Canadá',AUD:'Australia',NZD:'Nueva Zelanda'};
 const IMP={High:'H',Medium:'M',Low:'L',Holiday:'F'};
 const TR=[
- ['Core PCE Price Index','Índice de precios PCE subyacente'],['PCE Price Index','Índice de precios PCE'],
+ ['Core Retail Sales','Ventas minoristas subyacentes'],['Core PCE Price Index','Índice de precios PCE subyacente'],['PCE Price Index','Índice de precios PCE'],
  ['Non-Farm Employment Change','Empleo no agrícola'],['Unemployment Claims','Solicitudes de subsidio de desempleo'],['Unemployment Rate','Tasa de paro'],['Unemployment Change','Variación del paro'],
  ['Federal Funds Rate','Tipos de interés de la Fed'],['FOMC Meeting Minutes','Actas de la reunión de la Fed'],['FOMC Member','Miembro del FOMC'],['Beige Book','Libro Beige de la Fed'],
  ['Flash Manufacturing PMI','PMI manufacturero preliminar'],['Flash Services PMI','PMI de servicios preliminar'],['Manufacturing PMI','PMI manufacturero'],['Services PMI','PMI de servicios'],['Composite PMI','PMI compuesto'],
@@ -19,12 +19,14 @@ const TR=[
  ['Interest Rate','Tipos de interés'],['Rate Decision','Decisión de tipos'],['Monetary Policy Statement','Comunicado de política monetaria'],['Employment Change','Variación del empleo'],['Housing Starts','Inicio de viviendas'],
  ['Revised','revisado'],['Prelim','preliminar'],['Final','definitivo'],['Flash','preliminar'],['Core','subyacente'],['m/m','(mensual)'],['q/q','(trimestral)'],['y/y','(interanual)']];
 const es=t=>{let s=String(t);for(const[a,b]of TR)s=s.split(a).join(b);return s;};
+const PX={French:'Francia',German:'Alemania',Italian:'Italia',Spanish:'España'};
 const E=[];
 for(const u of URLS){
   try{const r=await fetch(u,{headers:{'User-Agent':UA}});if(!r.ok){console.log(u,'HTTP',r.status);continue;}
     const j=await r.json();if(!Array.isArray(j))continue;
     for(const x of j){const t=Date.parse(x.date);if(!isFinite(t))continue;const i=IMP[x.impact];if(!i)continue;
-      E.push({t,c:PAIS[x.country]||String(x.country||'').slice(0,12),n:es(x.title).slice(0,120),o:String(x.title).slice(0,120),i,f:String(x.forecast||'').slice(0,20),p:String(x.previous||'').slice(0,20)});}
+      let ti=String(x.title),c=PAIS[x.country]||String(x.country||'').slice(0,12);const m=ti.match(/^(French|German|Italian|Spanish)\s+(.*)$/);if(m){c=PX[m[1]];ti=m[2];}
+      E.push({t,c,n:es(ti).slice(0,120),o:String(x.title).slice(0,120),i,f:String(x.forecast||'').slice(0,20),p:String(x.previous||'').slice(0,20)});}
     console.log(u,'ok',j.length);
   }catch(e){console.log(u,'error',e.message);}
 }

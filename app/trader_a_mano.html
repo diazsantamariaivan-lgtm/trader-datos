@@ -189,6 +189,9 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
     <div id="stMsg"></div>
   </div>
 
+  <h2>Calendario económico</h2>
+  <div class="card" id="calBox"><div class="empty">Cargando calendario…</div></div>
+
   <h2>Noticias de la prensa económica</h2>
   <div class="card" id="newsBox"><div class="empty">Cargando noticias…</div></div>
 
@@ -2264,7 +2267,7 @@ function renderPred(){
   h+='<div style="margin-top:12px">'+P.slice(0,8).map(t=>'<div class="log"><b>'+esc(t.s.replace('.MC',''))+'</b> · preveía '+sg(t.pred.ev,1)+' % · salió <b class="'+(t.gross>=0?'pos':'neg')+'">'+sg(t.gross,1)+' %</b> · '+(t.gross>=t.pred.ev?'mejor':'peor')+' de lo previsto</div>').join('')+'</div>';
   $('predBox').innerHTML=h;
 }
-function renderAll(){try{renderLV();}catch(e){}try{renderDV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();try{renderDia();renderLib();}catch(e){}renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();}
+function renderAll(){try{renderLV();}catch(e){}try{renderDV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();try{renderDia();renderLib();}catch(e){}renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();try{renderCal();}catch(e){}}
 
 /* ====================== gráfico completo (estilo broker) ====================== */
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
@@ -2912,6 +2915,41 @@ $('connTest').onclick=async()=>{
     (ghRow.indexOf('class="pos"')>=0?'<div class="msg ok">Tu repositorio funciona: la app lo usa primero y no depende de los servicios gratuitos.</div>':n?'<div class="msg ok">'+n+' de '+res.length+' servicios gratuitos funcionando.</div>':'<div class="msg bad">Ningún servicio responde. Comprueba tus datos o wifi, o publica los datos con tu repositorio de GitHub.</div>');
 };
 
+/* ====================== calendario económico ====================== */
+const CAL={d:null,chk:0,v:'dos',all:false};
+async function loadCal(){
+  try{if(!ghBase()||Date.now()-CAL.chk<30*60000)return;CAL.chk=Date.now();
+    const j=await ghJson(ghBase()+'/cal/c.json?t='+Math.floor(Date.now()/1800000));
+    if(j&&Array.isArray(j.e)){CAL.d=j;renderCal();}
+  }catch(e){}
+}
+function renderCal(){
+  const el=$('calBox');if(!el)return;
+  if(!CAL.d){el.innerHTML='<div class="empty">'+(ghBase()?'Cargando calendario…':'Conecta tu repositorio de datos para ver el calendario.')+'</div>';return;}
+  const dk=t=>new Date(t).toLocaleDateString('sv-SE'),hoy=dk(Date.now()),man=dk(Date.now()+864e5);
+  let E=CAL.d.e.filter(x=>CAL.all||x.i!=='L');
+  if(CAL.v==='dos')E=E.filter(x=>dk(x.t)===hoy||dk(x.t)===man);
+  else E=E.filter(x=>dk(x.t)>=hoy);
+  const IC={H:['Alta','bg-danger'],M:['Media','bg-warn'],L:['Baja',''],F:['Festivo','bg-blue']};
+  const by={};E.forEach(x=>{(by[dk(x.t)]=by[dk(x.t)]||[]).push(x);});
+  const days=Object.keys(by).sort();
+  const nH=(by[hoy]||[]).filter(x=>x.i==='H').length;
+  let h='<div class="seg" style="margin:0 0 8px"><button type="button" data-cv="dos" class="'+(CAL.v==='dos'?'on':'')+'">Hoy y mañana</button><button type="button" data-cv="sem" class="'+(CAL.v==='sem'?'on':'')+'">Toda la semana</button></div>';
+  h+='<div class="seg chips" style="margin:0 0 6px"><button type="button" data-ca="0" class="'+(!CAL.all?'on':'')+'">Importantes</button><button type="button" data-ca="1" class="'+(CAL.all?'on':'')+'">Todos</button></div>';
+  if(nH)h+='<div class="msg o">Hoy hay '+nH+' dato'+(nH>1?'s':'')+' de impacto alto: el mercado puede moverse con fuerza a esa hora.</div>';
+  if(!days.length)h+='<div class="empty">No hay datos importantes en este periodo.</div>';
+  days.forEach(d=>{
+    const dt=new Date(d+'T12:00:00'),tit=d===hoy?'Hoy':d===man?'Mañana':dt.toLocaleDateString('es-ES',{weekday:'long'});
+    h+='<div class="hint" style="margin:10px 0 2px"><b>'+tit.charAt(0).toUpperCase()+tit.slice(1)+'</b> · '+dt.toLocaleDateString('es-ES',{day:'numeric',month:'long'})+'</div>';
+    h+=by[d].map(x=>{const hr=new Date(x.t).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),c=IC[x.i];
+      return '<div class="row" style="align-items:flex-start"><span style="flex:0 0 44px;color:var(--mut)">'+hr+'</span><span style="flex:1"><b style="font-weight:600">'+esc(x.c)+':</b> '+esc(x.n)+
+        (x.f||x.p?'<br><small style="color:var(--mut)">'+(x.f?'Previsión '+esc(x.f):'')+(x.f&&x.p?' · ':'')+(x.p?'Anterior '+esc(x.p):'')+'</small>':'')+'</span><b class="'+(x.i==='H'?'neg':x.i==='M'?'':'')+'" style="font-size:11px;white-space:nowrap">'+c[0]+'</b></div>';}).join('');
+  });
+  h+='<div class="hint" style="margin-top:8px">Horas en tu zona horaria. Fuente: calendario económico público; las horas pueden cambiar.</div>';
+  el.innerHTML=h;
+}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#calBox [data-cv],#calBox [data-ca]');if(!b)return;
+  if(b.dataset.cv)CAL.v=b.dataset.cv;else CAL.all=b.dataset.ca==='1';renderCal();});
 /* ====================== panel del piloto ====================== */
 function renderPil(){
   const C=S.closed.filter(t=>!t.mom),w=C.filter(t=>t.pnl>0).length,l=C.length-w,e=equity();
@@ -2966,7 +3004,7 @@ applyTheme(S.theme);
 if(S.apr&&(S.ext||[]).length)learn();
 try{$('verTxt').textContent='Versión: '+(window.BUILD||'archivo local (no se actualiza solo)');}catch(e){}
 renderAll();
-loadCtx();setInterval(loadCtx,10*60000);loadMom();setInterval(loadMom,3600e3);loadAna();setInterval(loadAna,3600e3);loadFund();setInterval(loadFund,3600e3);loadCheck();setInterval(loadCheck,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
+loadCtx();setInterval(loadCtx,10*60000);loadCal();setInterval(loadCal,30*60000);loadMom();setInterval(loadMom,3600e3);loadAna();setInterval(loadAna,3600e3);loadFund();setInterval(loadFund,3600e3);loadCheck();setInterval(loadCheck,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
 setTimeout(()=>autopilot(false),300);
 if(S.watchMode)keepAwake(true);
 function tick(){
