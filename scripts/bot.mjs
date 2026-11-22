@@ -89,6 +89,24 @@ if (APRT) {
 }
 ext = ext.slice(-800);
 seed.ext = ext; seed.apr = true; seed.aprT = '';
+// alertas de precio creadas en el móvil: llegan por un tema privado derivado del tuyo (tu tema + '-al')
+{
+  let al = Array.isArray(S0.alerts) ? S0.alerts.slice() : [];
+  if (NTFY) {
+    try {
+      const r = await fetch(NTFYB + '/' + encodeURIComponent(NTFY + '-al') + '/json?poll=1&since=24h');
+      const txt = await r.text(); let snap = null;
+      for (const ln of txt.split('\n')) { if (!ln.trim()) continue; try { const m = JSON.parse(ln); if (m.event !== 'message') continue; const e = JSON.parse(m.message); if (e.k === 'al' && Array.isArray(e.a) && (!snap || e.t > snap.t)) snap = e; } catch (e) {} }
+      if (snap) {
+        const ids = new Set(snap.a.map(x => x && x.id));
+        al = al.filter(a => a.done || ids.has(a.id));
+        for (const x of snap.a) { if (x && typeof x.id === 'string' && typeof x.s === 'string' && x.s.length <= 20 && (x.dir === '>=' || x.dir === '<=') && Number.isFinite(x.px) && x.px > 0 && !al.some(a => a.id === x.id)) al.push({ id: x.id.slice(0, 12), s: x.s, dir: x.dir, px: x.px, t: x.t || Date.now(), done: 0 }); }
+        console.log('Alertas de precio activas:', al.filter(a => !a.done).length);
+      }
+    } catch (e) { console.log('No se pudieron leer las alertas:', e.message); }
+  }
+  seed.alerts = al.slice(-60);
+}
 if (fresh) {
   Object.assign(seed, { cap0: cfg.capital, cash: cfg.capital, pos: [], closed: [], eq: [], log: [], startedAt: Date.now(), buysToday: 0, buyDay: '', trk: [] });
   console.log('Cartera nueva con', cfg.capital, '€');
@@ -140,7 +158,7 @@ if (hh >= 21 && S.sumDay !== today && NTFY) {
 await until(() => !S.outbox.length, 20000);
 w.localStorage.setItem(KEY, JSON.stringify(S));
 
-const KEEP = ['ext', 'cap0', 'cash', 'pos', 'closed', 'eq', 'log', 'W', 'cal', 'buyDay', 'buysToday', 'brakeDay', 'startedAt', 'favAl', 'sumDay', 'trk', 'fx', 'momAt', 'momMonth', 'shadow', 'shBench', 'labGrid', 'lrn', 'lrnLog', 'momFilt', 'momW', 'lrnDay', 'divDone'];
+const KEEP = ['alerts', 'ext', 'cap0', 'cash', 'pos', 'closed', 'eq', 'log', 'W', 'cal', 'buyDay', 'buysToday', 'brakeDay', 'startedAt', 'favAl', 'sumDay', 'trk', 'fx', 'momAt', 'momMonth', 'shadow', 'shBench', 'labGrid', 'lrn', 'lrnLog', 'momFilt', 'momW', 'lrnDay', 'divDone'];
 const outS = {}; KEEP.forEach(k => { if (S[k] !== undefined) outS[k] = S[k]; });
 const eq = T.equity();
 const state = { at: Date.now(), resetId: cfg.reinicio, equity: eq, config: cfg, S: outS };

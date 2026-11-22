@@ -331,6 +331,8 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 <!-- ================= MÁS ================= -->
 <section id="t-mas">
   <div class="hint" id="verTxt" style="text-align:right;margin:0 0 6px"></div>
+  <h2>Alertas de precio</h2>
+  <div class="card" id="alBox"></div>
   <h2>Aspecto</h2>
   <div class="card"><label for="sTh">Colores de la app</label><select id="sTh"><option value="claro">Claro (como una app de broker)</option><option value="soft">Oscuro suave (grafito)</option><option value="dark">Oscuro azulado (el de antes)</option></select></div>
   <h2>Analizar un valor</h2>
@@ -492,7 +494,7 @@ const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,prorroga:tr
 let S=JSON.parse(JSON.stringify(DEF));
 try{const j=localStorage.getItem(KEY);if(j)Object.assign(S,JSON.parse(j));}catch(e){}
 try{if(!S.srvKey){const k=localStorage.getItem('tm.key');if(k)S.srvKey=k;}}catch(e){}
-S.cal=Object.assign({p:1,bias:0,n:0,dur:1},S.cal);if(!Array.isArray(S.outbox))S.outbox=[];
+S.cal=Object.assign({p:1,bias:0,n:0,dur:1},S.cal);if(!Array.isArray(S.outbox))S.outbox=[];if(!Array.isArray(S.alerts))S.alerts=[];
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
 /* ====================== red ====================== */
@@ -1523,6 +1525,7 @@ async function srvSync(){
       if(S.lrn&&c.aprender_laboratorio!==false){S.momFreq=S.lrn.f;S.momN=S.lrn.N;S.momFilt=S.lrn.filt;S.momW=S.lrn.w;}
       S.srvAt=j.at;
     }
+    try{alMerge(j.S.alerts);}catch(e){}
     return true;
   }catch(e){S.srvChk=Date.now();S.srvErr=e.bad?'La clave no coincide con la de GitHub (CARTERA_CLAVE). Revísala.':/404/.test(e.message)?'Todavía no hay cartera cifrada en GitHub: se crea en la primera pasada del piloto, cuando exista el secreto CARTERA_CLAVE.':String(e.message||e);return false;}
 }
@@ -2282,7 +2285,7 @@ function renderPred(){
   h+='<div style="margin-top:12px">'+P.slice(0,8).map(t=>'<div class="log"><b>'+esc(t.s.replace('.MC',''))+'</b> · preveía '+sg(t.pred.ev,1)+' % · salió <b class="'+(t.gross>=0?'pos':'neg')+'">'+sg(t.gross,1)+' %</b> · '+(t.gross>=t.pred.ev?'mejor':'peor')+' de lo previsto</div>').join('')+'</div>';
   $('predBox').innerHTML=h;
 }
-function renderAll(){try{renderLV();}catch(e){}try{renderDV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();try{renderDia();renderLib();}catch(e){}renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();try{renderCal();}catch(e){}}
+function renderAll(){try{renderLV();}catch(e){}try{renderDV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();try{renderDia();renderLib();}catch(e){}renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();try{renderCal();}catch(e){}try{checkAlerts();}catch(e){}try{renderAl();}catch(e){}}
 
 /* ====================== gráfico completo (estilo broker) ====================== */
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
@@ -2930,6 +2933,50 @@ $('connTest').onclick=async()=>{
     (ghRow.indexOf('class="pos"')>=0?'<div class="msg ok">Tu repositorio funciona: la app lo usa primero y no depende de los servicios gratuitos.</div>':n?'<div class="msg ok">'+n+' de '+res.length+' servicios gratuitos funcionando.</div>':'<div class="msg bad">Ningún servicio responde. Comprueba tus datos o wifi, o publica los datos con tu repositorio de GitHub.</div>');
 };
 
+/* ====================== alertas de precio ====================== */
+const alId=()=>Math.random().toString(36).slice(2,10);
+function alPrice(sym){const r=S.rows&&S.rows[sym];return r&&r.p>0?r.p:null;}
+function alText(a){return a.s+(a.dir==='>='?' sube hasta ':' baja hasta ')+nf(a.px,2);}
+async function alPublish(){
+  if(!S.ntfy)return;
+  try{await fetch('https://ntfy.sh/'+encodeURIComponent(S.ntfy+'-al'),{method:'POST',headers:{'Title':'alertas'},body:JSON.stringify({k:'al',t:Date.now(),a:S.alerts.filter(x=>!x.done).map(x=>({id:x.id,s:x.s,dir:x.dir,px:x.px,t:x.t}))})});}catch(e){}
+}
+function checkAlerts(){
+  let ch=false;
+  (S.alerts||[]).forEach(a=>{if(a.done)return;const p=alPrice(a.s);if(p==null)return;
+    if((a.dir==='>='&&p>=a.px)||(a.dir==='<='&&p<=a.px)){a.done=1;a.dt=Date.now();a.tp=p;ch=true;
+      const msg=a.s+' ha llegado a '+nf(p,2)+' (tu alerta: '+(a.dir==='>='?'subir hasta ':'bajar hasta ')+nf(a.px,2)+')';
+      try{toast('Alerta: '+msg);}catch(e){}try{push('Alerta de precio',msg);}catch(e){}try{log('Alerta de precio: <b>'+esc(a.s)+'</b> '+(a.dir==='>='?'sube':'baja')+' hasta '+nf(a.px,2)+' (ahora '+nf(p,2)+').',false);}catch(e){}}});
+  if(ch){S.alerts=S.alerts.slice(-60);save();}
+}
+function alMerge(srv){
+  if(!Array.isArray(srv))return;
+  srv.forEach(x=>{const l=S.alerts.find(a=>a.id===x.id);if(l&&x.done&&!l.done){l.done=1;l.dt=x.dt;l.tp=x.tp;}});
+}
+function renderAl(){
+  const el=$('alBox');if(!el)return;
+  try{const ae=document.activeElement;if(ae&&ae.tagName==='INPUT'&&el.contains(ae))return;}catch(e){}
+  const act=S.alerts.filter(a=>!a.done),don=S.alerts.filter(a=>a.done).slice(-5).reverse();
+  let h='<div class="inl"><div><label for="alS">Acción</label><input id="alS" type="text" placeholder="AAPL" autocapitalize="characters" autocomplete="off"></div><div><label for="alD">Avisar cuando</label><select id="alD"><option value=">=">Suba hasta</option><option value="<=">Baje hasta</option></select></div></div>'+
+   '<div class="inl"><div><label for="alP">Precio</label><input id="alP" type="number" inputmode="decimal" step="0.01" placeholder="200"></div><div style="align-self:end"><button class="btn full" id="alAdd" type="button">Crear alerta</button></div></div><div class="hint" id="alMsg"></div>';
+  h+=act.length?act.map(a=>{const p=alPrice(a.s),d=p?(a.px/p-1)*100:null;return '<div class="row"><span style="font-size:13px">'+esc(alText(a))+'<br><small class="hint">'+(p?'ahora '+nf(p,2)+' · faltan '+sg(d,1)+' %':'sin precio ahora')+'</small></span><button class="btn ghost small" type="button" data-aldel="'+esc(a.id)+'">Quitar</button></div>';}).join(''):'<div class="hint">No tienes alertas activas.</div>';
+  if(don.length)h+='<div class="hint" style="margin:8px 0 2px"><b>Saltaron hace poco</b></div>'+don.map(a=>'<div class="row"><span style="font-size:13px">'+esc(alText(a))+'<br><small class="hint">saltó el '+new Date(a.dt).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+' a '+nf(a.tp,2)+'</small></span></div>').join('');
+  h+='<div class="hint" style="margin-top:8px">'+(S.ntfy?'Te avisa al móvil. Con la app cerrada lo hace el piloto de GitHub, que mira los precios cada 15 minutos de lunes a viernes durante el día (no por la noche ni en fin de semana).':'Ahora solo avisa con la app abierta. Para recibir avisos con la app cerrada, escribe tu tema de ntfy en Avisos al móvil, más abajo.')+'</div>';
+  el.innerHTML=h;
+}
+document.addEventListener('click',e=>{
+  const t=e.target;if(!t.closest)return;
+  const d=t.closest('[data-aldel]');if(d){S.alerts=S.alerts.filter(a=>a.id!==d.dataset.aldel);save();renderAl();alPublish();return;}
+  if(t.closest('#alAdd')){
+    const sy=($('alS').value||'').trim().toUpperCase(),px=parseFloat(String($('alP').value).replace(',','.')),dir=$('alD').value,msg=$('alMsg');
+    if(!sy){msg.textContent='Escribe el símbolo de la acción.';return;}
+    if(!S.rows[sy]){msg.textContent='No encuentro «'+sy+'» entre las acciones estudiadas. Prueba con el símbolo exacto (por ejemplo AAPL o ITX.MC).';return;}
+    if(!(px>0)){msg.textContent='Escribe un precio mayor que cero.';return;}
+    const p=alPrice(sy);
+    if(p&&((dir==='>='&&px<=p)||(dir==='<='&&px>=p))){msg.textContent='Ahora cotiza a '+nf(p,2)+': el precio de la alerta tiene que estar '+(dir==='>='?'por encima.':'por debajo.');return;}
+    S.alerts.push({id:alId(),s:sy,dir,px,t:Date.now(),done:0});S.alerts=S.alerts.slice(-60);save();renderAl();alPublish();
+  }
+});
 /* ====================== futuros ====================== */
 const FT={d:null,s:null,chk:0};
 async function loadFut(force){
@@ -3068,6 +3115,7 @@ function go(t){
   if(t==='div')renderDV();
   if(t==='pil')renderPil();
   if(t==='fut'){renderFut();loadFut(true);}
+  if(t==='mas')try{renderAl();}catch(e){}
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
 $('pilGo').onclick=()=>go('pil');$('pilBack').onclick=()=>go('hoy');
@@ -3086,7 +3134,7 @@ applyTheme(S.theme);
 if(S.apr&&(S.ext||[]).length)learn();
 try{$('verTxt').textContent='Versión: '+(window.BUILD||'archivo local (no se actualiza solo)');}catch(e){}
 renderAll();
-loadCtx();setInterval(loadCtx,10*60000);loadCal();setInterval(loadCal,30*60000);loadFut();setInterval(loadFut,10*60000);loadMom();setInterval(loadMom,3600e3);loadAna();setInterval(loadAna,3600e3);loadFund();setInterval(loadFund,3600e3);loadCheck();setInterval(loadCheck,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
+loadCtx();setInterval(loadCtx,10*60000);loadCal();setInterval(loadCal,30*60000);loadFut();setInterval(loadFut,10*60000);setTimeout(alPublish,6000);setInterval(alPublish,6*3600000);loadMom();setInterval(loadMom,3600e3);loadAna();setInterval(loadAna,3600e3);loadFund();setInterval(loadFund,3600e3);loadCheck();setInterval(loadCheck,3600e3);loadNewsFeed();setInterval(loadNewsFeed,15*60000);
 setTimeout(()=>autopilot(false),300);
 if(S.watchMode)keepAwake(true);
 function tick(){
