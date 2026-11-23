@@ -331,6 +331,18 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 <!-- ================= MÁS ================= -->
 <section id="t-mas">
   <div class="hint" id="verTxt" style="text-align:right;margin:0 0 6px"></div>
+  <h2>Añadir fondos</h2>
+  <div class="card" id="fnBox">
+    <div class="hint" style="margin:0 0 8px">Ingresa más dinero ficticio para poder hacer más operaciones. Queda anotado aparte y la rentabilidad se calcula sobre todo lo aportado, así que no se infla.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <label class="hint" style="margin:0">Cartera<select id="fnQue"><option value="a">Acciones</option><option value="f">Fondos</option></select></label>
+      <label class="hint" style="margin:0">Importe (€)<input id="fnImp" type="number" step="any" inputmode="decimal" placeholder="1000"></label>
+    </div>
+    <button class="btn full" id="fnAdd" type="button" style="margin-top:8px">Añadir fondos</button>
+    <div id="fnMsg"></div>
+    <div id="fnList"></div>
+  </div>
+
   <h2>Alertas de precio</h2>
   <div class="card" id="alBox"></div>
   <h2>Aspecto</h2>
@@ -494,7 +506,7 @@ const DEF={cap0:500,cash:500,riesgo:2,maxPos:20,maxOpen:5,maxDays:10,prorroga:tr
 let S=JSON.parse(JSON.stringify(DEF));
 try{const j=localStorage.getItem(KEY);if(j)Object.assign(S,JSON.parse(j));}catch(e){}
 try{if(!S.srvKey){const k=localStorage.getItem('tm.key');if(k)S.srvKey=k;}}catch(e){}
-S.cal=Object.assign({p:1,bias:0,n:0,dur:1},S.cal);if(!Array.isArray(S.outbox))S.outbox=[];if(!Array.isArray(S.alerts))S.alerts=[];
+S.cal=Object.assign({p:1,bias:0,n:0,dur:1},S.cal);if(!Array.isArray(S.outbox))S.outbox=[];if(!Array.isArray(S.alerts))S.alerts=[];if(!Array.isArray(S.dep))S.dep=[];
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
 /* ====================== red ====================== */
@@ -1998,13 +2010,16 @@ function renderStatus(){
     $('stBar').style.width='0%';
   }
 }
+/* ---- añadir fondos: lo aportado se suma a la base; el capital inicial (cap0) no cambia porque lo usan los laboratorios ---- */
+const depSum=(L,t)=>(L||[]).reduce((a,x)=>a+((t==null||x.t<=t)?+x.a||0:0),0);
+const capTot=()=>S.cap0+depSum(S.dep);
 function renderHero(){
   try{renderSrv();renderApr2();}catch(e){}
-  const e=equity(),d=e-S.cap0;
+  const e=equity(),d=e-capTot();
   $('hVal').textContent=eur(e);
-  $('hDelta').innerHTML='<span class="'+(d>=0?'pos':'neg')+'">'+(d>=0?'+':'−')+nf(Math.abs(d))+' € ('+sg(d/S.cap0*100)+' %)</span>';
+  $('hDelta').innerHTML='<span class="'+(d>=0?'pos':'neg')+'">'+(d>=0?'+':'−')+nf(Math.abs(d))+' € ('+sg(d/capTot()*100)+' %)</span>';
   const n=S.closed.length,w=S.closed.filter(t=>t.pnl>0).length;
-  $('hSub').textContent=(S.mainManual&&srvOn()?'La operas tú · ':srvOn()?'Lo opera GitHub · ':'')+'Empezó con '+eur(S.cap0)+' · '+S.pos.length+' abiertas · '+(n?w+' de '+n+' cerradas con ganancia':'sin operaciones cerradas todavía');
+  $('hSub').textContent=(S.mainManual&&srvOn()?'La operas tú · ':srvOn()?'Lo opera GitHub · ':'')+'Empezó con '+eur(S.cap0)+(S.dep.length?' · aportado después '+eur(depSum(S.dep)):'')+' · '+S.pos.length+' abiertas · '+(n?w+' de '+n+' cerradas con ganancia':'sin operaciones cerradas todavía');
 }
 const reasons=r=>{
   const L=[];
@@ -2126,7 +2141,7 @@ function renderLog(){
 function drawEq(){
   const cv=$('eqCv'),dpr=window.devicePixelRatio||1,W=cv.clientWidth||320,H=cv.clientHeight||150;
   cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,W,H);
-  const pts=S.eq.length?S.eq.map(x=>x.e):[S.cap0];
+  const pts=S.eq.length?S.eq.map(x=>x.e-depSum(S.dep,x.t)):[S.cap0];
   if(pts.length<2)pts.unshift(S.cap0);
   let lo=Math.min(...pts,S.cap0),hi=Math.max(...pts,S.cap0);const pad=(hi-lo)*.15||1;lo-=pad;hi+=pad;
   const X=i=>8+(W-16)*i/(pts.length-1),Y=v=>H-8-(H-16)*(v-lo)/(hi-lo);
@@ -2909,7 +2924,7 @@ $('sReset').onclick=()=>{
   if(!(v>=50)){$('sMsg').innerHTML='<div class="msg bad">Pon un capital inicial de al menos 50 €.</div>';return;}
   if(!resetArmed){resetArmed=true;$('sReset').textContent='Toca otra vez para confirmar';$('sMsg').innerHTML='<div class="msg">Se borrarán las posiciones, el historial y lo aprendido.</div>';setTimeout(()=>{resetArmed=false;$('sReset').textContent='Reiniciar cartera con el capital indicado';},5000);return;}
   resetArmed=false;$('sReset').textContent='Reiniciar cartera con el capital indicado';
-  S.cap0=v;S.cash=v;S.pos=[];S.closed=[];S.eq=[];S.log=[];S.W=Object.assign({},BASE_W);S.buysToday=0;S.startedAt=Date.now();S.momAt=0;S.momMonth='';S.shadow={};S.shBench=null;
+  S.cap0=v;S.cash=v;S.pos=[];S.closed=[];S.eq=[];S.log=[];S.W=Object.assign({},BASE_W);S.buysToday=0;S.startedAt=Date.now();S.momAt=0;S.momMonth='';S.shadow={};S.shBench=null;S.dep=[];
   save();$('sMsg').innerHTML='<div class="msg ok">Cartera reiniciada con '+eur(v)+'.</div>';renderAll();
 };
 $('sGh').value=S.gh;
@@ -2934,6 +2949,25 @@ $('connTest').onclick=async()=>{
 };
 
 /* ====================== alertas de precio ====================== */
+/* ---- añadir fondos ---- */
+function renderFn(){
+  const el=$('fnList');if(!el)return;
+  const L=[].concat((S.dep||[]).map(x=>({k:'Acciones',x})),(fdS().dep||[]).map(x=>({k:'Fondos',x}))).sort((a,b)=>b.x.t-a.x.t);
+  el.innerHTML=L.length?'<div class="hint" style="margin:10px 0 4px"><b>Ingresos anotados</b></div>'+L.slice(0,15).map(o=>'<div class="row"><span>'+o.k+' · '+new Date(o.x.t).toLocaleDateString('es-ES')+'</span><b>+'+eur(o.x.a)+'</b></div>').join(''):'<div class="hint" style="margin-top:8px">Todavía no has añadido fondos.</div>';
+}
+function fnAdd(){
+  const q=$('fnQue').value,a=Math.round(num($('fnImp'))*100)/100,m=$('fnMsg');
+  if(!(a>=1&&a<=1000000)){m.innerHTML='<div class="msg bad">Pon un importe entre 1 y 1.000.000 €.</div>';return;}
+  if(q==='a'&&srvOn()&&!S.mainManual){m.innerHTML='<div class="msg bad">Con el piloto de GitHub llevando la cartera de acciones no se pueden añadir fondos a mano. Pásala a manual en Más.</div>';return;}
+  try{localStorage.setItem('traderamano.v4.pre_fondos',localStorage.getItem('traderamano.v4')||'');}catch(e){}
+  const t=Date.now();
+  if(q==='f'){const F=fdS();F.cash=Math.round((F.cash+a)*100)/100;F.dep.push({t,a});}
+  else{S.cash=Math.round((S.cash+a)*100)/100;S.dep.push({t,a});}
+  try{log('Añadidos <b>'+eur(a)+'</b> a la cartera de '+(q==='f'?'fondos':'acciones')+'.');}catch(e){}
+  save();$('fnImp').value='';m.innerHTML='<div class="msg ok">Añadidos '+eur(a)+' a la cartera de '+(q==='f'?'fondos':'acciones')+'.</div>';
+  renderAll();try{fdHero();}catch(e){}try{renderFn();}catch(e){}
+}
+document.addEventListener('click',e=>{if(e.target&&e.target.id==='fnAdd')fnAdd();});
 const alId=()=>Math.random().toString(36).slice(2,10);
 function alPrice(sym){const r=S.rows&&S.rows[sym];return r&&r.p>0?r.p:null;}
 function alText(a){return a.s+(a.dir==='>='?' sube hasta ':' baja hasta ')+nf(a.px,2);}
@@ -3073,7 +3107,7 @@ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest
 function pilVsIdx(e){
   const m=momMarket(),b=S.shBench;
   if(!m||!b||!b.x||!b.d)return '<div class="hint" style="margin-top:8px">Comparación con el índice: todavía no hay referencia. Aparecerá cuando el piloto guarde el precio del S&amp;P 500 de partida.</div>';
-  const bd=new Date(b.d+'T00:00:00').getTime(),f=S.eq.find(x=>x.t>=bd),e0=f?f.e:S.cap0,rp=(e/e0-1)*100,ri=(m.p/b.x-1)*100,dif=rp-ri;
+  const bd=new Date(b.d+'T00:00:00').getTime(),f=S.eq.find(x=>x.t>=bd),e0=f?f.e:S.cap0,rp=(e/(e0+depSum(S.dep.filter(x=>x.t>bd)))-1)*100,ri=(m.p/b.x-1)*100,dif=rp-ri;
   return '<div class="hint" style="margin:10px 0 2px"><b>Frente al índice</b> desde el '+new Date(bd).toLocaleDateString('es-ES')+'</div>'+
     '<div class="row"><span>Tu cartera</span><b class="'+(rp>=0?'pos':'neg')+'">'+(rp>=0?'+':'')+nf(rp,1)+' %</b></div>'+
     '<div class="row"><span>S&amp;P 500 (sin dividendos)</span><b class="'+(ri>=0?'pos':'neg')+'">'+(ri>=0?'+':'')+nf(ri,1)+' %</b></div>'+
@@ -3085,7 +3119,7 @@ function renderPil(){
   const st=(a,b)=>'<div style="flex:1;text-align:center;padding:8px 2px;border-radius:8px;background:var(--card2,rgba(128,128,128,.12))"><b style="display:block;font-size:16px">'+a+'</b><small>'+b+'</small></div>';
   $('pilHead').innerHTML='<div class="row"><span>Estado</span><b class="'+(on?'pos':'')+'">'+(on?'Piloto activo':'Solo esta app')+'</b></div>'+
     (on?'<div class="row"><span>Última ejecución del piloto</span><b>'+(ag==null?'–':ag<1?'ahora':ag<90?'hace '+ag+' min':'hace '+nf(ag/60,0)+' h')+'</b></div>':'<div class="hint">El piloto de GitHub no está conectado: se muestra lo que hace esta app.</div>')+
-    '<div style="display:flex;gap:8px;margin-top:8px">'+st(eur(e),'valor total')+st((e/S.cap0-1>=0?'+':'')+nf((e/S.cap0-1)*100,1)+' %','desde el inicio')+'</div>'+
+    '<div style="display:flex;gap:8px;margin-top:8px">'+st(eur(e),'valor total')+st((e/capTot()-1>=0?'+':'')+nf((e/capTot()-1)*100,1)+' %','desde el inicio')+'</div>'+
     '<div style="display:flex;gap:8px;margin-top:8px">'+st(S.pos.length,'abiertas')+st(w,'ganadas')+st(l,'perdidas')+'</div>'+pilVsIdx(e);
   const all=Object.values(S.rows).filter(r=>inUni(r.s)),a=all.length,
     t1=all.filter(r=>!r.pen[1]&&r.rsi<=78&&r.ev-S.cal.bias>0),
@@ -3115,7 +3149,7 @@ function go(t){
   if(t==='div')renderDV();
   if(t==='pil')renderPil();
   if(t==='fut'){renderFut();loadFut(true);}
-  if(t==='mas')try{renderAl();}catch(e){}
+  if(t==='mas'){try{renderAl();}catch(e){}try{renderFn();}catch(e){}}
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
 $('pilGo').onclick=()=>go('pil');$('pilBack').onclick=()=>go('hoy');
@@ -3151,7 +3185,8 @@ document.addEventListener('visibilitychange',()=>{
 });
 /* ====================== FONDOS DE INVERSIÓN (cartera aparte, dinero ficticio) ====================== */
 const FD={lab:null,d:null,chk:0,h:{},sel:null,k:'',q:'',sort:'sc',tab:'exp',rng:'3y',busy:false,res:[],msg:''};
-const fdS=()=>{if(!S.fd)S.fd={cap0:10000,cash:10000,pos:{},tr:[]};if(!S.fd.cust)S.fd.cust={};return S.fd;};
+const fdS=()=>{if(!S.fd)S.fd={cap0:10000,cash:10000,pos:{},tr:[]};if(!S.fd.cust)S.fd.cust={};if(!Array.isArray(S.fd.dep))S.fd.dep=[];return S.fd;};
+const fdCap=()=>{const F=fdS();return F.cap0+depSum(F.dep);};
 const fdPx=f=>{const c=f.c||'EUR';return c==='EUR'?f.p:f.p/(fxv(c)||1);};
 const fdRow=s=>(FD.d&&FD.d.f.find(f=>f.s===s))||fdS().cust[s]||null;
 const fdDate=d=>new Date(d*86400000).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit'});
@@ -3220,8 +3255,8 @@ function fdSvg(t,c){
   const up=c[n-1]>=c[0];return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:110px"><path d="'+d+'" fill="none" stroke="'+(up?'var(--pos,#1f9d55)':'var(--neg,#d64545)')+'" stroke-width="2"/></svg>';
 }
 const fdPc=v=>v==null?'–':'<span class="'+(v>=0?'pos':'neg')+'">'+sg(v,1)+' %</span>';
-function fdHero(){const T=fdTotals(),F=fdS(),g=T.tot-F.cap0;
-  $('fdHero').innerHTML='<div class="lbl">Cartera de fondos · dinero ficticio</div><div class="val">'+eur(T.tot)+'</div><div class="'+(g>=0?'pos':'neg')+'" style="font-size:17px">'+(g>=0?'+':'−')+eur(Math.abs(g)).replace('−','')+' ('+sg(g/F.cap0*100,1)+' %)</div><div class="hint" style="margin-top:6px">Empezó con '+eur(F.cap0)+' · libre '+eur(F.cash)+' · '+Object.keys(F.pos).length+' fondos en cartera</div>';}
+function fdHero(){const T=fdTotals(),F=fdS(),g=T.tot-fdCap();
+  $('fdHero').innerHTML='<div class="lbl">Cartera de fondos · dinero ficticio</div><div class="val">'+eur(T.tot)+'</div><div class="'+(g>=0?'pos':'neg')+'" style="font-size:17px">'+(g>=0?'+':'−')+eur(Math.abs(g)).replace('−','')+' ('+sg(g/fdCap()*100,1)+' %)</div><div class="hint" style="margin-top:6px">Empezó con '+eur(F.cap0)+(F.dep.length?' · aportado después '+eur(depSum(F.dep)):'')+' · libre '+eur(F.cash)+' · '+Object.keys(F.pos).length+' fondos en cartera</div>';}
 function fdList(){
   const D=FD.d;if(!D)return '<div class="hint"><span class="spin"></span>Cargando fondos…</div>';
   const cats=[...new Set(D.f.map(f=>f.k))].sort(),q=FD.q.trim().toLowerCase();
