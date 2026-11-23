@@ -351,6 +351,15 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 <!-- ================= MÁS ================= -->
 <section id="t-mas">
   <div class="hint" id="verTxt" style="text-align:right;margin:0 0 6px"></div>
+  <h2>Exportar y copia de seguridad</h2>
+  <div class="card" id="exBox">
+    <div class="hint" style="margin:0 0 8px">Descarga tus operaciones para abrirlas en Excel, o una copia completa de la app para guardarla y recuperarla si cambias de móvil. Funciona también en modo limitado.</div>
+    <button class="btn full" id="exOps" type="button">Descargar mis operaciones (Excel)</button>
+    <button class="btn ghost full" id="exBak" type="button" style="margin-top:8px">Descargar copia completa</button>
+    <label class="hint" style="margin:10px 0 0">Recuperar una copia completa<input id="exFile" type="file" accept=".json,application/json"></label>
+    <div id="exMsg"></div>
+  </div>
+
   <h2>Comunidad</h2>
   <div class="card" id="comBox"></div>
 
@@ -2999,14 +3008,41 @@ function fnAdd(){
 document.addEventListener('click',e=>{if(e.target&&e.target.id==='fnAdd')fnAdd();});
 /* ================= comunidad: amigos, compartir datos y nube =================
    La "nube" (NUBE) tiene ahora una versión de pega guardada en este dispositivo; cuando exista Firebase solo se cambia esta capa. */
+/* ---- conexión real con Firebase (Realtime Database por REST). Si FBCFG está vacío se usa la nube de pega ---- */
+const FBCFG={apiKey:'',dbUrl:''};   /* se rellena al crear el proyecto de Firebase: no son secretos */
+const FBC=()=>window.__FBCFG||FBCFG;
+const fbOn=()=>{const c=FBC();return !!(c&&c.apiKey&&c.dbUrl);};
+async function fbPost(u,body,form){
+  const r=await fetch(u,{method:'POST',headers:{'Content-Type':form?'application/x-www-form-urlencoded':'application/json'},body:form?body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){const m=(j.error&&(j.error.message||j.error))||('HTTP '+r.status);throw new Error(String(m).replace('EMAIL_NOT_FOUND','Correo no encontrado').replace('INVALID_PASSWORD','Contraseña incorrecta').replace('INVALID_LOGIN_CREDENTIALS','Correo o contraseña incorrectos'));}
+  return j;
+}
+const fbAuthObj=j=>({uid:j.localId||j.user_id,rt:j.refreshToken||j.refresh_token,idt:j.idToken||j.id_token,exp:Date.now()+(+(j.expiresIn||j.expires_in)||3600)*1000,email:j.email||null});
+async function fbAnon(){return fbAuthObj(await fbPost('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key='+encodeURIComponent(FBC().apiKey),{returnSecureToken:true}));}
+async function fbLogin(email,pass){return fbAuthObj(await fbPost('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key='+encodeURIComponent(FBC().apiKey),{email,password:pass,returnSecureToken:true}));}
+async function fbTok(){
+  const N=S.nube;const a=N&&N.fb;
+  if(!a)throw new Error('Sin sesión en Firebase: conecta tu cuenta (creador) o únete con tu código (amigo).');
+  if(a.idt&&Date.now()<a.exp-60000)return a.idt;
+  const j=await fbPost('https://securetoken.googleapis.com/v1/token?key='+encodeURIComponent(FBC().apiKey),'grant_type=refresh_token&refresh_token='+encodeURIComponent(a.rt),true);
+  const n=fbAuthObj(j);n.email=a.email||null;Object.assign(a,n);save();return a.idt;
+}
+async function fbReq(method,p,body){
+  const tok=await fbTok(),u=FBC().dbUrl.replace(/\/+$/,'')+'/'+String(p).split('/').filter(Boolean).map(encodeURIComponent).join('/')+'.json?auth='+encodeURIComponent(tok);
+  const r=await fetch(u,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});
+  if(r.status===401||r.status===403)throw new Error('Sin permiso en la nube ('+r.status+')');
+  if(!r.ok)throw new Error('Nube: HTTP '+r.status);
+  return r.json();
+}
 const NUBE_K='traderamano.v4.nube';
 const NUBE={
   _db(){if(window.__NUBE)return window.__NUBE;if(!NUBE._m){try{NUBE._m=JSON.parse(localStorage.getItem(NUBE_K)||'{}')||{};}catch(e){NUBE._m={};}}return NUBE._m;},
   _sv(){if(!window.__NUBE)try{localStorage.setItem(NUBE_K,JSON.stringify(NUBE._m||{}));}catch(e){}},
   _at(p,mk){const ks=String(p).split('/').filter(Boolean);let o=NUBE._db();for(let i=0;i<ks.length-1;i++){if(typeof o[ks[i]]!=='object'||o[ks[i]]===null){if(!mk)return null;o[ks[i]]={};}o=o[ks[i]];}return {o,k:ks[ks.length-1]};},
-  async get(p){const r=NUBE._at(p,false);if(!r||r.o[r.k]===undefined)return null;return JSON.parse(JSON.stringify(r.o[r.k]));},
-  async set(p,v){const r=NUBE._at(p,true);r.o[r.k]=JSON.parse(JSON.stringify(v));NUBE._sv();},
-  async upd(p,v){const r=NUBE._at(p,true);const c=(typeof r.o[r.k]==='object'&&r.o[r.k])?r.o[r.k]:{};Object.assign(c,JSON.parse(JSON.stringify(v)));r.o[r.k]=c;NUBE._sv();},
+  async get(p){if(fbOn())return await fbReq('GET',p);const r=NUBE._at(p,false);if(!r||r.o[r.k]===undefined)return null;return JSON.parse(JSON.stringify(r.o[r.k]));},
+  async set(p,v){if(fbOn()){await fbReq('PUT',p,v);return;}const r=NUBE._at(p,true);r.o[r.k]=JSON.parse(JSON.stringify(v));NUBE._sv();},
+  async upd(p,v){if(fbOn()){await fbReq('PATCH',p,v);return;}const r=NUBE._at(p,true);const c=(typeof r.o[r.k]==='object'&&r.o[r.k])?r.o[r.k]:{};Object.assign(c,JSON.parse(JSON.stringify(v)));r.o[r.k]=c;NUBE._sv();},
   async push(p,v){const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);await NUBE.set(p+'/'+id,v);return id;}
 };
 function limited(){return !!(S.nube&&S.nube.rol==='amigo'&&!S.nube.sh);}
@@ -3054,18 +3090,28 @@ async function amUnir(txt){
   const mm=c.match(/^([a-z0-9]{4,10})-([a-z0-9]{4,10})$/);
   if(!mm){m.innerHTML='<div class="msg bad">El código tiene el formato abc123-XY12ZZ. Cópialo tal cual te lo dio el creador.</div>';return;}
   if(S.pos.length||S.closed.length){m.innerHTML='<div class="msg bad">Esta app ya tiene operaciones. Para unirte necesitas una app vacía (instálala de nuevo o reiníciala en Más).</div>';return;}
+  const prevN=S.nube;
   try{
-    const b=await NUBE.get('amigos/'+mm[1]);
-    if(!b||String(b.cod||'').toLowerCase()!==mm[2]){m.innerHTML='<div class="msg bad">Ese código no existe o no es correcto.</div>';return;}
-    const dev=amRnd(10);
-    if(b.dev&&b.joined){m.innerHTML='<div class="msg bad">Ese código ya está en uso en otro móvil. Pide uno nuevo al creador.</div>';return;}
+    const dev=amRnd(10);let b=null,au=null;
+    if(fbOn()){
+      au=await fbAnon();S.nube={rol:'pre',fb:au};
+      try{await NUBE.upd('amigos/'+mm[1],{uid:au.uid,jc:mm[2].toUpperCase(),dev,joined:Date.now(),sh:1,seen:Date.now(),ver:String(window.BUILD||'local')});}
+      catch(e){S.nube=prevN;m.innerHTML='<div class="msg bad">Ese código no es correcto o ya está en uso en otro móvil.</div>';return;}
+      await NUBE.set('uids/'+au.uid,mm[1]);
+      b=await NUBE.get('amigos/'+mm[1]);
+    }else{
+      b=await NUBE.get('amigos/'+mm[1]);
+      if(!b||String(b.cod||'').toLowerCase()!==mm[2]){m.innerHTML='<div class="msg bad">Ese código no existe o no es correcto.</div>';return;}
+      if(b.dev&&b.joined){m.innerHTML='<div class="msg bad">Ese código ya está en uso en otro móvil. Pide uno nuevo al creador.</div>';return;}
+    }
+    if(!b){S.nube=prevN;m.innerHTML='<div class="msg bad">No se pudo leer tu base.</div>';return;}
     try{localStorage.setItem('traderamano.v4.pre_unirse',localStorage.getItem(KEY)||'');}catch(e){}
     S.cap0=+b.cap0||10000;S.cash=S.cap0;S.eq=[];S.dep=[];S.pos=[];S.closed=[];
-    S.nube={rol:'amigo',fid:mm[1],al:b.al||'Amigo',dev,sh:1,sent:[],at:0,err:'',offSent:false};
-    await NUBE.upd('amigos/'+mm[1],{dev,joined:Date.now(),sh:1,seen:Date.now(),ver:String(window.BUILD||'local')});
+    S.nube={rol:'amigo',fid:mm[1],al:b.al||'Amigo',dev,sh:1,sent:[],at:0,err:'',offSent:false,fb:au};
+    if(!au)await NUBE.upd('amigos/'+mm[1],{dev,joined:Date.now(),sh:1,seen:Date.now(),ver:String(window.BUILD||'local')});
     save();m.innerHTML='<div class="msg ok">Listo: te has unido como <b>'+esc(S.nube.al)+'</b> con '+eur(S.cap0)+'.</div>';
     renderAll();renderCom();amSync(true);
-  }catch(e){m.innerHTML='<div class="msg bad">No se pudo conectar con la nube: '+esc(String(e.message||e))+'</div>';}
+  }catch(e){if(S.nube&&S.nube.rol==='pre')S.nube=prevN;m.innerHTML='<div class="msg bad">No se pudo conectar con la nube: '+esc(String(e.message||e))+'</div>';}
 }
 function renderCom(){
   const el=$('comBox');if(!el)return;
@@ -3079,9 +3125,12 @@ function renderCom(){
   }else{
     el.innerHTML='<div class="hint" style="margin:0 0 8px">Si el creador te ha dado un código, escríbelo aquí para unirte. Si eres el creador, abre el panel de tus amigos.</div>'+
       '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end"><label class="hint" style="margin:0">Código de amigo<input id="comCod" type="text" autocapitalize="off" autocomplete="off" placeholder="abc123-XY12ZZ"></label><button class="btn" id="comJoin" type="button">Unirme</button></div><div id="comMsg"></div>'+
-      '<button class="btn ghost full" id="comAmi" type="button" style="margin-top:10px">Panel de amigos (creador)</button>';
+      '<button class="btn ghost full" id="comAmi" type="button" style="margin-top:10px">Panel de amigos (creador)</button>'+
+      (fbOn()?(S.nube&&S.nube.fb?'<div class="hint" style="margin:10px 0 0">Conectado a la nube como <b>'+esc(S.nube.fb.email||'creador')+'</b> <button class="btn ghost small" id="fbOut" type="button">Desconectar</button></div>':'<hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><div class="hint" style="margin:0 0 6px"><b>Solo el creador:</b> entra con tu cuenta de Firebase</div><input id="fbMail" type="email" autocomplete="username" placeholder="Correo"><input id="fbPass" type="password" autocomplete="current-password" placeholder="Contraseña" style="margin-top:6px"><button class="btn full" id="fbIn" type="button" style="margin-top:6px">Conectar</button>'):'')+'<div id="fbMsg"></div>';
     $('comJoin').onclick=()=>amUnir($('comCod').value);
     $('comAmi').onclick=()=>go('ami');
+    if($('fbIn'))$('fbIn').onclick=async()=>{try{const au=await fbLogin($('fbMail').value.trim(),$('fbPass').value);S.nube=Object.assign(S.nube||{},{fb:au});save();$('fbPass').value='';await amPoll(true);renderCom();}catch(e){$('fbMsg').innerHTML='<div class="msg bad">'+esc(String(e.message||e))+'</div>';}};
+    if($('fbOut'))$('fbOut').onclick=()=>{if(S.nube)S.nube.fb=null;save();AM.d=null;renderCom();};
   }
 }
 /* ---- creador: bases de amigos y panel ---- */
@@ -3158,7 +3207,7 @@ function renderMsF(){
   const av=Object.entries(MSG.av||{}).map(([k,a])=>Object.assign({k},a)).filter(a=>a.x).sort((a,b)=>b.t-a.t).slice(0,4);
   const upd=av.find(a=>a.u&&a.t>(N.updDone||0));
   return '<hr style="border:0;border-top:1px solid var(--line);margin:12px 0">'+
-    (upd?'<div class="msg ok" style="margin:0 0 8px"><b>Nueva versión disponible</b><br>'+esc(upd.x)+'<button class="btn small" id="msUpd" type="button" style="margin-top:8px">Actualizar ahora</button></div>':'')+
+    (upd?'<div class="msg ok" style="margin:0 0 8px"><b>Nueva versión disponible</b><br>'+esc(upd.x)+'<button class="btn" id="msUpd" type="button" style="margin-top:8px;display:block;width:100%;background:var(--blue,#2563eb);color:#fff;border:0">Actualizar ahora</button></div>':'')+
     '<div class="hint" style="margin:0 0 4px"><b>Mensajes con el creador</b></div><div id="msTh" style="max-height:260px;overflow:auto">'+msThread(msList(MSG.d),'f')+'</div>'+
     '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:6px"><input id="msTx" type="text" maxlength="600" placeholder="Escribe un mensaje"><button class="btn" id="msGo" type="button">Enviar</button></div>'+
     (av.length?'<div class="hint" style="margin:12px 0 4px"><b>Tablón de avisos</b></div>'+av.map(a=>'<div class="row" style="margin-top:0;padding:7px 0;border-bottom:1px solid var(--line);align-items:flex-start"><span style="white-space:pre-wrap">'+esc(a.x)+'</span><small class="mut" style="white-space:nowrap;margin-left:8px">'+new Date(a.t).toLocaleDateString('es-ES')+'</small></div>').join(''):'');
@@ -3248,6 +3297,50 @@ function renderCv(){
     return '<div class="row" style="margin-top:0;padding:9px 0;border-bottom:1px solid var(--line);align-items:center"><span>'+tag+'<b>'+nm+'</b> a '+pxD(e.px,e.cur)+(e.man?' · a mano':'')+'<br><small class="mut">'+d+(e.why?' · '+esc(String(e.why)):'')+'</small></span><span style="text-align:right">'+right+'</span></div>';
   }).join('')+(ev.length>25?'<button class="btn ghost full" id="cvMore" type="button" style="margin-top:8px">'+(CV.all?'Ver menos':'Ver las '+ev.length+' operaciones')+'</button>':''):'<div class="empty">Aún no hay operaciones.</div>');
   const mb=$('cvMore');if(mb)mb.onclick=()=>{CV.all=!CV.all;renderCv();};
+}
+/* ---- exportar a Excel y copia de seguridad ---- */
+function csvCell(v){if(v==null)return '';let t=String(v);if(/^[=+\-@\t\r]/.test(t))t="'"+t;return /[;"\n\r]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t;}
+const csvN=(v,d)=>v==null||!isFinite(v)?'':(+v).toFixed(d==null?2:d).replace('.',',');
+function csvOps(){
+  const R=[['Fecha','Tipo','Valor','Precio','Moneda','Cantidad','Importe €','Resultado €','Resultado %','Motivo']];
+  const f=t=>t?new Date(t).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  const ev=[];
+  S.pos.forEach(p=>ev.push({t:p.openTs,r:['Compra',p.s,csvN(p.entry,4),p.cur,csvN(p.shares,4),csvN(p.costEur),'','','Abierta']}));
+  S.closed.forEach(c=>{const imp=c.pct?c.pnl/c.pct*100:null;ev.push({t:c.open,r:['Compra',c.s,csvN(c.entry,4),c.cur,csvN(c.shares,4),csvN(imp),'','','']});ev.push({t:c.close,r:['Venta',c.s,csvN(c.exit,4),c.cur,csvN(c.shares,4),'',csvN(c.pnl),csvN(c.pct),c.why||'']});});
+  (S.dep||[]).forEach(d=>ev.push({t:d.t,r:['Ingreso acciones','','','','',csvN(d.a),'','','']}));
+  ((S.fd&&S.fd.dep)||[]).forEach(d=>ev.push({t:d.t,r:['Ingreso fondos','','','','',csvN(d.a),'','','']}));
+  ev.sort((a,b)=>(a.t||0)-(b.t||0)).forEach(e=>R.push([f(e.t)].concat(e.r)));
+  return '\ufeff'+R.map(r=>r.map(csvCell).join(';')).join('\r\n');
+}
+function bakJson(){const o=Object.assign({},S);delete o.rows;delete o.srvKey;return JSON.stringify({app:'trader_a_mano',ver:4,t:Date.now(),S:o});}
+function exDown(name,text,type){
+  try{const b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return true;}catch(e){return false;}
+}
+function exInit(){
+  const m=$('exMsg');if(!m)return;
+  const day=new Date().toISOString().slice(0,10);
+  $('exOps').onclick=()=>{m.innerHTML=exDown('mis_operaciones_'+day+'.csv',csvOps(),'text/csv;charset=utf-8')?'<div class="msg ok">Descargado. Ábrelo con Excel.</div>':'<div class="msg bad">No se pudo descargar en este navegador.</div>';};
+  $('exBak').onclick=()=>{m.innerHTML=exDown('trader_copia_'+day+'.json',bakJson(),'application/json')?'<div class="msg ok">Copia descargada. Guárdala en un sitio seguro: contiene toda tu cartera.</div>':'<div class="msg bad">No se pudo descargar en este navegador.</div>';};
+  $('exFile').onchange=e=>{
+    const f=e.target.files&&e.target.files[0];if(!f)return;
+    const rd=new FileReader();rd.onload=()=>exRestore(String(rd.result||''));rd.readAsText(f);
+  };
+}
+let exArm=null;
+function exRestore(txt){
+  const m=$('exMsg');let j;
+  try{j=JSON.parse(txt);}catch(e){m.innerHTML='<div class="msg bad">Ese archivo no es una copia válida.</div>';return;}
+  const o=j&&j.app==='trader_a_mano'&&j.S;
+  if(!o||!isFinite(o.cap0)||!isFinite(o.cash)||!Array.isArray(o.pos)||!Array.isArray(o.closed)){m.innerHTML='<div class="msg bad">La copia está incompleta o no es de esta app. No se ha cambiado nada.</div>';return;}
+  exArm=o;
+  m.innerHTML='<div class="msg">Copia del '+new Date(j.t||0).toLocaleDateString('es-ES')+': '+o.pos.length+' abiertas, '+o.closed.length+' cerradas, caja '+eur(o.cash)+'. Reemplazará lo que tienes ahora (se guarda antes una copia automática).<button class="btn full" id="exGo" type="button" style="margin-top:8px">Sí, recuperar esta copia</button></div>';
+  $('exGo').onclick=()=>{
+    try{localStorage.setItem('traderamano.v4.pre_importar',localStorage.getItem(KEY)||'');}catch(e){}
+    const keep={srvKey:S.srvKey,nube:S.nube};
+    Object.keys(S).forEach(k=>{if(k!=='rows')delete S[k];});
+    Object.assign(S,JSON.parse(JSON.stringify(DEF)),exArm,keep.srvKey?{srvKey:keep.srvKey}:{},keep.nube?{nube:keep.nube}:{});
+    save();m.innerHTML='<div class="msg ok">Copia recuperada. Recargando…</div>';setTimeout(()=>{try{location.reload();}catch(e){}},600);
+  };
 }
 const alId=()=>Math.random().toString(36).slice(2,10);
 function alPrice(sym){const r=S.rows&&S.rows[sym];return r&&r.p>0?r.p:null;}
@@ -3430,7 +3523,7 @@ function go(t){
   if(t==='div')renderDV();
   if(t==='pil')renderPil();
   if(t==='fut'){renderFut();loadFut(true);}
-  if(t==='mas'){try{renderAl();}catch(e){}try{renderFn();}catch(e){}try{renderCom();}catch(e){}}
+  if(t==='mas'){try{exInit();}catch(e){}try{renderAl();}catch(e){}try{renderFn();}catch(e){}try{renderCom();}catch(e){}}
   if(t==='cv'){try{renderCv();}catch(e){}}
   if(t==='ami'){try{renderAmi();amPoll(true);msPoll(true);}catch(e){}}
 }

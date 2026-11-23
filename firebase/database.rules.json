@@ -1,0 +1,57 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "amigos": {
+      ".read": "auth.token.email === 'CORREO_DEL_CREADOR'",
+      ".write": "auth.token.email === 'CORREO_DEL_CREADOR'",
+      "$fid": {
+        ".read": "auth.token.email === 'CORREO_DEL_CREADOR' || data.child('uid').val() === auth.uid",
+        "uid": {
+          ".write": "auth.token.email === 'CORREO_DEL_CREADOR' || (!data.exists() && newData.val() === auth.uid && newData.parent().child('jc').val() === data.parent().child('cod').val())"
+        },
+        "jc": {
+          ".write": "auth.token.email === 'CORREO_DEL_CREADOR' || !data.parent().child('uid').exists()"
+        },
+        "dev":    { ".write": "data.parent().child('uid').val() === auth.uid || (!data.parent().child('uid').exists() && newData.parent().child('uid').val() === auth.uid)" },
+        "joined": { ".write": "data.parent().child('uid').val() === auth.uid || (!data.parent().child('uid').exists() && newData.parent().child('uid').val() === auth.uid)" },
+        "sh":     { ".write": "data.parent().child('uid').val() === auth.uid || (!data.parent().child('uid').exists() && newData.parent().child('uid').val() === auth.uid)" },
+        "seen":   { ".write": "data.parent().child('uid').val() === auth.uid || (!data.parent().child('uid').exists() && newData.parent().child('uid').val() === auth.uid)" },
+        "off":    { ".write": "data.parent().child('uid').val() === auth.uid" },
+        "ver":    { ".write": "data.parent().child('uid').val() === auth.uid || (!data.parent().child('uid').exists() && newData.parent().child('uid').val() === auth.uid)" },
+        "snap":   { ".write": "data.parent().child('uid').val() === auth.uid" },
+        "ops":    { "$u": { ".write": "data.parent().parent().child('uid').val() === auth.uid", ".validate": "newData.hasChildren(['s','pnl','close'])" } },
+        "mot":    { ".write": "auth.token.email === 'CORREO_DEL_CREADOR'" }
+      }
+    },
+
+    "uids": {
+      "$uid": {
+        ".read": "auth.token.email === 'CORREO_DEL_CREADOR' || $uid === auth.uid",
+        ".write": "$uid === auth.uid && root.child('amigos').child(newData.val()).child('uid').val() === auth.uid"
+      }
+    },
+
+    "chat": {
+      ".read": "auth.token.email === 'CORREO_DEL_CREADOR'",
+      "$fid": {
+        ".read": "auth.token.email === 'CORREO_DEL_CREADOR' || root.child('amigos').child($fid).child('uid').val() === auth.uid",
+        "$mid": {
+          ".write": "!data.exists() && (auth.token.email === 'CORREO_DEL_CREADOR' || root.child('amigos').child($fid).child('uid').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['t','de','x']) && newData.child('x').isString() && newData.child('x').val().length <= 600 && ((auth.token.email === 'CORREO_DEL_CREADOR' && newData.child('de').val() === 'o') || (auth.token.email !== 'CORREO_DEL_CREADOR' && newData.child('de').val() === 'f'))"
+        }
+      }
+    },
+
+    "aviso": {
+      ".read": "auth != null && root.child('uids').child(auth.uid).exists() || auth.token.email === 'CORREO_DEL_CREADOR'",
+      ".write": "auth.token.email === 'CORREO_DEL_CREADOR'"
+    },
+
+    "precios": {
+      ".read": "auth.token.email === 'CORREO_DEL_CREADOR' || (root.child('uids').child(auth.uid).exists() && root.child('amigos').child(root.child('uids').child(auth.uid).val()).child('sh').val() === 1 && root.child('amigos').child(root.child('uids').child(auth.uid).val()).child('seen').val() > now - 172800000)",
+      ".write": false
+    }
+  }
+}
