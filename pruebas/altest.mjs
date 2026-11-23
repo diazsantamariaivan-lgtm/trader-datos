@@ -1,0 +1,24 @@
+import {readFileSync} from 'node:fs';
+import {JSDOM,VirtualConsole} from 'jsdom';
+let html=readFileSync('/home/claude/trader_v4.html','utf8').replace('window.__trader={','window.__trader={SS:()=>S,checkAlerts,renderAl,alMerge,go,');
+const errs=[],posts=[];const vc=new VirtualConsole();vc.on('jsdomError',e=>errs.push(String(e.message).slice(0,200)));
+const dom=new JSDOM(html,{url:'https://diazsantamariaivan-lgtm.github.io/trader-datos/',runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc,
+ beforeParse(w){const ctx=new Proxy(function(){},{get:(t,k)=>k==='measureText'?(()=>({width:10})):(()=>ctx),set:()=>true,apply:()=>ctx});w.HTMLCanvasElement.prototype.getContext=()=>ctx;
+ w.fetch=async(u,o)=>{u=String(u);if(u.includes('ntfy.sh'))posts.push({u,t:o&&o.headers&&o.headers.Title,b:o&&o.body});return {ok:false,status:404,json:async()=>({}),text:async()=>''}};
+ w.localStorage.setItem('traderamano.v4',JSON.stringify({ntfy:'mitema'}));}});
+const w=dom.window;await new Promise(r=>setTimeout(r,1500));const T=w.__trader,S=T.SS(),d=w.document;
+S.rows.AAPL={s:'AAPL',p:190};T.go('mas');
+const add=(s,dir,px)=>{d.querySelector('#alS').value=s;d.querySelector('#alD').value=dir;d.querySelector('#alP').value=px;d.querySelector('#alAdd').click();return d.querySelector('#alMsg')?.textContent};
+console.log('1 símbolo raro →',add('ZZZZ','>=','100'));
+console.log('2 precio ya superado →',add('AAPL','>=','150'));
+console.log('3 vacío →',add('AAPL','>=',''));
+console.log('4 válida →',add('AAPL','>=','200'),'| alertas',S.alerts.length);
+add('AAPL','<=','180');console.log('5 segunda válida | alertas',S.alerts.length);
+await new Promise(r=>setTimeout(r,300));console.log('publicado en tema privado →',posts.filter(p=>p.u.includes('mitema-al')).length,'veces; último:',(posts.at(-1)||{}).b?.slice(0,140));
+S.rows.AAPL.p=201;T.checkAlerts();await new Promise(r=>setTimeout(r,300));
+console.log('6 sube a 201 → hechas',S.alerts.filter(a=>a.done).length,'activas',S.alerts.filter(a=>!a.done).length,'| avisos al móvil',posts.filter(p=>p.u.includes('ntfy.sh/mitema?')).length,'| log:',S.log[0]&&S.log[0].x);
+T.checkAlerts();console.log('7 repetir no duplica →',S.alerts.filter(a=>a.done).length);
+T.renderAl();console.log('8 panel:',d.querySelector('#alBox').textContent.replace(/\s+/g,' ').slice(0,420));
+d.querySelector('[data-aldel]').click();console.log('9 quitar → activas',S.alerts.filter(a=>!a.done).length);
+T.alMerge([{id:S.alerts[0].id,done:1,dt:1,tp:5}]);console.log('10 merge servidor ok');
+console.log('errores',errs);process.exit(0);

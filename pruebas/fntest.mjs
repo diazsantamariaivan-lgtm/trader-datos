@@ -1,0 +1,27 @@
+import {readFileSync} from 'node:fs';
+import {JSDOM,VirtualConsole} from 'jsdom';
+let html=readFileSync('/home/claude/trader_v4.html','utf8').replace('window.__trader={','window.__trader={SS:()=>S,go,equity,capTot,fdTotals,fdCap,renderPil,drawEq,');
+const errs=[];const vc=new VirtualConsole();vc.on('jsdomError',e=>errs.push(String(e.message).slice(0,200)));
+const old={cap0:10000,cash:6000,pos:[{manual:true,id:1,s:'AAPL',nm:'Apple',cur:'USD',shares:10,entry:190,stop:180,target:210,last:200,costEur:1700,openTs:Date.now()-864e5,openDay:'2026-11-22',days:1,f:[0,0,0,0,0]}],closed:[{s:'X',nm:'X',entry:10,exit:11,shares:5,cur:'USD',pnl:50,pct:5,why:'objetivo',days:3,open:Date.now()-5*864e5,close:Date.now()-2*864e5,cd:'2026-11-20',u:'abc'}],eq:[{t:Date.now()-3*864e5,e:10000},{t:Date.now()-864e5,e:10100}],log:[],fd:{cap0:10000,cash:9000,pos:{},tr:[]},ntfy:'x'};
+let store=JSON.stringify(old);
+const mk=async(st)=>{const dom=new JSDOM(html,{url:'https://diazsantamariaivan-lgtm.github.io/trader-datos/',runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc,
+ beforeParse(w){const ctx=new Proxy(function(){},{get:(t,k)=>k==='measureText'?(()=>({width:10})):(()=>ctx),set:()=>true,apply:()=>ctx});w.HTMLCanvasElement.prototype.getContext=()=>ctx;
+ w.fetch=async()=>({ok:false,status:404,json:async()=>({}),text:async()=>''});w.localStorage.setItem('traderamano.v4',st);}});
+ await new Promise(r=>setTimeout(r,1500));return dom;};
+let dom=await mk(store);let w=dom.window,T=w.__trader,S=T.SS(),d=w.document;
+console.log('1 datos antiguos: cap0',S.cap0,'cash',S.cash,'pos',S.pos.length,'cerradas',S.closed.length,'eq',S.eq.length,'dep',JSON.stringify(S.dep),'fd cash',S.fd.cash);
+S.rows.AAPL={s:'AAPL',p:200,pen:[0,0],rsi:50,ev:0};
+const e0=T.equity();console.log('equity antes',e0,'capTot',T.capTot());
+T.go('mas');
+const add=(q,v)=>{d.querySelector('#fnQue').value=q;d.querySelector('#fnImp').value=v;d.querySelector('#fnAdd').click();return d.querySelector('#fnMsg').textContent;};
+console.log('2 vacío →',add('a',''));console.log('3 negativo →',add('a','-5'));
+console.log('4 acciones 1000 →',add('a','1000'),'| cash',S.cash,'cap0',S.cap0,'capTot',T.capTot(),'equity',T.equity(),'(antes+1000 =',e0+1000,')');
+console.log('5 fondos 500 →',add('f','500'),'| fd.cash',S.fd.cash,'fd.cap0',S.fd.cap0,'fdCap',T.fdCap());
+console.log('6 hero:',d.querySelector('#hDelta').textContent,'|',d.querySelector('#hSub').textContent);
+console.log('7 fondos hero:',d.querySelector('#fdHero').textContent.replace(/\s+/g,' ').slice(0,200));
+T.go('fon');T.go('mas');console.log('errs tras añadir',errs);console.log('8 lista:',d.querySelector('#fnList').textContent.replace(/\s+/g,' '));
+T.drawEq();console.log('9 gráfico sin error');
+const saved=w.localStorage.getItem('traderamano.v4'),pre=w.localStorage.getItem('traderamano.v4.pre_fondos');
+console.log('10 copia previa guardada:',!!pre,'tenía dep?',pre&&JSON.parse(pre).dep===undefined?'no (original)':'sí');
+dom.window.close();dom=await mk(saved);console.log('errs reload',errs);S=dom.window.__trader.SS();console.log('11 recargado: dep',S.dep.length,'fd.dep',S.fd.dep.length,'cash',S.cash,'pos',S.pos.length);
+console.log('errores',errs);process.exit(0);
