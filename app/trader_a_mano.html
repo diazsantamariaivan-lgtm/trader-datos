@@ -351,15 +351,6 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 <!-- ================= MÁS ================= -->
 <section id="t-mas">
   <div class="hint" id="verTxt" style="text-align:right;margin:0 0 6px"></div>
-  <h2>Exportar y copia de seguridad</h2>
-  <div class="card" id="exBox">
-    <div class="hint" style="margin:0 0 8px">Descarga tus operaciones para abrirlas en Excel, o una copia completa de la app para guardarla y recuperarla si cambias de móvil. Funciona también en modo limitado.</div>
-    <button class="btn full" id="exOps" type="button">Descargar mis operaciones (Excel)</button>
-    <button class="btn ghost full" id="exBak" type="button" style="margin-top:8px">Descargar copia completa</button>
-    <label class="hint" style="margin:10px 0 0">Recuperar una copia completa<input id="exFile" type="file" accept=".json,application/json"></label>
-    <div id="exMsg"></div>
-  </div>
-
   <h2>Comunidad</h2>
   <div class="card" id="comBox"></div>
 
@@ -433,7 +424,8 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
   <div class="card"><div class="hint" style="margin:0 0 8px">Tu cartera principal, órdenes, diario, favoritas y ajustes viven solo en este móvil. Guarda una copia antes de borrar datos del navegador o reinstalar la app.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" id="bkCp" type="button">Copiar copia</button><button class="btn small ghost" id="bkDl" type="button">Descargar archivo</button></div>
     <textarea id="bkTx" rows="3" placeholder="Para restaurar: pega aquí la copia y pulsa Restaurar" style="margin-top:8px;width:100%"></textarea>
-    <button class="btn small ghost" id="bkRs" type="button" style="margin-top:6px">Restaurar copia</button><div id="bkMsg"></div></div>
+    <button class="btn small ghost" id="bkRs" type="button" style="margin-top:6px">Restaurar copia</button>
+    <button class="btn small ghost" id="exOps" type="button" style="margin-top:6px">Descargar mis operaciones (Excel)</button><div id="exMsg"></div><div id="bkMsg"></div></div>
   <h2>Compartir con un amigo</h2>
   <div class="card">
     <div class="hint" style="margin:0 0 8px">Tu amigo abre el mismo enlace y tiene <b>su propia cartera y sus propias 100 carteras de laboratorio</b> en su móvil: no ve nada tuyo ni tú de él. Los datos de mercado, análisis y noticias los recibe del mismo sitio que tú.</div>
@@ -3312,35 +3304,12 @@ function csvOps(){
   ev.sort((a,b)=>(a.t||0)-(b.t||0)).forEach(e=>R.push([f(e.t)].concat(e.r)));
   return '\ufeff'+R.map(r=>r.map(csvCell).join(';')).join('\r\n');
 }
-function bakJson(){const o=Object.assign({},S);delete o.rows;delete o.srvKey;return JSON.stringify({app:'trader_a_mano',ver:4,t:Date.now(),S:o});}
 function exDown(name,text,type){
   try{const b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return true;}catch(e){return false;}
 }
 function exInit(){
-  const m=$('exMsg');if(!m)return;
-  const day=new Date().toISOString().slice(0,10);
-  $('exOps').onclick=()=>{m.innerHTML=exDown('mis_operaciones_'+day+'.csv',csvOps(),'text/csv;charset=utf-8')?'<div class="msg ok">Descargado. Ábrelo con Excel.</div>':'<div class="msg bad">No se pudo descargar en este navegador.</div>';};
-  $('exBak').onclick=()=>{m.innerHTML=exDown('trader_copia_'+day+'.json',bakJson(),'application/json')?'<div class="msg ok">Copia descargada. Guárdala en un sitio seguro: contiene toda tu cartera.</div>':'<div class="msg bad">No se pudo descargar en este navegador.</div>';};
-  $('exFile').onchange=e=>{
-    const f=e.target.files&&e.target.files[0];if(!f)return;
-    const rd=new FileReader();rd.onload=()=>exRestore(String(rd.result||''));rd.readAsText(f);
-  };
-}
-let exArm=null;
-function exRestore(txt){
-  const m=$('exMsg');let j;
-  try{j=JSON.parse(txt);}catch(e){m.innerHTML='<div class="msg bad">Ese archivo no es una copia válida.</div>';return;}
-  const o=j&&j.app==='trader_a_mano'&&j.S;
-  if(!o||!isFinite(o.cap0)||!isFinite(o.cash)||!Array.isArray(o.pos)||!Array.isArray(o.closed)){m.innerHTML='<div class="msg bad">La copia está incompleta o no es de esta app. No se ha cambiado nada.</div>';return;}
-  exArm=o;
-  m.innerHTML='<div class="msg">Copia del '+new Date(j.t||0).toLocaleDateString('es-ES')+': '+o.pos.length+' abiertas, '+o.closed.length+' cerradas, caja '+eur(o.cash)+'. Reemplazará lo que tienes ahora (se guarda antes una copia automática).<button class="btn full" id="exGo" type="button" style="margin-top:8px">Sí, recuperar esta copia</button></div>';
-  $('exGo').onclick=()=>{
-    try{localStorage.setItem('traderamano.v4.pre_importar',localStorage.getItem(KEY)||'');}catch(e){}
-    const keep={srvKey:S.srvKey,nube:S.nube};
-    Object.keys(S).forEach(k=>{if(k!=='rows')delete S[k];});
-    Object.assign(S,JSON.parse(JSON.stringify(DEF)),exArm,keep.srvKey?{srvKey:keep.srvKey}:{},keep.nube?{nube:keep.nube}:{});
-    save();m.innerHTML='<div class="msg ok">Copia recuperada. Recargando…</div>';setTimeout(()=>{try{location.reload();}catch(e){}},600);
-  };
+  const m=$('exMsg'),b=$('exOps');if(!m||!b)return;
+  b.onclick=()=>{const day=new Date().toISOString().slice(0,10);m.innerHTML=exDown('mis_operaciones_'+day+'.csv',csvOps(),'text/csv;charset=utf-8')?'<div class="msg ok">Descargado. Ábrelo con Excel.</div>':'<div class="msg bad">No se pudo descargar en este navegador.</div>';};
 }
 const alId=()=>Math.random().toString(36).slice(2,10);
 function alPrice(sym){const r=S.rows&&S.rows[sym];return r&&r.p>0?r.p:null;}
