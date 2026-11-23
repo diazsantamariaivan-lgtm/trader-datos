@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="23/11/2026 20:39";</script>
+<script>window.BUILD="23/11/2026 20:48";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -61,6 +61,7 @@ body.fmode #t-fon{display:block}
 nav{display:grid;grid-template-columns:repeat(8,1fr);border-top:1px solid var(--line);background:var(--nav)}
 nav button{background:none;border:0;color:var(--mut);padding:9px 0 11px;font:600 10.5px var(--sans);cursor:pointer;border-top:2px solid transparent}
 nav button.on{color:var(--tx);border-top-color:var(--blue)}
+nav button.dot{position:relative}nav button.dot::after{content:'';position:absolute;top:6px;right:28%;width:9px;height:9px;border-radius:50%;background:#e5484d}
 nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block;margin:0 auto 3px}
 h2{margin:18px 2px 8px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--mut);font-weight:600}
 h2:first-child{margin-top:0}
@@ -1606,10 +1607,12 @@ async function updatePositions(){
 }
 const aprRec=t=>({u:t.u,f:t.f,pnl:t.pct,gross:t.gross,why:t.why,days:t.days,pred:t.pred});
 function aprOk(e){return e&&typeof e.u==='string'&&e.u.length<=40&&Array.isArray(e.f)&&e.f.length===5&&e.f.every(x=>x===0||x===1)&&isFinite(e.pnl)&&Math.abs(e.pnl)<100&&['objetivo','stop','tiempo'].includes(e.why)&&isFinite(e.days)&&e.days>=0&&e.days<=60&&(e.gross==null||(isFinite(e.gross)&&Math.abs(e.gross)<100))&&(e.pred==null||(isFinite(e.pred.pT)&&isFinite(e.pred.ev)));}
+/* operaciones cerradas de los amigos (solo en la app del creador) que también enseñan al algoritmo */
+function amFr(){return (S.nube&&S.nube.rol==='amigo')?[]:(Array.isArray(S.fr)?S.fr:[]);}
 function learn(){
   const mine=S.closed.filter(t=>S.mainManual?(!t.mom&&t.f&&t.pred):(!t.manual&&t.why!=='manual'&&!t.mom));
   const own=new Set(mine.map(t=>t.u).filter(Boolean));
-  const C=mine.concat(S.apr||S.srvMode?(S.ext||[]).filter(e=>!own.has(e.u)):[]);
+  const C=mine.concat(S.apr||S.srvMode?(S.ext||[]).filter(e=>!own.has(e.u)):[]).concat(amFr().filter(e=>!own.has(e.u)));
   if(C.length<8)S.W=Object.assign({},BASE_W);
   else{
     const winAll=(C.filter(t=>t.pnl>0).length+1)/(C.length+2);
@@ -3071,12 +3074,13 @@ async function amUnir(txt){
 }
 function renderCom(){
   const el=$('comBox');if(!el)return;
+  const ae=document.activeElement;if(ae&&ae.tagName==='INPUT'&&el.contains(ae)&&ae.id==='msTx')return;
   const N=S.nube;
   if(N&&N.rol==='amigo'){
     el.innerHTML='<div class="row"><span>Eres</span><b>'+esc(N.al)+'</b></div>'+
       '<label class="sw"><input id="comSh" type="checkbox"'+(N.sh?' checked':'')+'><span>Compartir mis operaciones con el creador<br><small class="mut">Se envían tus compras, ventas, resultados y el resumen de tu cartera (con tu alias, sin datos personales) para mejorar el algoritmo. Si lo desactivas, la app pasa a modo limitado: se congelan los precios y los gráficos y no se pueden hacer compras nuevas. Tu historial sigue aquí y puedes exportarlo.</small></span></label>'+
-      '<div class="hint" style="margin:6px 0 0">'+(N.sh?(N.at?'Último envío: '+amAgo(N.at):'Todavía no se ha enviado nada.'):'Desactivado'+(N.off?' desde el '+new Date(N.off).toLocaleDateString('es-ES'):''))+(N.err?' · <span class="neg">'+esc(N.err)+'</span>':'')+'</div><div id="comMsg"></div>';
-    $('comSh').onchange=e=>amToggle(e.target.checked);
+      '<div class="hint" style="margin:6px 0 0">'+(N.sh?(N.at?'Último envío: '+amAgo(N.at):'Todavía no se ha enviado nada.'):'Desactivado'+(N.off?' desde el '+new Date(N.off).toLocaleDateString('es-ES'):''))+(N.err?' · <span class="neg">'+esc(N.err)+'</span>':'')+'</div><div id="comMsg"></div>'+renderMsF();
+    $('comSh').onchange=e=>amToggle(e.target.checked);bindMsF();
   }else{
     el.innerHTML='<div class="hint" style="margin:0 0 8px">Si el creador te ha dado un código, escríbelo aquí para unirte. Si eres el creador, abre el panel de tus amigos.</div>'+
       '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end"><label class="hint" style="margin:0">Código de amigo<input id="comCod" type="text" autocapitalize="off" autocomplete="off" placeholder="abc123-XY12ZZ"></label><button class="btn" id="comJoin" type="button">Unirme</button></div><div id="comMsg"></div>'+
@@ -3090,7 +3094,7 @@ const AM={d:null,err:'',open:{},at:0};
 async function amPoll(force){
   if(S.nube&&S.nube.rol==='amigo')return;
   if(!force&&Date.now()-AM.at<60000)return;
-  try{AM.d=await NUBE.get('amigos')||{};AM.at=Date.now();AM.err='';amAlerts();}catch(e){AM.err=String(e.message||e);}
+  try{AM.d=await NUBE.get('amigos')||{};AM.at=Date.now();AM.err='';amAlerts();amLearn();}catch(e){AM.err=String(e.message||e);}
   try{if($('t-ami').classList.contains('on'))renderAmi();}catch(e){}
 }
 function amEstado(f){
@@ -3110,12 +3114,83 @@ function amAlerts(){
   }
   if(ch)save();
 }
+function amLearn(){
+  if(!AM.d)return;
+  const have=new Set((S.fr||[]).map(e=>e.u)),add=[];
+  for(const [id,f] of Object.entries(AM.d))for(const o of Object.values(f.ops||{})){
+    if(!o||!o.u||o.mom)continue;
+    const r={u:'a'+id+'-'+o.u,f:o.f,pnl:o.pct,gross:o.gross,why:o.why,days:o.days,pred:o.pred};
+    if(!have.has(r.u)&&aprOk(r)){add.push(r);have.add(r.u);}
+  }
+  if(add.length){S.fr=(S.fr||[]).concat(add).slice(-800);try{learn();}catch(e){}save();}
+}
+/* ---- mensajes 1 a 1 (amigo ↔ creador) y tablón de avisos ---- */
+const MSG={d:null,av:null,at:0};
+async function msPoll(force){
+  const N=S.nube;if(!force&&Date.now()-MSG.at<45000)return;
+  try{
+    if(N&&N.rol==='amigo'){MSG.d=await NUBE.get('chat/'+N.fid)||{};MSG.av=await NUBE.get('aviso')||{};}
+    else{AM.chat=await NUBE.get('chat')||{};}
+    MSG.at=Date.now();
+  }catch(e){}
+  msBadge();try{if(N&&N.rol==='amigo')renderCom();else if($('t-ami').classList.contains('on'))renderAmi();}catch(e){}
+  msNotify();
+}
+const msList=o=>Object.values(o||{}).filter(x=>x&&x.x).sort((a,b)=>a.t-b.t);
+function msUnreadF(){const N=S.nube;if(!N||N.rol!=='amigo'||!MSG.d)return 0;return msList(MSG.d).filter(m=>m.de==='o'&&m.t>(N.rd||0)).length+Object.values(MSG.av||{}).filter(a=>a&&a.t>(N.rdA||0)).length;}
+function msUnreadO(fid){const c=(AM.chat||{})[fid];if(!c)return 0;const r=((S.nube||{}).rdO||{})[fid]||0;return msList(c).filter(m=>m.de==='f'&&m.t>r).length;}
+function msBadge(){
+  let n=0;try{n=(S.nube&&S.nube.rol==='amigo')?msUnreadF():Object.keys(AM.chat||{}).reduce((a,f)=>a+msUnreadO(f),0);}catch(e){}
+  const b=document.querySelector('nav button[data-t=mas]');if(b)b.classList.toggle('dot',n>0);
+}
+function msNotify(){
+  if(!S.nube||S.nube.rol==='amigo'||!AM.chat)return;
+  if(!S.nube.pn)S.nube.pn={};let ch=false;
+  for(const [fid,c] of Object.entries(AM.chat)){const last=msList(c).filter(m=>m.de==='f').pop();if(!last)continue;
+    if(S.nube.pn[fid]==null){S.nube.pn[fid]=last.t;ch=true;continue;}
+    if(last.t>S.nube.pn[fid]){S.nube.pn[fid]=last.t;ch=true;try{push('Mensaje de '+esc0((AM.d&&AM.d[fid]&&AM.d[fid].al)||'un amigo'),esc0(last.x).slice(0,120));}catch(e){}}}
+  if(ch)save();
+}
+async function msSend(fid,de,txt){
+  const x=String(txt||'').trim().slice(0,600);if(!x)return false;
+  await NUBE.push('chat/'+fid,{t:Date.now(),de,x});return true;
+}
+function msThread(arr,me){
+  return arr.length?arr.slice(-30).map(m=>'<div style="display:flex;justify-content:'+(m.de===me?'flex-end':'flex-start')+';margin:4px 0"><div style="max-width:82%;padding:7px 10px;border-radius:10px;background:'+(m.de===me?'var(--blue,#3b82f6);color:#fff':'var(--card2,rgba(128,128,128,.15))')+';font-size:14px;white-space:pre-wrap;word-break:break-word">'+esc(m.x)+'<br><small style="opacity:.7">'+new Date(m.t).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</small></div></div>').join(''):'<div class="hint">Todavía no hay mensajes.</div>';
+}
+function renderMsF(){
+  const N=S.nube;if(!N||N.rol!=='amigo')return '';
+  const av=Object.entries(MSG.av||{}).map(([k,a])=>Object.assign({k},a)).filter(a=>a.x).sort((a,b)=>b.t-a.t).slice(0,4);
+  const upd=av.find(a=>a.u&&a.t>(N.updDone||0));
+  return '<hr style="border:0;border-top:1px solid var(--line);margin:12px 0">'+
+    (upd?'<div class="msg ok" style="margin:0 0 8px"><b>Nueva versión disponible</b><br>'+esc(upd.x)+'<button class="btn small" id="msUpd" type="button" style="margin-top:8px">Actualizar ahora</button></div>':'')+
+    '<div class="hint" style="margin:0 0 4px"><b>Mensajes con el creador</b></div><div id="msTh" style="max-height:260px;overflow:auto">'+msThread(msList(MSG.d),'f')+'</div>'+
+    '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:6px"><input id="msTx" type="text" maxlength="600" placeholder="Escribe un mensaje"><button class="btn" id="msGo" type="button">Enviar</button></div>'+
+    (av.length?'<div class="hint" style="margin:12px 0 4px"><b>Tablón de avisos</b></div>'+av.map(a=>'<div class="row" style="margin-top:0;padding:7px 0;border-bottom:1px solid var(--line);align-items:flex-start"><span style="white-space:pre-wrap">'+esc(a.x)+'</span><small class="mut" style="white-space:nowrap;margin-left:8px">'+new Date(a.t).toLocaleDateString('es-ES')+'</small></div>').join(''):'');
+}
+function bindMsF(){
+  const N=S.nube;if(!N||N.rol!=='amigo')return;
+  const g=$('msGo');if(g)g.onclick=async()=>{const i=$('msTx');if(await msSend(N.fid,'f',i.value)){i.value='';await msPoll(true);}};
+  const i=$('msTx');if(i)i.onkeydown=e=>{if(e.key==='Enter')$('msGo').click();};
+  const u=$('msUpd');if(u)u.onclick=()=>{N.updDone=Date.now();save();location.href=location.pathname+'?v='+Date.now();};
+  N.rd=Date.now();N.rdA=Date.now();save();msBadge();
+}
+document.addEventListener('click',async e=>{
+  const o=e.target.closest&&e.target.closest('[data-amch]');
+  if(o){const f=o.dataset.amch;AM.chOpen=AM.chOpen===f?null:f;if(AM.chOpen){if(!S.nube)S.nube={};if(!S.nube.rdO)S.nube.rdO={};S.nube.rdO[f]=Date.now();save();msBadge();}renderAmi();return;}
+  const s=e.target.closest&&e.target.closest('[data-amsend]');
+  if(s){const f=s.dataset.amsend,i=document.querySelector('[data-amtx="'+f+'"]');if(await msSend(f,'o',i&&i.value)){if(i)i.value='';await msPoll(true);}return;}
+  if(e.target&&e.target.id==='avGo'){const t=$('avTx'),u=$('avUp').checked;const x=String(t.value||'').trim().slice(0,500);if(!x)return;await NUBE.push('aviso',{t:Date.now(),x,u:u?1:0});t.value='';$('avMsg').innerHTML='<div class="msg ok">Aviso publicado para todos tus amigos.</div>';}
+});
 const esc0=t=>String(t==null?'':t).replace(/[<>&]/g,'');
 function renderAmi(){
   const nw=$('amNew');if(!nw)return;
+  const ae=document.activeElement;if(ae&&ae.tagName==='INPUT'&&(ae.dataset.amtx||ae.id==='avTx'||ae.id==='amAl'||ae.id==='amCap'||ae.dataset.ammot))return;
   nw.innerHTML='<div class="hint" style="margin:0 0 8px">Crea una base vacía para cada amigo. Le das el código y lo escribe en Más → Comunidad. Solo ves lo que él comparte.</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label class="hint" style="margin:0">Alias<input id="amAl" type="text" placeholder="Amigo 1"></label><label class="hint" style="margin:0">Capital (€)<input id="amCap" type="number" inputmode="decimal" value="10000"></label></div>'+
-    '<button class="btn full" id="amMk" type="button" style="margin-top:8px">Crear base</button><div id="amMsg"></div>';
+    '<button class="btn full" id="amMk" type="button" style="margin-top:8px">Crear base</button><div id="amMsg"></div>'+
+    '<hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><div class="hint" style="margin:0 0 6px"><b>Tablón: aviso para todos</b> (ellos solo lo leen)</div><textarea id="avTx" rows="2" maxlength="500" placeholder="Ej.: Ahora el algoritmo vigila el volumen" style="width:100%"></textarea><label class="sw"><input id="avUp" type="checkbox"><span>Es una versión nueva (les sale el botón Actualizar)</span></label><button class="btn full" id="avGo" type="button" style="margin-top:6px">Publicar aviso</button><div id="avMsg"></div>'+
+    '<div class="hint" style="margin:10px 0 0">El algoritmo ha aprendido de <b>'+(S.fr||[]).length+'</b> operaciones cerradas de tus amigos, además de las tuyas.</div>';
   $('amMk').onclick=async()=>{
     const al=($('amAl').value||'').trim().slice(0,30),cap=num($('amCap'));
     if(!al){$('amMsg').innerHTML='<div class="msg bad">Ponle un alias.</div>';return;}
@@ -3138,7 +3213,9 @@ function renderAmi(){
       h+='<div class="hint" style="margin:6px 0 0">Último dato: '+amAgo(f.seen)+(f.ver?' · versión '+esc(f.ver):'')+'</div>';
       if(sn)h+='<div style="display:flex;gap:8px;margin-top:8px"><div style="flex:1;text-align:center"><b>'+eur(sn.eq)+'</b><br><small>valor</small></div><div style="flex:1;text-align:center"><b class="'+(ret>=0?'pos':'neg')+'">'+sg(ret,1)+' %</b><br><small>sobre lo aportado</small></div><div style="flex:1;text-align:center"><b>'+(sn.pos||[]).length+'</b><br><small>abiertas</small></div><div style="flex:1;text-align:center"><b>'+sn.nw+'/'+sn.nc+'</b><br><small>ganadas</small></div></div>';
       if(e.k==='off'||e.k==='old')h+='<div class="msg bad" style="margin-top:8px">Desde el '+new Date(f.off||f.seen||Date.now()).toLocaleDateString('es-ES')+'. Pregúntale el motivo.<label class="hint" style="margin:6px 0 0">Motivo (nota tuya)<input data-ammot="'+id+'" type="text" value="'+esc(f.mot||'')+'" placeholder="Qué te ha dicho"></label></div>';
-      h+='<button class="btn ghost small" data-amop="'+id+'" type="button" style="margin-top:8px">'+(open?'Ocultar movimientos':'Ver movimientos')+'</button>';
+      const un=msUnreadO(id);
+      h+='<div style="display:flex;gap:8px;margin-top:8px"><button class="btn ghost small" data-amop="'+id+'" type="button">'+(open?'Ocultar movimientos':'Ver movimientos')+'</button><button class="btn ghost small" data-amch="'+id+'" type="button">Chat'+(un?' ('+un+' nuevo'+(un>1?'s':'')+')':'')+'</button></div>';
+      if(AM.chOpen===id)h+='<div style="margin-top:8px"><div style="max-height:260px;overflow:auto">'+msThread(msList((AM.chat||{})[id]),'o')+'</div><div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:6px"><input data-amtx="'+id+'" type="text" maxlength="600" placeholder="Escribe a '+esc(f.al)+'"><button class="btn" data-amsend="'+id+'" type="button">Enviar</button></div></div>';
       if(open){
         const ops=Object.values(f.ops||{}).sort((a,b)=>(b.close||0)-(a.close||0)).slice(0,20);
         h+='<div style="margin-top:8px"><div class="hint" style="margin:0 0 4px"><b>Abiertas</b></div>'+((sn&&sn.pos&&sn.pos.length)?sn.pos.map(p=>'<div class="row"><span>'+esc(p.s)+' · '+nf(p.sh,3)+' a '+nf(p.e,2)+'</span><b>'+(p.l&&p.e?'<span class="'+(p.l>=p.e?'pos':'neg')+'">'+sg((p.l/p.e-1)*100,1)+' %</span>':'–')+'</b></div>').join(''):'<div class="hint">Ninguna.</div>')+
@@ -3150,8 +3227,8 @@ function renderAmi(){
 }
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-amop]');if(!b)return;AM.open[b.dataset.amop]=!AM.open[b.dataset.amop];renderAmi();});
 document.addEventListener('change',e=>{const i=e.target;if(i&&i.dataset&&i.dataset.ammot){NUBE.upd('amigos/'+i.dataset.ammot,{mot:String(i.value||'').slice(0,200)}).then(()=>{if(AM.d&&AM.d[i.dataset.ammot])AM.d[i.dataset.ammot].mot=i.value;});}});
-setTimeout(()=>{try{renderCom();renderLim();amSync();amPoll(true);}catch(e){}},4000);
-setInterval(()=>{try{amSync();amPoll();}catch(e){}},5*60000);
+setTimeout(()=>{try{renderCom();renderLim();amSync();amPoll(true);msPoll(true);}catch(e){}},4000);
+setInterval(()=>{try{amSync();amPoll();msPoll();}catch(e){}},60000);
 /* ---- detalle de la cartera virtual: invertido, libre y operaciones ---- */
 const CV={all:false};
 function renderCv(){
@@ -3360,7 +3437,7 @@ function go(t){
   if(t==='fut'){renderFut();loadFut(true);}
   if(t==='mas'){try{renderAl();}catch(e){}try{renderFn();}catch(e){}try{renderCom();}catch(e){}}
   if(t==='cv'){try{renderCv();}catch(e){}}
-  if(t==='ami'){try{renderAmi();amPoll(true);}catch(e){}}
+  if(t==='ami'){try{renderAmi();amPoll(true);msPoll(true);}catch(e){}}
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
 $('pilGo').onclick=()=>go('pil');$('pilBack').onclick=()=>go('hoy');$('amBack').onclick=()=>go('mas');$('cvBack').onclick=()=>go('hoy');$('heroCard').onclick=()=>go('cv');
