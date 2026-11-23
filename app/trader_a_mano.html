@@ -675,6 +675,7 @@ async function momRebalance(){
       if(!(fxv('USD')>0))break;
       const lp=livePx(x.s,x.p);if(!lp)continue;
       const fx=await getFx('USD'),eq=equity(),pxIn=lp*(1+S.slip/100),entryE=pxIn/fx;
+      if(!(fx>0))continue;
       let sh=Math.min(eq/N/entryE,(S.cash-S.com)/entryE);sh=Math.floor(sh*1000)/1000;const cost=sh*entryE;
       if(!(sh>0)||cost<20)continue;
       S.cash-=cost+S.com;
@@ -1370,7 +1371,7 @@ async function getFx(cur){
     const d=await chart('EUR'+cur+'=X','1d','5d',0),v=d.meta.regularMarketPrice||d.c[d.c.length-1];
     if(v>0){S.fx[cur]={v,at:Date.now()};return v;}
   }catch(e){}
-  return c?c.v:(fxv(cur)||1);
+  return c?c.v:(fxv(cur)||0);   /* 0 = desconocido: las compras lo comprueban (antes se devolvía 1 y una acción en dólares se compraba como si costara euros) */
 }
 /* tipo de cambio: el guardado, y si falta el de las cotizaciones publicadas (EUR/USD, EUR/GBP, EUR/CHF) */
 function fxv(cur){const c=S.fx[cur];if(c&&c.v>0)return c.v;if(cur==='GBp'||cur==='GBX'){const g=fxv('GBP');return g?g*100:0;}const q=GH.q&&GH.q.s&&GH.q.s['EUR'+cur+'=X'];return q&&q.p>0?q.p:0;}
@@ -1578,6 +1579,7 @@ async function fillOrders(){
       const low=Math.min(last,...(d.t.map((t,i)=>t*1000>=o.ts?d.l[i]:Infinity)));
       if(!(low<=o.limit))continue;
       const px=Math.min(o.limit,last),fx=await getFx(o.cur),entryE=px/fx,sh=Math.floor(o.amt/entryE*1000)/1000;
+      if(!(fx>0))continue;
       if(!(sh>0)||o.amt+S.com>S.cash){log('Orden límite de <b>'+esc(o.s)+'</b> cancelada: no hay efectivo suficiente.',true);S.orders=S.orders.filter(x=>x!==o);continue;}
       const cost=sh*entryE;S.cash-=cost+S.com;S.orders=S.orders.filter(x=>x!==o);
       S.pos.push({plan:o.plan||null,pred:o.pred,manual:true,id:Date.now()+Math.random(),s:o.s,nm:o.nm,cur:o.cur,shares:sh,entry:px,stop:o.stop,target:o.target,ord:true,last,costEur:cost,openTs:Date.now(),openDay:dayKey(Date.now()),days:0,f:o.f,cx:null});
@@ -1662,6 +1664,7 @@ async function openTrades(){
     if(S.pos.length>=S.maxOpen||S.buysToday>=3)break;
     if(sc<minNota(r.s)||r.ev-S.cal.bias<=0||S.pos.some(p=>p.s===r.s))continue;
     const fx=await getFx(r.cur),eq=equity();
+    if(!(fx>0))continue;
     const stop=r.p-2*r.atr,target=r.p+4*r.atr,distE=2*r.atr/fx,pxIn=r.p*(1+S.slip/100),entryE=pxIn/fx;
     let sh=Math.min(eq*S.riesgo/100/distE,eq*S.maxPos/100/entryE,(S.cash-S.com)/entryE);
     sh=Math.floor(sh*1000)/1000;
@@ -2513,6 +2516,7 @@ async function buyManual(sym,amt,o){
     m.innerHTML='<div class="msg ok">Orden puesta: se comprará si el precio baja a '+nf(o.limit)+' '+esc(r.cur)+'. '+(o.days>0?'Caduca en '+o.days+(o.days===1?' día':' días')+'.':'No caduca hasta que la canceles.')+' La ves en Cartera.</div>';return;
   }
   const fx=await getFx(r.cur),pxIn=r.p*(1+S.slip/100),entryE=pxIn/fx,sh=Math.floor(amt/entryE*1000)/1000;
+  if(!(fx>0)){m.innerHTML='<div class="msg bad">No se pudo conocer el tipo de cambio ('+esc(r.cur)+'). Inténtalo en un momento.</div>';return;}
   if(!(sh>0)){m.innerHTML='<div class="msg bad">Importe demasiado pequeño.</div>';return;}
   const cost=sh*entryE,pred={pT:r.pT,pS:r.pS,ev:r.ev,dm:r.dm,dl:r.dl,dh:r.dh,cone:null};
   S.cash-=cost+S.com;
@@ -3540,7 +3544,12 @@ document.addEventListener('visibilitychange',()=>{
 const FD={lab:null,d:null,chk:0,h:{},sel:null,k:'',q:'',sort:'sc',tab:'exp',rng:'3y',busy:false,res:[],msg:''};
 const fdS=()=>{if(!S.fd)S.fd={cap0:10000,cash:10000,pos:{},tr:[]};if(!S.fd.cust)S.fd.cust={};if(!Array.isArray(S.fd.dep))S.fd.dep=[];return S.fd;};
 const fdCap=()=>{const F=fdS();return F.cap0+depSum(F.dep);};
-const fdPx=f=>{const c=f.c||'EUR';return c==='EUR'?f.p:f.p/(fxv(c)||1);};
+const fdPx=f=>{const c=f.c||'EUR';if(c==='EUR')return f.p;const x=fxv(c);return x>0?f.p/x:NaN;};   /* sin tipo de cambio no hay precio en euros (antes se suponía 1: un fondo en libras se comparaba como si fueran euros) */
+const fdFxOk=f=>(f.c||'EUR')==='EUR'||fxv(f.c)>0;
+let fdFxAt={};
+function fdWarmFx(){
+  try{const F=fdS();Object.keys(F.pos).forEach(s=>{const f=fdRow(s);if(!f||fdFxOk(f))return;const c=f.c;if(Date.now()-(fdFxAt[c]||0)<60000)return;fdFxAt[c]=Date.now();getFx(c).then(()=>{try{fdFixFx();fdHero();if(S.fdOn)fdRender();}catch(e){}}).catch(()=>{});});}catch(e){}
+}
 const fdRow=s=>(FD.d&&FD.d.f.find(f=>f.s===s))||fdS().cust[s]||null;
 const fdDate=d=>new Date(d*86400000).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit'});
 async function fdLoad(force){
@@ -3584,14 +3593,39 @@ async function fdSearch(){
 const fdMomB=m=>m<-5?'cae más de 5 %':m<0?'cae 0-5 %':m<5?'sube 0-5 %':'sube más de 5 %';
 const fdDdB=d=>d<-15?'más de 15 % bajo máximos':d<-5?'5-15 % bajo máximos':'cerca de máximos';
 function fdBeh(f){const b=FD.d&&FD.d.beh&&FD.d.beh[f.k];if(!b)return null;return {all:b.all,mom:f.m3!=null?b.mom[fdMomB(f.m3)]:null,dd:f.off!=null?b.dd[fdDdB(f.off)]:null,mb:f.m3!=null?fdMomB(f.m3):'',db:fdDdB(f.off||0)};}
-function fdTotals(){const F=fdS();let v=0,c=0;for(const [s,p] of Object.entries(F.pos)){const f=fdRow(s);if(f)v+=p.u*fdPx(f);else v+=p.c;c+=p.c;}return {inv:v,cost:c,tot:F.cash+v};}
+/* Repara las posiciones compradas cuando faltaba el tipo de cambio: se calcularon sus participaciones como si el precio en libras/dólares fuera en euros.
+   Se detecta porque participaciones x precio de aquel día (en divisa) ~ coste en euros; si no, la posición estaba bien y no se toca. */
+async function fdFixFx(){
+  const F=fdS();if(!F.fxfix)F.fxfix={};let ch=0;
+  for(const [s,p] of Object.entries(F.pos)){
+    if(F.fxfix[s])continue;const f=fdRow(s);if(!f||(f.c||'EUR')==='EUR'){F.fxfix[s]=1;continue;}
+    const x=fxv(f.c);if(!(x>0))continue;
+    const h=await fdHist(s);if(!h||!h.t||!h.c)continue;
+    let nav=null;for(let i=h.t.length-1;i>=0;i--){if(h.t[i]*864e5<=p.t){nav=h.c[i];break;}}
+    if(!(nav>0)){F.fxfix[s]=1;continue;}
+    const implied=p.u*nav/p.c;                 /* ~1 con el fallo (se trató la divisa como euros); ~tipo de cambio si estaba bien */
+    if(Math.abs(implied-1)<0.04&&Math.abs(x-1)>0.04){
+      preCopy('traderamano.v4.pre_fxfix');
+      const uNew=p.c/(nav/x);p.u0=p.u;p.u=uNew;ch++;
+      try{log('Corregida la compra de <b>'+esc(f.n)+'</b>: se había calculado como si su precio en '+esc(f.c)+' fuera en euros. Ahora usa el tipo de cambio.');}catch(e){}
+    }
+    F.fxfix[s]=1;
+  }
+  save();if(ch){try{fdHero();if(S.fdOn)fdRender();renderAll();}catch(e){}}
+}
+let fdFixing=false;
+function fdFixSoon(){if(fdFixing)return;fdFixing=true;fdFixFx().catch(()=>{}).then(()=>{fdFixing=false;});}
+setTimeout(()=>{try{fdWarmFx();fdFixSoon();}catch(e){}},9000);setInterval(()=>{try{fdWarmFx();fdFixSoon();}catch(e){}},5*60000);
+function fdTotals(){const F=fdS();let v=0,c=0;for(const [s,p] of Object.entries(F.pos)){const f=fdRow(s),px=f?fdPx(f):NaN;if(f&&isFinite(px))v+=p.u*px;else v+=p.c;c+=p.c;}return {inv:v,cost:c,tot:F.cash+v};}
 function fdBuy(sym,amt){
   const F=fdS(),f=fdRow(sym);if(!f)return 'Fondo no encontrado.';amt=+amt;if(!(amt>=1))return 'Mínimo 1 €.';if(amt>F.cash+1e-9)return 'No tienes tanto dinero libre ('+eur(F.cash)+').';
+  if(!fdFxOk(f)){getFx(f.c).then(()=>{try{if(S.fdOn)fdRender();}catch(e){}}).catch(()=>{});return 'Cargando el tipo de cambio ('+f.c+'). Vuelve a pulsar en unos segundos.';}
   const px=fdPx(f),u=amt/px,p=F.pos[sym]||(F.pos[sym]={u:0,c:0,t:Date.now(),sig:{k:f.k,m3:f.m3,off:f.off,vol:f.vol,sc:f.sc,y1:f.y1}});
   p.u+=u;p.c+=amt;F.cash-=amt;save();return '';
 }
 function fdSell(sym,frac){
   const F=fdS(),p=F.pos[sym],f=fdRow(sym);if(!p||!f)return;
+  if(!fdFxOk(f)){getFx(f.c).then(()=>{try{if(S.fdOn)fdRender();}catch(e){}}).catch(()=>{});return;}
   const u=p.u*frac,c=p.c*frac,v=u*fdPx(f);F.cash+=v;
   F.tr.unshift({s:sym,n:f.n,k:p.sig&&p.sig.k||f.k,in:p.t,out:Date.now(),c:+c.toFixed(2),v:+v.toFixed(2),ret:+((v/c-1)*100).toFixed(2),sig:p.sig||{}});
   p.u-=u;p.c-=c;if(frac>=0.999)delete F.pos[sym];F.tr=F.tr.slice(0,300);save();
@@ -3608,7 +3642,7 @@ function fdSvg(t,c){
   const up=c[n-1]>=c[0];return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:110px"><path d="'+d+'" fill="none" stroke="'+(up?'var(--pos,#1f9d55)':'var(--neg,#d64545)')+'" stroke-width="2"/></svg>';
 }
 const fdPc=v=>v==null?'–':'<span class="'+(v>=0?'pos':'neg')+'">'+sg(v,1)+' %</span>';
-function fdHero(){const T=fdTotals(),F=fdS(),g=T.tot-fdCap();
+function fdHero(){fdWarmFx();const T=fdTotals(),F=fdS(),g=T.tot-fdCap();
   $('fdHero').innerHTML='<div class="lbl">Cartera de fondos · dinero ficticio</div><div class="val">'+eur(T.tot)+'</div><div class="'+(g>=0?'pos':'neg')+'" style="font-size:17px">'+(g>=0?'+':'−')+eur(Math.abs(g)).replace('−','')+' ('+sg(g/fdCap()*100,1)+' %)</div><div class="hint" style="margin-top:6px">Empezó con '+eur(F.cap0)+(F.dep.length?' · aportado después '+eur(depSum(F.dep)):'')+' · libre '+eur(F.cash)+' · '+Object.keys(F.pos).length+' fondos en cartera</div>';}
 function fdList(){
   const D=FD.d;if(!D)return '<div class="hint"><span class="spin"></span>Cargando fondos…</div>';
@@ -3642,7 +3676,7 @@ function fdDetail(sym){
 }
 function fdCart(){
   const F=fdS(),ps=Object.entries(F.pos);
-  const open=ps.length?ps.map(([s,p])=>{const f=fdRow(s);if(!f)return '';const v=p.u*fdPx(f),g=(v/p.c-1)*100;return '<div class="card" style="padding:10px 12px"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:14px" data-fd="'+esc(s)+'">'+esc(f.n)+'</b><b>'+eur(v)+'</b></div><div class="mut" style="font-size:12px">Invertido '+eur(p.c)+' · <span class="'+(g>=0?'pos':'neg')+'">'+sg(g,1)+' %</span> · desde '+fdDate(Math.floor(p.t/86400000))+'</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn ghost small" data-fs="'+esc(s)+'|0.5" type="button">Vender la mitad</button><button class="btn ghost small" data-fs="'+esc(s)+'|1" type="button">Vender todo</button></div></div>';}).join(''):'<div class="card hint">Aún no tienes fondos. Elige uno en “Explorar” y pulsa Comprar.</div>';
+  const open=ps.length?ps.map(([s,p])=>{const f=fdRow(s);if(!f)return '';const px0=fdPx(f),v=isFinite(px0)?p.u*px0:p.c,g=(v/p.c-1)*100;return '<div class="card" style="padding:10px 12px"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:14px" data-fd="'+esc(s)+'">'+esc(f.n)+'</b><b>'+eur(v)+'</b></div><div class="mut" style="font-size:12px">Invertido '+eur(p.c)+' · <span class="'+(g>=0?'pos':'neg')+'">'+sg(g,1)+' %</span> · desde '+fdDate(Math.floor(p.t/86400000))+'</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn ghost small" data-fs="'+esc(s)+'|0.5" type="button">Vender la mitad</button><button class="btn ghost small" data-fs="'+esc(s)+'|1" type="button">Vender todo</button></div></div>';}).join(''):'<div class="card hint">Aún no tienes fondos. Elige uno en “Explorar” y pulsa Comprar.</div>';
   const tr=F.tr.length?'<h3 style="margin:14px 0 6px;font-size:15px">Operaciones cerradas</h3>'+F.tr.slice(0,30).map(t=>'<div class="log"><b>'+esc(t.n)+'</b> · '+eur(t.c)+' → '+eur(t.v)+' · <b class="'+(t.ret>=0?'pos':'neg')+'">'+sg(t.ret,1)+' %</b> · '+Math.max(1,Math.round((t.out-t.in)/86400000))+' d</div>').join(''):'';
   return open+tr;
 }
