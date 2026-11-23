@@ -168,16 +168,18 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 <div id="toast" role="alert"></div>
 <div id="modeBar" class="seg" style="margin:0;padding:8px 16px 0;max-width:560px;width:100%;align-self:center"><button type="button" data-m="a" class="on">📈 Acciones</button><button type="button" data-m="f">🏦 Fondos</button></div>
 <main>
+<div class="msg bad" id="limBan" style="display:none;margin:0 0 10px"></div>
 
 <!-- ================= HOY ================= -->
 <section id="t-hoy" class="on">
   <div class="msg bad" id="offBar" style="display:none;margin:0 0 12px">Sin conexión. La app seguirá cuando vuelva y revisará todo lo ocurrido mientras tanto.</div>
   <button class="btn ghost full" id="pilGo" type="button" style="margin:0 0 10px">Panel del piloto: qué ha hecho y por qué</button>
-  <div class="card hero">
+  <div class="card hero" id="heroCard" style="cursor:pointer">
     <div class="lbl">Cartera virtual · dinero ficticio</div>
     <div class="val" id="hVal">500,00 €</div>
     <div class="dl" id="hDelta">+0,00 € (0,0 %)</div>
     <div class="sub" id="hSub"></div>
+    <div class="hint" style="margin:8px 0 0">Toca para ver cuánto hay invertido, cuánto queda libre y las operaciones</div>
   </div>
 
   <div class="card">
@@ -235,6 +237,23 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 </section>
 
 <!-- ================= APRENDE ================= -->
+<section id="t-cv">
+  <button class="btn ghost small" id="cvBack" type="button" style="margin-bottom:8px">← Volver a Hoy</button>
+  <h2 style="margin-top:0">Mi cartera virtual</h2>
+  <div class="card" id="cvTop"></div>
+  <h2>Posiciones abiertas</h2>
+  <div class="card" id="cvPos"></div>
+  <h2>Operaciones realizadas</h2>
+  <div class="card" id="cvOps"></div>
+</section>
+
+<section id="t-ami">
+  <button class="btn ghost small" id="amBack" type="button" style="margin-bottom:8px">← Volver a Más</button>
+  <h2 style="margin-top:0">Amigos</h2>
+  <div class="card" id="amNew"></div>
+  <div id="amList"></div>
+</section>
+
 <section id="t-pil">
   <button class="btn ghost small" id="pilBack" type="button" style="margin-bottom:8px">← Volver a Hoy</button>
   <h2 style="margin-top:0">Panel del piloto</h2>
@@ -331,6 +350,9 @@ input:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1p
 <!-- ================= MÁS ================= -->
 <section id="t-mas">
   <div class="hint" id="verTxt" style="text-align:right;margin:0 0 6px"></div>
+  <h2>Comunidad</h2>
+  <div class="card" id="comBox"></div>
+
   <h2>Añadir fondos</h2>
   <div class="card" id="fnBox">
     <div class="hint" style="margin:0 0 8px">Ingresa más dinero ficticio para poder hacer más operaciones. Queda anotado aparte y la rentabilidad se calcula sobre todo lo aportado, así que no se infla.</div>
@@ -630,6 +652,7 @@ function momDue(){
   return monthKey(S.momAt)!==monthKey();
 }
 async function momRebalance(){
+  if(limited())return;
   if(!S.auto||!modoMom())return;
   if(!momDue())return;
   if(!MO.d||Date.now()/1000-MO.d.t>4*86400||!CX.d)return;
@@ -1131,6 +1154,7 @@ function renderNews(){
   b.innerHTML=g.length?'<ul style="margin:0;padding:0;list-style:none;font-size:14px">'+g.slice().sort((a,b)=>(ES_SRC.test(b.s)?1:0)-(ES_SRC.test(a.s)?1:0)||b.d-a.d).slice(0,10).map(x=>'<li style="margin:6px 0">'+toneIc(x.k)+' <a href="'+esc(safeUrl(x.u))+'" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">'+esc(x.t)+'</a> <span class="mut" style="font-size:12px">· '+esc(x.s)+' · '+ago(x.d)+'</span>'+acBadge(x.t)+'</li>').join('')+'</ul>':'<div class="empty">Cargando noticias…</div>';
 }
 async function ghJson(u){
+  if(limited())throw new Error('Modo limitado: datos congelados');
   const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),25000);
   try{const r=await fetch(u,{signal:ctl.signal,cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);return await r.json();}
   finally{clearTimeout(to);}
@@ -1971,6 +1995,7 @@ async function quickCheck(){
   finally{running=false;lastCheck=Date.now();save();renderAll();}
 }
 async function autopilot(force,bg){
+  if(limited())return;
   if(running)return;running=true;$('stBtn').disabled=true;$('stMsg').innerHTML='';
   try{
     renderStatus();
@@ -2300,7 +2325,7 @@ function renderPred(){
   h+='<div style="margin-top:12px">'+P.slice(0,8).map(t=>'<div class="log"><b>'+esc(t.s.replace('.MC',''))+'</b> · preveía '+sg(t.pred.ev,1)+' % · salió <b class="'+(t.gross>=0?'pos':'neg')+'">'+sg(t.gross,1)+' %</b> · '+(t.gross>=t.pred.ev?'mejor':'peor')+' de lo previsto</div>').join('')+'</div>';
   $('predBox').innerHTML=h;
 }
-function renderAll(){try{renderLV();}catch(e){}try{renderDV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();try{renderDia();renderLib();}catch(e){}renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();try{renderCal();}catch(e){}try{checkAlerts();}catch(e){}try{renderAl();}catch(e){}}
+function renderAll(){try{renderLV();}catch(e){}try{renderDV();}catch(e){}renderHero();renderStatus();renderLog();renderCar();renderApr();try{renderDia();renderLib();}catch(e){}renderLab();renderEv();renderCx();renderPred();renderTop();renderMer();renderNews();try{renderCal();}catch(e){}try{checkAlerts();}catch(e){}try{renderAl();}catch(e){}try{renderLim();amSoon();}catch(e){}}
 
 /* ====================== gráfico completo (estilo broker) ====================== */
 const FC={sym:null,nm:'',range:'6mo',d:null,a:0,b:0,cross:-1,opt:{ma:true,tl:true,lv:true,plan:false},plan:null,ind:null,tok:0,pos:null};
@@ -2464,6 +2489,7 @@ function manualBox(r){
   '<button class="btn small" id="mbGo" data-sym="'+esc(r.s)+'" type="button" style="margin-top:10px;width:100%">Comprar</button><div id="mbMsg"></div></div>';
 }
 async function buyManual(sym,amt,o){
+  if(limited()){const mb=$('mbMsg');if(mb)mb.innerHTML='<div class="msg bad">Modo limitado: con el botón de compartir datos desactivado no se pueden hacer compras nuevas.</div>';return;}
   o=o||{};
   if(srvOn()&&!S.mainManual){$('mbMsg').innerHTML='<div class="msg bad">Con el piloto de GitHub activo la cartera la lleva el servidor y no admite compras a mano. Puedes desactivarlo en Más.</div>';return;}
   const r=QROW[sym]||S.rows[sym],m=$('mbMsg');
@@ -2968,6 +2994,184 @@ function fnAdd(){
   renderAll();try{fdHero();}catch(e){}try{renderFn();}catch(e){}
 }
 document.addEventListener('click',e=>{if(e.target&&e.target.id==='fnAdd')fnAdd();});
+/* ================= comunidad: amigos, compartir datos y nube =================
+   La "nube" (NUBE) tiene ahora una versión de pega guardada en este dispositivo; cuando exista Firebase solo se cambia esta capa. */
+const NUBE_K='traderamano.v4.nube';
+const NUBE={
+  _db(){if(window.__NUBE)return window.__NUBE;if(!NUBE._m){try{NUBE._m=JSON.parse(localStorage.getItem(NUBE_K)||'{}')||{};}catch(e){NUBE._m={};}}return NUBE._m;},
+  _sv(){if(!window.__NUBE)try{localStorage.setItem(NUBE_K,JSON.stringify(NUBE._m||{}));}catch(e){}},
+  _at(p,mk){const ks=String(p).split('/').filter(Boolean);let o=NUBE._db();for(let i=0;i<ks.length-1;i++){if(typeof o[ks[i]]!=='object'||o[ks[i]]===null){if(!mk)return null;o[ks[i]]={};}o=o[ks[i]];}return {o,k:ks[ks.length-1]};},
+  async get(p){const r=NUBE._at(p,false);if(!r||r.o[r.k]===undefined)return null;return JSON.parse(JSON.stringify(r.o[r.k]));},
+  async set(p,v){const r=NUBE._at(p,true);r.o[r.k]=JSON.parse(JSON.stringify(v));NUBE._sv();},
+  async upd(p,v){const r=NUBE._at(p,true);const c=(typeof r.o[r.k]==='object'&&r.o[r.k])?r.o[r.k]:{};Object.assign(c,JSON.parse(JSON.stringify(v)));r.o[r.k]=c;NUBE._sv();},
+  async push(p,v){const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);await NUBE.set(p+'/'+id,v);return id;}
+};
+function limited(){return !!(S.nube&&S.nube.rol==='amigo'&&!S.nube.sh);}
+const amRnd=(n,up)=>{let r='';const c='abcdefghjkmnpqrstuvwxyz23456789';while(r.length<n)r+=c[Math.floor(Math.random()*c.length)];return up?r.toUpperCase():r;};
+const amAgo=t=>{if(!t)return 'nunca';const m=Math.round((Date.now()-t)/60000);return m<2?'ahora':m<90?'hace '+m+' min':m<2880?'hace '+Math.round(m/60)+' h':'hace '+Math.round(m/1440)+' días';};
+function renderLim(){
+  const b=$('limBan');if(!b)return;
+  if(limited()){b.style.display='';b.innerHTML='<b>Modo limitado.</b> Tienes desactivado compartir datos con el creador: los precios y los gráficos están congelados y no se pueden hacer compras nuevas. Tu cartera y tu historial siguen aquí y puedes exportarlos. Actívalo en Más → Comunidad para volver a la normalidad.';}
+  else b.style.display='none';
+}
+/* ---- amigo: unirse, compartir y enviar ---- */
+function amSlim(t){return {u:t.u,s:t.s,nm:t.nm,entry:t.entry,exit:t.exit,shares:t.shares,cur:t.cur,pnl:t.pnl,pct:t.pct,why:t.why,days:t.days,open:t.open,close:t.close,f:t.f||null,pred:t.pred||null,gross:t.gross,mom:!!t.mom};}
+function amSnap(){
+  let fd=null;try{const T=fdTotals();fd={tot:T.tot,cap:fdCap()};}catch(e){}
+  return {t:Date.now(),eq:equity(),cash:S.cash,cap:capTot(),nc:S.closed.length,nw:S.closed.filter(t=>t.pnl>0).length,
+    pos:S.pos.map(p=>({s:p.s,nm:p.nm,e:p.entry,sh:p.shares,st:p.stop,tg:p.target,l:p.last,c:p.costEur,o:p.openTs})),
+    dep:(S.dep||[]).slice(-20),fd,ver:String(window.BUILD||'local')};
+}
+let amBusy=false,amTm=null;
+function amSoon(){if(!S.nube||S.nube.rol!=='amigo'||amTm)return;amTm=setTimeout(()=>{amTm=null;amSync();},20000);}
+async function amSync(force){
+  const N=S.nube;if(!N||N.rol!=='amigo'||amBusy)return;
+  amBusy=true;
+  try{
+    if(N.sh){
+      const snap=amSnap(),sent=new Set(N.sent||[]),nw=S.closed.filter(t=>t.u&&!sent.has(t.u)).slice(0,80);
+      for(const t of nw){await NUBE.set('amigos/'+N.fid+'/ops/'+t.u,amSlim(t));sent.add(t.u);}
+      await NUBE.set('amigos/'+N.fid+'/snap',snap);
+      await NUBE.upd('amigos/'+N.fid,{sh:1,seen:snap.t,off:null,ver:snap.ver});
+      N.sent=[...sent].slice(-500);N.at=snap.t;N.err='';N.offSent=false;
+    }else if(!N.offSent||force){
+      await NUBE.upd('amigos/'+N.fid,{sh:0,off:N.off||Date.now()});N.offSent=true;N.err='';
+    }
+  }catch(e){N.err=String(e.message||e);}
+  amBusy=false;save();try{renderCom();}catch(e){}
+}
+async function amToggle(on){
+  const N=S.nube;if(!N||N.rol!=='amigo')return;
+  N.sh=on?1:0;N.off=on?null:Date.now();N.offSent=false;save();
+  renderLim();renderCom();try{if(on){amBusy=false;await amSync(true);if(typeof tick==='function')try{autopilot(false,true);}catch(e){}}else await amSync(true);}catch(e){}
+  renderLim();
+}
+async function amUnir(txt){
+  const m=$('comMsg')||{innerHTML:''},c=String(txt||'').trim().toLowerCase().replace(/\s+/g,'');
+  const mm=c.match(/^([a-z0-9]{4,10})-([a-z0-9]{4,10})$/);
+  if(!mm){m.innerHTML='<div class="msg bad">El código tiene el formato abc123-XY12ZZ. Cópialo tal cual te lo dio el creador.</div>';return;}
+  if(S.pos.length||S.closed.length){m.innerHTML='<div class="msg bad">Esta app ya tiene operaciones. Para unirte necesitas una app vacía (instálala de nuevo o reiníciala en Más).</div>';return;}
+  try{
+    const b=await NUBE.get('amigos/'+mm[1]);
+    if(!b||String(b.cod||'').toLowerCase()!==mm[2]){m.innerHTML='<div class="msg bad">Ese código no existe o no es correcto.</div>';return;}
+    const dev=amRnd(10);
+    if(b.dev&&b.joined){m.innerHTML='<div class="msg bad">Ese código ya está en uso en otro móvil. Pide uno nuevo al creador.</div>';return;}
+    try{localStorage.setItem('traderamano.v4.pre_unirse',localStorage.getItem(KEY)||'');}catch(e){}
+    S.cap0=+b.cap0||10000;S.cash=S.cap0;S.eq=[];S.dep=[];S.pos=[];S.closed=[];
+    S.nube={rol:'amigo',fid:mm[1],al:b.al||'Amigo',dev,sh:1,sent:[],at:0,err:'',offSent:false};
+    await NUBE.upd('amigos/'+mm[1],{dev,joined:Date.now(),sh:1,seen:Date.now(),ver:String(window.BUILD||'local')});
+    save();m.innerHTML='<div class="msg ok">Listo: te has unido como <b>'+esc(S.nube.al)+'</b> con '+eur(S.cap0)+'.</div>';
+    renderAll();renderCom();amSync(true);
+  }catch(e){m.innerHTML='<div class="msg bad">No se pudo conectar con la nube: '+esc(String(e.message||e))+'</div>';}
+}
+function renderCom(){
+  const el=$('comBox');if(!el)return;
+  const N=S.nube;
+  if(N&&N.rol==='amigo'){
+    el.innerHTML='<div class="row"><span>Eres</span><b>'+esc(N.al)+'</b></div>'+
+      '<label class="sw"><input id="comSh" type="checkbox"'+(N.sh?' checked':'')+'><span>Compartir mis operaciones con el creador<br><small class="mut">Se envían tus compras, ventas, resultados y el resumen de tu cartera (con tu alias, sin datos personales) para mejorar el algoritmo. Si lo desactivas, la app pasa a modo limitado: se congelan los precios y los gráficos y no se pueden hacer compras nuevas. Tu historial sigue aquí y puedes exportarlo.</small></span></label>'+
+      '<div class="hint" style="margin:6px 0 0">'+(N.sh?(N.at?'Último envío: '+amAgo(N.at):'Todavía no se ha enviado nada.'):'Desactivado'+(N.off?' desde el '+new Date(N.off).toLocaleDateString('es-ES'):''))+(N.err?' · <span class="neg">'+esc(N.err)+'</span>':'')+'</div><div id="comMsg"></div>';
+    $('comSh').onchange=e=>amToggle(e.target.checked);
+  }else{
+    el.innerHTML='<div class="hint" style="margin:0 0 8px">Si el creador te ha dado un código, escríbelo aquí para unirte. Si eres el creador, abre el panel de tus amigos.</div>'+
+      '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end"><label class="hint" style="margin:0">Código de amigo<input id="comCod" type="text" autocapitalize="off" autocomplete="off" placeholder="abc123-XY12ZZ"></label><button class="btn" id="comJoin" type="button">Unirme</button></div><div id="comMsg"></div>'+
+      '<button class="btn ghost full" id="comAmi" type="button" style="margin-top:10px">Panel de amigos (creador)</button>';
+    $('comJoin').onclick=()=>amUnir($('comCod').value);
+    $('comAmi').onclick=()=>go('ami');
+  }
+}
+/* ---- creador: bases de amigos y panel ---- */
+const AM={d:null,err:'',open:{},at:0};
+async function amPoll(force){
+  if(S.nube&&S.nube.rol==='amigo')return;
+  if(!force&&Date.now()-AM.at<60000)return;
+  try{AM.d=await NUBE.get('amigos')||{};AM.at=Date.now();AM.err='';amAlerts();}catch(e){AM.err=String(e.message||e);}
+  try{if($('t-ami').classList.contains('on'))renderAmi();}catch(e){}
+}
+function amEstado(f){
+  if(!f.joined)return {k:'pend',t:'Pendiente de unirse',c:''};
+  if(f.sh===0||f.sh===false)return {k:'off',t:'Ha dejado de compartir',c:'neg'};
+  if(Date.now()-(f.seen||0)>24*36e5)return {k:'old',t:'Sin datos desde hace más de 24 h',c:'neg'};
+  return {k:'ok',t:'Compartiendo',c:'pos'};
+}
+function amAlerts(){
+  if(!AM.d)return;if(!S.nube)S.nube={};if(!S.nube.ale)S.nube.ale={};
+  let ch=false;
+  for(const [id,f] of Object.entries(AM.d)){
+    const e=amEstado(f);
+    if(e.k==='off'||e.k==='old'){const key=e.k+':'+(f.off||Math.floor((f.seen||0)/864e5));if(S.nube.ale[id]!==key){S.nube.ale[id]=key;ch=true;
+      try{push('Amigos',esc0(f.al)+(e.k==='off'?' ha dejado de compartir datos.':' lleva más de 24 h sin enviar datos.')+' Pregúntale el motivo.');log('<b>'+esc(f.al)+'</b>: '+e.t.toLowerCase()+'.',false);}catch(x){}}}
+    else if(S.nube.ale[id]){delete S.nube.ale[id];ch=true;}
+  }
+  if(ch)save();
+}
+const esc0=t=>String(t==null?'':t).replace(/[<>&]/g,'');
+function renderAmi(){
+  const nw=$('amNew');if(!nw)return;
+  nw.innerHTML='<div class="hint" style="margin:0 0 8px">Crea una base vacía para cada amigo. Le das el código y lo escribe en Más → Comunidad. Solo ves lo que él comparte.</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label class="hint" style="margin:0">Alias<input id="amAl" type="text" placeholder="Amigo 1"></label><label class="hint" style="margin:0">Capital (€)<input id="amCap" type="number" inputmode="decimal" value="10000"></label></div>'+
+    '<button class="btn full" id="amMk" type="button" style="margin-top:8px">Crear base</button><div id="amMsg"></div>';
+  $('amMk').onclick=async()=>{
+    const al=($('amAl').value||'').trim().slice(0,30),cap=num($('amCap'));
+    if(!al){$('amMsg').innerHTML='<div class="msg bad">Ponle un alias.</div>';return;}
+    if(!(cap>=100&&cap<=10000000)){$('amMsg').innerHTML='<div class="msg bad">Capital entre 100 y 10.000.000 €.</div>';return;}
+    const fid=amRnd(6),cod=amRnd(6,true);
+    try{await NUBE.set('amigos/'+fid,{al,cap0:cap,cod,ct:Date.now(),sh:null,seen:0});await amPoll(true);
+      $('amMsg').innerHTML='<div class="msg ok">Base creada para <b>'+esc(al)+'</b>. Código: <b style="user-select:all">'+fid+'-'+cod+'</b></div>';}
+    catch(e){$('amMsg').innerHTML='<div class="msg bad">No se pudo crear: '+esc(String(e.message||e))+'</div>';}
+  };
+  const L=$('amList'),D=AM.d;
+  if(!D){L.innerHTML='<div class="hint"><span class="spin"></span>Cargando…'+(AM.err?' '+esc(AM.err):'')+'</div>';return;}
+  const ids=Object.keys(D).sort((a,b)=>(D[b].ct||0)-(D[a].ct||0));
+  if(!ids.length){L.innerHTML='<div class="hint">Todavía no has creado ninguna base.</div>';return;}
+  L.innerHTML=ids.map(id=>{
+    const f=D[id],e=amEstado(f),sn=f.snap||null,open=AM.open[id];
+    const ret=sn&&sn.cap?(sn.eq/sn.cap-1)*100:null;
+    let h='<div class="card"><div class="row"><b>'+esc(f.al)+'</b><span class="'+e.c+'">'+e.t+'</span></div>';
+    if(!f.joined)h+='<div class="hint" style="margin:6px 0 0">Código para dárselo: <b style="user-select:all">'+id+'-'+esc(f.cod)+'</b> · capital '+eur(f.cap0)+'</div>';
+    else{
+      h+='<div class="hint" style="margin:6px 0 0">Último dato: '+amAgo(f.seen)+(f.ver?' · versión '+esc(f.ver):'')+'</div>';
+      if(sn)h+='<div style="display:flex;gap:8px;margin-top:8px"><div style="flex:1;text-align:center"><b>'+eur(sn.eq)+'</b><br><small>valor</small></div><div style="flex:1;text-align:center"><b class="'+(ret>=0?'pos':'neg')+'">'+sg(ret,1)+' %</b><br><small>sobre lo aportado</small></div><div style="flex:1;text-align:center"><b>'+(sn.pos||[]).length+'</b><br><small>abiertas</small></div><div style="flex:1;text-align:center"><b>'+sn.nw+'/'+sn.nc+'</b><br><small>ganadas</small></div></div>';
+      if(e.k==='off'||e.k==='old')h+='<div class="msg bad" style="margin-top:8px">Desde el '+new Date(f.off||f.seen||Date.now()).toLocaleDateString('es-ES')+'. Pregúntale el motivo.<label class="hint" style="margin:6px 0 0">Motivo (nota tuya)<input data-ammot="'+id+'" type="text" value="'+esc(f.mot||'')+'" placeholder="Qué te ha dicho"></label></div>';
+      h+='<button class="btn ghost small" data-amop="'+id+'" type="button" style="margin-top:8px">'+(open?'Ocultar movimientos':'Ver movimientos')+'</button>';
+      if(open){
+        const ops=Object.values(f.ops||{}).sort((a,b)=>(b.close||0)-(a.close||0)).slice(0,20);
+        h+='<div style="margin-top:8px"><div class="hint" style="margin:0 0 4px"><b>Abiertas</b></div>'+((sn&&sn.pos&&sn.pos.length)?sn.pos.map(p=>'<div class="row"><span>'+esc(p.s)+' · '+nf(p.sh,3)+' a '+nf(p.e,2)+'</span><b>'+(p.l&&p.e?'<span class="'+(p.l>=p.e?'pos':'neg')+'">'+sg((p.l/p.e-1)*100,1)+' %</span>':'–')+'</b></div>').join(''):'<div class="hint">Ninguna.</div>')+
+          '<div class="hint" style="margin:8px 0 4px"><b>Cerradas</b></div>'+(ops.length?ops.map(o=>'<div class="row"><span>'+esc(o.s)+' · '+new Date(o.close||0).toLocaleDateString('es-ES')+' · '+esc(o.why||'')+'</span><b class="'+(o.pnl>=0?'pos':'neg')+'">'+(o.pnl>=0?'+':'')+nf(o.pnl,2)+' €</b></div>').join(''):'<div class="hint">Ninguna todavía.</div>')+'</div>';
+      }
+    }
+    return h+'</div>';
+  }).join('');
+}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-amop]');if(!b)return;AM.open[b.dataset.amop]=!AM.open[b.dataset.amop];renderAmi();});
+document.addEventListener('change',e=>{const i=e.target;if(i&&i.dataset&&i.dataset.ammot){NUBE.upd('amigos/'+i.dataset.ammot,{mot:String(i.value||'').slice(0,200)}).then(()=>{if(AM.d&&AM.d[i.dataset.ammot])AM.d[i.dataset.ammot].mot=i.value;});}});
+setTimeout(()=>{try{renderCom();renderLim();amSync();amPoll(true);}catch(e){}},4000);
+setInterval(()=>{try{amSync();amPoll();}catch(e){}},5*60000);
+/* ---- detalle de la cartera virtual: invertido, libre y operaciones ---- */
+const CV={all:false};
+function renderCv(){
+  const inv=S.pos.reduce((a,p)=>a+posValue(p),0),cash=S.cash,tot=inv+cash,pi=tot>0?inv/tot*100:0,pl=S.pos.reduce((a,p)=>a+posValue(p)-p.costEur,0);
+  const st=(a,b,c)=>'<div style="flex:1;text-align:center;padding:8px 2px;border-radius:8px;background:var(--card2,rgba(128,128,128,.12))"><b style="display:block;font-size:16px"'+(c?' class="'+c+'"':'')+'>'+a+'</b><small>'+b+'</small></div>';
+  $('cvTop').innerHTML='<div class="row"><span>Valor total</span><b>'+eur(tot)+'</b></div>'+
+    '<div style="display:flex;gap:8px;margin-top:8px">'+st(eur(inv),'invertido ('+nf(pi,0)+' %)')+st(eur(cash),'libre para invertir ('+nf(100-pi,0)+' %)')+'</div>'+
+    '<div style="height:10px;border-radius:6px;background:var(--line,rgba(128,128,128,.25));margin-top:10px;overflow:hidden"><div style="height:100%;width:'+Math.min(100,pi).toFixed(1)+'%;background:var(--accent,#3b82f6)"></div></div>'+
+    '<div class="hint" style="margin:8px 0 0">Ganancia o pérdida de lo que tienes abierto: <b class="'+(pl>=0?'pos':'neg')+'">'+sg(pl,2)+' €</b>'+(S.dep&&S.dep.length?' · aportado después del inicio: <b>'+eur(depSum(S.dep))+'</b>':'')+'</div>';
+  $('cvPos').innerHTML=S.pos.length?S.pos.slice().sort((a,b)=>posValue(b)-posValue(a)).map(p=>{const v=posValue(p),g=v-p.costEur;return '<div class="row" style="margin-top:0;padding:8px 0;border-bottom:1px solid var(--line)"><span><b>'+esc(p.s.replace('.MC',''))+'</b><br><small class="mut">comprada a '+pxD(p.entry,p.cur)+' · '+nf(p.shares,3)+' acc.</small></span><span style="text-align:right">'+eur(v)+'<br><small class="'+(g>=0?'pos':'neg')+'">'+sg(g,2)+' € ('+sg(g/p.costEur*100,1)+' %)</small></span></div>';}).join(''):'<div class="empty">Sin posiciones abiertas: todo el dinero está libre.</div>';
+  const ev=[];
+  S.pos.forEach(p=>ev.push({t:p.openTs,k:'c',s:p.s,px:p.entry,cur:p.cur,sh:p.shares,imp:p.costEur,man:p.manual}));
+  S.closed.forEach(c=>{ev.push({t:c.open,k:'c',s:c.s,px:c.entry,cur:c.cur,sh:c.shares,imp:c.pnl!=null&&c.pct?c.pnl/c.pct*100:null,man:c.manual});ev.push({t:c.close,k:'v',s:c.s,px:c.exit,cur:c.cur,sh:c.shares,pnl:c.pnl,pct:c.pct,why:c.why,man:c.manual});});
+  (S.dep||[]).forEach(d=>ev.push({t:d.t,k:'d',imp:d.a}));
+  ev.sort((a,b)=>b.t-a.t);
+  const L=CV.all?ev:ev.slice(0,25);
+  $('cvOps').innerHTML=(ev.length?L.map(e=>{
+    const d=new Date(e.t).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
+    if(e.k==='d')return '<div class="row" style="margin-top:0;padding:9px 0;border-bottom:1px solid var(--line);align-items:center"><span><span class="tag" style="margin:0 6px 0 0">INGRESO</span>Fondos añadidos<br><small class="mut">'+d+'</small></span><b class="pos">+'+eur(e.imp)+'</b></div>';
+    const nm=esc(String(e.s).replace('.MC','')),tag=e.k==='c'?'<span class="tag held" style="margin:0 6px 0 0">COMPRA</span>':'<span class="tag" style="margin:0 6px 0 0;background:'+(e.pnl>=0?'var(--okbg);color:var(--ok)':'var(--badbg);color:var(--pink)')+'">VENTA</span>';
+    const right=e.k==='v'?'<span class="'+(e.pnl>=0?'pos':'neg')+'">'+sg(e.pnl,2)+' €<br><small>'+sg(e.pct)+' %</small></span>':'<span>'+(e.imp?eur(e.imp):'')+'<br><small class="mut">'+nf(e.sh,3)+' acc.</small></span>';
+    return '<div class="row" style="margin-top:0;padding:9px 0;border-bottom:1px solid var(--line);align-items:center"><span>'+tag+'<b>'+nm+'</b> a '+pxD(e.px,e.cur)+(e.man?' · a mano':'')+'<br><small class="mut">'+d+(e.why?' · '+esc(String(e.why)):'')+'</small></span><span style="text-align:right">'+right+'</span></div>';
+  }).join('')+(ev.length>25?'<button class="btn ghost full" id="cvMore" type="button" style="margin-top:8px">'+(CV.all?'Ver menos':'Ver las '+ev.length+' operaciones')+'</button>':''):'<div class="empty">Aún no hay operaciones.</div>');
+  const mb=$('cvMore');if(mb)mb.onclick=()=>{CV.all=!CV.all;renderCv();};
+}
 const alId=()=>Math.random().toString(36).slice(2,10);
 function alPrice(sym){const r=S.rows&&S.rows[sym];return r&&r.p>0?r.p:null;}
 function alText(a){return a.s+(a.dir==='>='?' sube hasta ':' baja hasta ')+nf(a.px,2);}
@@ -3149,10 +3353,12 @@ function go(t){
   if(t==='div')renderDV();
   if(t==='pil')renderPil();
   if(t==='fut'){renderFut();loadFut(true);}
-  if(t==='mas'){try{renderAl();}catch(e){}try{renderFn();}catch(e){}}
+  if(t==='mas'){try{renderAl();}catch(e){}try{renderFn();}catch(e){}try{renderCom();}catch(e){}}
+  if(t==='cv'){try{renderCv();}catch(e){}}
+  if(t==='ami'){try{renderAmi();amPoll(true);}catch(e){}}
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
-$('pilGo').onclick=()=>go('pil');$('pilBack').onclick=()=>go('hoy');
+$('pilGo').onclick=()=>go('pil');$('pilBack').onclick=()=>go('hoy');$('amBack').onclick=()=>go('mas');$('cvBack').onclick=()=>go('hoy');$('heroCard').onclick=()=>go('cv');
 $('stBtn').onclick=()=>autopilot(true);
 window.addEventListener('resize',()=>{if($('t-car').classList.contains('on'))drawEq();});
 $('btGo').onclick=btStart;$('btStop').onclick=()=>{btCancel=true;};
