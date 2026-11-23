@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0b0d26">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script>window.BUILD="23/11/2026 21:33";</script>
+<script>window.BUILD="23/11/2026 21:51";</script>
 <style>
 /* Plan: azul noche. Azul = potencial/compra, rosa = pérdida/stop, verde = ganancia. Cuatro pestañas; "Hoy" lo hace todo solo. */
 :root{
@@ -2984,6 +2984,14 @@ $('connTest').onclick=async()=>{
 };
 
 /* ====================== alertas de precio ====================== */
+/* copia de seguridad previa a un cambio importante: sin las cotizaciones (rows, que se vuelven a bajar) para no llenar la memoria del navegador */
+function preCopy(k){
+  try{
+    const o=JSON.parse(localStorage.getItem(KEY)||'{}');delete o.rows;
+    const t=JSON.stringify(o);
+    if(t.length<900000)localStorage.setItem(k,t);else localStorage.removeItem(k);
+  }catch(e){try{localStorage.removeItem(k);}catch(x){}}
+}
 /* ---- añadir fondos ---- */
 function renderFn(){
   const el=$('fnList');if(!el)return;
@@ -2994,7 +3002,7 @@ function fnAdd(){
   const q=$('fnQue').value,a=Math.round(num($('fnImp'))*100)/100,m=$('fnMsg');
   if(!(a>=1&&a<=1000000)){m.innerHTML='<div class="msg bad">Pon un importe entre 1 y 1.000.000 €.</div>';return;}
   if(q==='a'&&srvOn()&&!S.mainManual){m.innerHTML='<div class="msg bad">Con el piloto de GitHub llevando la cartera de acciones no se pueden añadir fondos a mano. Pásala a manual en Más.</div>';return;}
-  try{localStorage.setItem('traderamano.v4.pre_fondos',localStorage.getItem('traderamano.v4')||'');}catch(e){}
+  preCopy('traderamano.v4.pre_fondos');
   const t=Date.now();
   if(q==='f'){const F=fdS();F.cash=Math.round((F.cash+a)*100)/100;F.dep.push({t,a});}
   else{S.cash=Math.round((S.cash+a)*100)/100;S.dep.push({t,a});}
@@ -3102,7 +3110,7 @@ async function amUnir(txt){
       if(b.dev&&b.joined){m.innerHTML='<div class="msg bad">Ese código ya está en uso en otro móvil. Pide uno nuevo al creador.</div>';return;}
     }
     if(!b){S.nube=prevN;m.innerHTML='<div class="msg bad">No se pudo leer tu base.</div>';return;}
-    try{localStorage.setItem('traderamano.v4.pre_unirse',localStorage.getItem(KEY)||'');}catch(e){}
+    preCopy('traderamano.v4.pre_unirse');
     S.cap0=+b.cap0||10000;S.cash=S.cap0;S.eq=[];S.dep=[];S.pos=[];S.closed=[];
     S.nube={rol:'amigo',fid:mm[1],al:b.al||'Amigo',dev,sh:1,sent:[],at:0,err:'',offSent:false,fb:au};
     if(!au)await NUBE.upd('amigos/'+mm[1],{dev,joined:Date.now(),sh:1,seen:Date.now(),ver:String(window.BUILD||'local')});
