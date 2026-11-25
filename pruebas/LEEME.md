@@ -7,3 +7,4 @@
 3. `rulestest.mjs` — reglas de Firebase (`firebase/database.rules.json`) contra el emulador oficial
    (`firebase emulators:start --only database,auth --project demo-trader`, con `firebase.json` de esta carpeta).
 4. `ea_bt.mjs`, `gold_run.mjs`, `stk_run.mjs` — comprobación de la estrategia del EA (resultado: no funciona).
+5. `ideas_formacion.py` — prueba de las ideas de las diapositivas (suelo confirmado, amplitud de mercado, tendencia) con 815 acciones y ~7 anios: ninguna regla de eleccion de acciones supera al resto.
